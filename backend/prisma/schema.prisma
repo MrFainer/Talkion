@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum EnglishLevel {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+}
+
+enum SourceType {
+  SCRAPED
+  AI_GENERATED
+}
+
+enum MessageType {
+  GROUP
+  PRIVATE
+}
+
+enum MessageDirection {
+  INCOMING
+  OUTGOING
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role          Role     @default(STUDENT)
+  created_at    DateTime @default(now())
+
+  student Student?
+}
+
+model Student {
+  id              String       @id @default(uuid())
+  user_id         String       @unique
+  full_name       String
+  whatsapp_number String       @unique
+  english_level   EnglishLevel @default(LEVEL_1)
+  active          Boolean      @default(true)
+  created_at      DateTime     @default(now())
+
+  user             User               @relation(fields: [user_id], references: [id])
+  quizAnswers      QuizAnswer[]
+  whatsappMessages WhatsappMessage[]
+  audioSubmissions AudioSubmission[]
+}
+
+model WhatsappGroup {
+  id               String   @id @default(uuid())
+  group_name       String
+  group_identifier String   @unique
+  created_at       DateTime @default(now())
+}
+
+model News {
+  id          String     @id @default(uuid())
+  title       String
+  content     String     @db.Text
+  level       String
+  source_type SourceType @default(SCRAPED)
+  source_url  String?
+  created_at  DateTime   @default(now())
+
+  quizzes          Quiz[]
+  audioSubmissions AudioSubmission[]
+}
+
+model Quiz {
+  id         String   @id @default(uuid())
+  news_id    String
+  questions  Json
+  created_at DateTime @default(now())
+
+  news        News         @relation(fields: [news_id], references: [id])
+  quizAnswers QuizAnswer[]
+}
+
+model QuizAnswer {
+  id              String   @id @default(uuid())
+  student_id      String
+  quiz_id         String
+  question_id     String
+  selected_answer String
+  is_correct      Boolean
+  created_at      DateTime @default(now())
+
+  student Student @relation(fields: [student_id], references: [id])
+  quiz    Quiz    @relation(fields: [quiz_id], references: [id])
+}
+
+model WhatsappMessage {
+  id           String           @id @default(uuid())
+  student_id   String
+  message_type MessageType
+  direction    MessageDirection
+  content      String           @db.Text
+  media_url    String?
+  created_at   DateTime         @default(now())
+
+  student Student @relation(fields: [student_id], references: [id])
+}
+
+model AudioSubmission {
+  id            String   @id @default(uuid())
+  student_id    String
+  news_id       String
+  audio_url     String
+  transcription String?  @db.Text
+  created_at    DateTime @default(now())
+
+  student           Student             @relation(fields: [student_id], references: [id])
+  news              News                @relation(fields: [news_id], references: [id])
+  speakingFeedbacks SpeakingFeedback[]
+}
+
+model SpeakingFeedback {
+  id                  String   @id @default(uuid())
+  audio_submission_id String
+  score               Float
+  feedback            String   @db.Text
+  mistakes            Json?
+  created_at          DateTime @default(now())
+
+  audioSubmission AudioSubmission @relation(fields: [audio_submission_id], references: [id])
+}

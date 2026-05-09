@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: talkion_postgres
+    environment:
+      POSTGRES_USER: talkion
+      POSTGRES_PASSWORD: talkionpassword
+      POSTGRES_DB: talkion_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: talkion_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: talkion_evolution_api
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_TYPE=apikey
+      - AUTHENTICATION_API_KEY=global_api_key_talkion
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://talkion:talkionpassword@postgres:5432/talkion_db?schema=evolution
+      - DATABASE_CONNECTION_CLIENT_NAME=evolution
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+      - CACHE_LOCAL_ENABLED=false
+    ports:
+      - "8080:8080"
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  evolution_instances:
