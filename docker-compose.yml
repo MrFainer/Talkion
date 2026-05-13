@@ -13,25 +13,37 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     container_name: talkion_redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     restart: unless-stopped
 
   evolution-api:
-    image: atendai/evolution-api:latest
+    image: evoapicloud/evolution-api:v2.3.7
     container_name: talkion_evolution_api
     environment:
       - SERVER_URL=http://localhost:8080
+      - DOCKER_ENV=true
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+      - LOG_LEVEL=ERROR,WARN,INFO,LOG
       - AUTHENTICATION_TYPE=apikey
       - AUTHENTICATION_API_KEY=global_api_key_talkion
+      - REDIS_ENABLED=true
+      - REDIS_URI=redis://redis:6379/1
+      - REDIS_PREFIX_KEY=talkion_evo
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/2
+      - CACHE_LOCAL_ENABLED=true
+      - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
       - DATABASE_CONNECTION_URI=postgresql://talkion:talkionpassword@postgres:5432/talkion_db?schema=evolution
       - DATABASE_CONNECTION_CLIENT_NAME=evolution
-      - CACHE_REDIS_ENABLED=true
-      - CACHE_REDIS_URI=redis://redis:6379/1
-      - CACHE_LOCAL_ENABLED=false
+      - CONFIG_SESSION_PHONE_CLIENT=Chrome
+      - CONFIG_SESSION_PHONE_NAME=Talkion-Bot
+      - QRCODE_LIMIT=30
     ports:
       - "8080:8080"
     volumes:
@@ -43,4 +55,5 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   evolution_instances:

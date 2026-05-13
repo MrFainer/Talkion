@@ -95,6 +95,8 @@ model QuizAnswer {
   quiz_id         String
   question_id     String
   selected_answer String
+  submitted_text  String?  @db.Text
+  correct_answer  String?
   is_correct      Boolean
   created_at      DateTime @default(now())
 
@@ -104,14 +106,20 @@ model QuizAnswer {
 
 model WhatsappMessage {
   id           String           @id @default(uuid())
-  student_id   String
+  student_id   String?
   message_type MessageType
   direction    MessageDirection
   content      String           @db.Text
   media_url    String?
+  remote_jid   String?
+  external_message_id String?   @unique
+  quoted_message_id   String?
+  related_news_id     String?
+  related_quiz_id     String?
+  content_kind        String?
   created_at   DateTime         @default(now())
 
-  student Student @relation(fields: [student_id], references: [id])
+  student Student? @relation(fields: [student_id], references: [id])
 }
 
 model AudioSubmission {

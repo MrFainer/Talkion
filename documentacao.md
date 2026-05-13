@@ -1,782 +1,341 @@
-# 📄 Documentação Completa — Plataforma de Inglês com IA via WhatsApp
+# Documentacao Tecnica Do Talkion
 
-# 🧠 Visão Geral
+## Resumo
 
-Este projeto consiste em uma plataforma integrada ao WhatsApp para auxiliar alunos no aprendizado de inglês através de:
+Talkion e um backend em NestJS para ensino de ingles via WhatsApp. O sistema integra scraping de noticias, OpenAI, Evolution API e persistencia em PostgreSQL para suportar:
 
-- Envio diário de notícias em inglês
-- Geração automática de quizzes baseados nas notícias
-- Interação automática em grupos de WhatsApp
-- Treinamento de speaking via envio de áudios
-- Avaliação automatizada da pronúncia e fluência utilizando IA
-- Correção diária de quizzes
-- Engajamento contínuo dos alunos
+- envio diario de noticias;
+- quiz de interpretacao;
+- speaking por audio;
+- historico de mensagens e interacoes.
 
-A plataforma funciona como um assistente inteligente de aprendizado contínuo, incentivando:
+## Escopo Implementado
 
-- Reading
-- Speaking
-- Listening
-- Vocabulário
-- Interpretação
-- Pronúncia
-- Fluência
+Hoje o projeto cobre:
 
----
+- noticias por nivel;
+- fallback por IA;
+- quiz `3x3`;
+- envio privado e envio em grupo;
+- gabarito do quiz no ciclo seguinte;
+- transcricao real com Whisper;
+- feedback de speaking com OpenAI;
+- associacao por mensagem citada;
+- persistencia de quiz, audio e feedback.
 
-# 🎯 Objetivo Principal
-
-Transformar conteúdos reais do dia a dia em experiências práticas de aprendizado de inglês utilizando:
-
-- Inteligência Artificial
-- WhatsApp
-- Automação
-- Gamificação
-- Feedback personalizado
-
----
-
-# 🏗️ Arquitetura Geral
-
-## 📌 Arquitetura em Alto Nível
+## Arquitetura Atual
 
 ```txt
-[Frontend Admin]
-        |
-        v
-[API Gateway / Backend]
-        |
-        ├── Auth Service
-        ├── News Scraper Service
-        ├── AI News Generator Service
-        ├── Quiz Generator Service
-        ├── WhatsApp Integration Service
-        ├── Audio Processing Service
-        ├── AI Feedback Service
-        ├── Engagement Service
-        ├── Logging & Analytics
-        |
-        v
-[Database (PostgreSQL)]
-        |
-        v
-[Queue (Redis / RabbitMQ)]
-        |
-        v
-[Workers (IA / Áudio / Scraping)]
+[News in Levels] ---> [NewsService] ---> [PostgreSQL]
+                          |
+                          v
+                      [QuizService] ---> [OpenAI]
+                          |
+                          v
+[Evolution API] <--> [WhatsappService] <--> [AIService]
+                          |
+                          v
+                     [Webhook Handler]
 ```
 
----
+## Servicos Principais
 
-# 🧱 Stack Tecnológica
+### `NewsService`
 
-## 🔹 Frontend
+Responsabilidades:
 
-- React
-- Next.js
-- TailwindCSS
-- ShadCN UI
-- Zustand ou Redux
+- buscar noticias no `newsinlevels.com`;
+- extrair titulo, conteudo, nivel e URL;
+- normalizar o conteudo;
+- salvar noticias;
+- acionar fallback em IA quando necessario.
 
----
+### `AiService`
 
-## 🔹 Backend
+Responsabilidades:
 
-- Node.js
-- NestJS
-- REST API
-- WebSockets
+- gerar noticia de fallback;
+- gerar quiz em JSON;
+- transcrever audio com `whisper-1`;
+- avaliar speaking com `gpt-4o-mini`;
+- devolver feedback estruturado.
 
-### Arquitetura
+Saida atual do speaking:
 
-- Controller ➔ Service ➔ Repository
+- `score`
+- `feedback`
+- `strengths`
+- `improvements`
+- `tips`
+- `mistakes`
+- `transcription`
 
----
+### `QuizService`
 
-## 🔹 Banco de Dados
+Responsabilidades:
 
-- PostgreSQL
-- Redis
+- criar quiz vinculado a uma noticia;
+- reutilizar quiz existente para a mesma noticia;
+- evitar custo desnecessario de OpenAI;
+- persistir o quiz em `Quiz`.
 
----
+### `WhatsappService`
 
-## 🔹 Infraestrutura
+Responsabilidades:
 
-- Docker
-- Docker Compose
-- Kubernetes (futuro)
-- Nginx
+- gerenciar instancia Evolution;
+- registrar webhook;
+- enviar mensagens;
+- salvar mensagens enviadas e recebidas;
+- distinguir fluxo privado e fluxo de grupo;
+- processar respostas de quiz;
+- processar audios de speaking;
+- resolver noticia e quiz por mensagem citada.
 
----
+## Regras De Negocio
 
-## 🔹 Integração WhatsApp
+### Noticias
 
-- EvolutionAPI
-- Webhooks
-- Mensagens em grupo
-- Mensagens privadas
+- sao buscadas por nivel do aluno quando possivel;
+- se nao houver noticia por nivel, o sistema usa a mais recente geral;
+- se nao houver noticia valida, o fallback por IA e acionado.
 
----
+### Quiz
 
-## 🔹 Inteligência Artificial
+- sempre `3 perguntas`;
+- sempre `3 alternativas`;
+- aceita `A - ...`, `B - ...`, `C - ...`;
+- formatos de resposta aceitos:
+  - `A,B,C`
+  - `A, B, C`
+  - `1A,2B,3C`
+  - `1A, 2B, 3C`
 
-- OpenAI GPT-4o
-- Whisper (Speech-to-Text)
-- Embeddings (futuro)
+Persistencia:
 
----
+- `1` linha por aluno por quiz em `QuizAnswer`;
+- `question_id = FULL_QUIZ`;
+- `submitted_text` guarda o texto original;
+- `correct_answer` guarda o gabarito normalizado;
+- `is_correct = true` apenas com quiz inteiro correto;
+- reenvio do mesmo aluno para o mesmo quiz e ignorado.
 
-# 📚 Funcionalidades Principais
+### Grupo
 
-# 1. 📰 Captura Automática de Notícias
-
-A plataforma acessa periodicamente o site:
-
-- `newsinlevels.com`
-
-Objetivos:
-
-- Buscar notícias em inglês
-- Filtrar conteúdos interessantes
-- Identificar nível da notícia:
-  - Level 1
-  - Level 2
-  - Level 3
-
----
-
-## 📌 Fluxo
+- o grupo nao recebe correcao imediata;
+- o gabarito vai no ciclo seguinte;
+- o fluxo diario atual e:
 
 ```txt
-1. Worker acessa o site
-2. Extrai:
-   - título
-   - conteúdo
-   - nível
-   - link
-3. Valida conteúdo
-4. Salva no banco
-5. Envia para geração do quiz
+1. Good morning
+2. Gabarito do quiz anterior
+3. Introducao da noticia do dia
+4. Noticia
+5. Cabecalho do quiz
+6. Quiz
 ```
 
----
+### Privado
 
-# 🔄 Estratégia de Contingência
-
-## 📌 Fallback Inteligente
-
-Caso o site:
-
-- esteja offline;
-- indisponível;
-- bloqueie scraping;
-- retorne erro;
-- esteja lento;
-- retorne conteúdo inválido;
-
-o sistema deverá gerar automaticamente uma notícia utilizando uma LLM.
-
----
-
-# 🤖 Geração de Notícias com IA
-
-Quando o fallback for acionado, a IA deverá:
-
-- gerar uma notícia original em inglês;
-- produzir conteúdo natural;
-- adequar o nível do aluno;
-- manter contexto educacional;
-- criar texto apropriado para:
-  - reading;
-  - quiz;
-  - speaking.
-
----
-
-## 📌 Níveis Suportados
-
-- Level 1
-- Level 2
-- Level 3
-
----
-
-## 📌 Exemplo de Prompt
+- o privado e usado para speaking;
+- o fluxo atual e:
 
 ```txt
-Você é um criador de conteúdo educacional para estudantes de inglês.
-
-Gere uma notícia curta em inglês:
-
-Regras:
-- Nível: {{level}}
-- Tema atual e interessante
-- Linguagem natural
-- Fácil compreensão
-- Aproximadamente 250 palavras
-- Inclua título
+1. Good morning
+2. Introducao do desafio de speaking
+3. Introducao da noticia do dia
+4. Noticia
 ```
 
----
+## Resolucao Por Mensagem Citada
 
-## 📌 Ordem de Execução
+O `WhatsappService` usa `quoted_message_id` e `external_message_id` para resolver o contexto correto da resposta.
+
+### Quiz
+
+Ordem de resolucao:
+
+1. mensagem citada do quiz;
+2. mensagem citada da noticia;
+3. fallback para quiz mais recente.
+
+### Audio
+
+Ordem de resolucao:
+
+1. mensagem citada da noticia;
+2. noticia mais recente do nivel do aluno;
+3. noticia mais recente geral.
+
+## Modelos Principais
+
+### `News`
 
 ```txt
-1. Buscar notícia do News in Levels
-2. Validar conteúdo
-3. Caso falhe:
-   → gerar notícia via IA
-4. Salvar origem da notícia
-5. Continuar fluxo normalmente
-```
-
----
-
-# 2. 🧠 Geração de Quiz com IA
-
-Após obter a notícia, a IA gera automaticamente:
-
-- Perguntas de interpretação
-- Vocabulário
-- Grammar
-- Multiple choice
-- True or False
-
----
-
-## 📌 Exemplo de Prompt
-
-```txt
-Você é um professor de inglês.
-
-Com base na notícia abaixo, gere:
-
-- 5 perguntas em inglês
-- 4 alternativas por pergunta
-- Informe a resposta correta
-- Nível intermediário
-
-Texto:
-{{news_text}}
-```
-
----
-
-## 📌 Exemplo de Output
-
-```json
-{
-  "question": "What happened in the story?",
-  "options": [
-    "A new school opened",
-    "A storm hit the city",
-    "People traveled abroad",
-    "A company was sold"
-  ],
-  "correct_answer": "A storm hit the city"
-}
-```
-
----
-
-# 3. 👥 Envio para Grupo do WhatsApp
-
-A notícia e o quiz serão enviados automaticamente nos grupos.
-
----
-
-## 📌 Estrutura da Mensagem
-
-```txt
-📰 Daily English News
-
-Title:
-{{title}}
-
-Level:
-{{level}}
-
-News:
-{{text}}
-
-📚 Quiz Time!
-
-1. ...
-2. ...
-3. ...
-```
-
----
-
-# 4. ✅ Correção do Quiz no Dia Seguinte
-
-As respostas corretas do quiz NÃO serão enviadas imediatamente.
-
-A correção será enviada apenas no próximo ciclo diário.
-
----
-
-## 📌 Estratégia
-
-### DIA 1
-
-```txt
-1. Buscar notícia
-2. Gerar quiz
-3. Enviar notícia + quiz
-4. Alunos respondem
-```
-
----
-
-### DIA 2
-
-```txt
-1. Enviar respostas corretas do quiz anterior
-2. Buscar nova notícia
-3. Gerar novo quiz
-4. Enviar novo conteúdo
-```
-
----
-
-# 🧠 Estratégia Pedagógica
-
-Essa abordagem aumenta:
-
-- retenção de conteúdo;
-- curiosidade;
-- engajamento;
-- memória ativa;
-- frequência de participação.
-
----
-
-# 5. 🎤 Treinamento de Speaking
-
-A mesma notícia será enviada individualmente para alunos selecionados.
-
-Objetivo:
-
-- O aluno lê a notícia em voz alta;
-- envia um áudio no WhatsApp;
-- o sistema avalia automaticamente.
-
----
-
-## 📌 Fluxo
-
-```txt
-1. Sistema envia notícia
-2. Aluno envia áudio
-3. Backend recebe áudio
-4. Whisper faz transcrição
-5. IA compara:
-   - texto original
-   - transcrição do aluno
-6. Feedback é gerado
-7. Resultado enviado ao aluno
-```
-
----
-
-# 6. 🤖 Feedback Inteligente de Pronúncia
-
-A IA analisa:
-
-- Pronúncia
-- Clareza
-- Fluência
-- Ritmo
-- Erros de leitura
-- Palavras omitidas
-- Palavras incorretas
-
----
-
-## 📌 Exemplo de Prompt
-
-```txt
-Você é um professor de inglês especializado em speaking.
-
-Compare:
-
-Texto original:
-{{original_text}}
-
-Transcrição do aluno:
-{{student_transcription}}
-
-Gere:
-- Nota de 0 a 10
-- Feedback amigável
-- Principais erros
-- Dicas de melhoria
-```
-
----
-
-## 📌 Exemplo de Feedback
-
-```json
-{
-  "score": 8.2,
-  "fluency": "Boa",
-  "pronunciation": "Intermediária",
-  "mistakes": [
-    "difficulty",
-    "environment"
-  ],
-  "feedback": "Sua leitura foi muito boa. Trabalhe a pronúncia das palavras mais longas."
-}
-```
-
----
-
-# 🔐 Autenticação
-
-## Regras
-
-- Usuários autenticados
-- Professores e administradores
-- Controle de alunos
-- Controle de turmas
-
----
-
-# 📦 Módulos do Sistema
-
-# 1. 👤 Auth Service
-
-Responsável por:
-
-- Login
-- Cadastro
-- JWT
-- Controle de acesso
-
----
-
-# 2. 📰 News Scraper Service
-
-Responsável por:
-
-- Acessar o News in Levels
-- Extrair notícias
-- Categorizar conteúdo
-
----
-
-# 3. 🤖 AI News Generator Service
-
-Responsável por:
-
-- Gerar notícias em fallback
-- Criar conteúdo educacional
-- Adaptar nível do texto
-
----
-
-# 4. 🧠 Quiz Generator Service
-
-Responsável por:
-
-- Geração automática de perguntas
-- Correção automática
-- Integração com IA
-
----
-
-# 5. 📱 WhatsApp Integration Service
-
-Responsável por:
-
-- Envio em grupos
-- Envio privado
-- Recebimento de áudio
-- Webhooks
-- Controle de mensagens
-
----
-
-# 6. 🎤 Audio Processing Service
-
-Responsável por:
-
-- Download de áudio
-- Conversão de formato
-- Speech-to-text
-
----
-
-# 7. 🤖 AI Feedback Service
-
-Responsável por:
-
-- Análise de speaking
-- Correções
-- Score
-- Recomendações
-
----
-
-# 8. 📊 Engagement Service
-
-Responsável por:
-
-- Controle de streak
-- Ranking
-- Participação diária
-- Estatísticas
-
----
-
-# 🗄️ Modelagem de Banco de Dados
-
-## 📌 Tabela: users
-
-```sql
-id (UUID)
-name
-email
-password_hash
-role
-created_at
-```
-
----
-
-## 📌 Tabela: students
-
-```sql
-id (UUID)
-user_id (UUID)
-full_name
-whatsapp_number
-english_level
-active (boolean)
-created_at
-```
-
----
-
-## 📌 Tabela: whatsapp_groups
-
-```sql
-id (UUID)
-group_name
-group_identifier
-created_at
-```
-
----
-
-## 📌 Tabela: news
-
-```sql
-id (UUID)
+id
 title
 content
 level
-source_type (scraped | ai_generated)
+source_type
 source_url
 created_at
 ```
 
----
+### `Quiz`
 
-## 📌 Tabela: quizzes
-
-```sql
-id (UUID)
-news_id (UUID)
-questions (JSONB)
+```txt
+id
+news_id
+questions (JSON)
 created_at
 ```
 
----
+### `QuizAnswer`
 
-## 📌 Tabela: quiz_answers
-
-```sql
-id (UUID)
-student_id (UUID)
-quiz_id (UUID)
+```txt
+id
+student_id
+quiz_id
 question_id
 selected_answer
+submitted_text
+correct_answer
 is_correct
 created_at
 ```
 
----
+### `WhatsappMessage`
 
-## 📌 Tabela: whatsapp_messages
-
-```sql
-id (UUID)
-student_id (UUID)
-message_type (group | private)
-direction (incoming | outgoing)
+```txt
+id
+student_id
+message_type
+direction
 content
 media_url
+remote_jid
+external_message_id
+quoted_message_id
+related_news_id
+related_quiz_id
+content_kind
 created_at
 ```
 
----
+### `AudioSubmission`
 
-## 📌 Tabela: audio_submissions
-
-```sql
-id (UUID)
-student_id (UUID)
-news_id (UUID)
+```txt
+id
+student_id
+news_id
 audio_url
 transcription
 created_at
 ```
 
----
+### `SpeakingFeedback`
 
-## 📌 Tabela: speaking_feedbacks
-
-```sql
-id (UUID)
-audio_submission_id (UUID)
+```txt
+id
+audio_submission_id
 score
 feedback
-mistakes (JSONB)
+mistakes
 created_at
 ```
 
----
+## Endpoints Operacionais
 
-# 🔄 Fluxos Principais
+### Status E Conexao
 
-# 📌 Fluxo Diário
+- `GET /whatsapp/status`
+- `GET /whatsapp/qrcode`
+- `POST /whatsapp/webhook/register`
+- `DELETE /whatsapp/logout`
 
-```txt
-1. Buscar notícia
-2. Validar conteúdo
-3. Caso necessário:
-   → gerar notícia com IA
-4. Processar conteúdo
-5. Gerar quiz
-6. Enviar correção do quiz anterior
-7. Enviar nova notícia
-8. Enviar novo quiz
-9. Enviar speaking para alunos
+### Mensageria
+
+- `POST /whatsapp/test-send`
+- `POST /whatsapp/send-latest-news-quiz`
+- `POST /whatsapp/webhook`
+
+### Endpoint De Envio Diario
+
+Body minimo:
+
+```json
+{
+  "number": "5514991828055"
+}
 ```
 
----
+Body para teste forcado:
 
-# 📌 Fluxo de Speaking
-
-```txt
-1. Aluno recebe notícia
-2. Envia áudio
-3. Sistema transcreve
-4. IA analisa
-5. Feedback é gerado
-6. Resultado enviado ao aluno
+```json
+{
+  "number": "5514991828055",
+  "mode": "GROUP"
+}
 ```
 
----
+`mode` aceito:
 
-# ⚙️ Docker Setup
+- `PRIVATE`
+- `GROUP`
 
-## 📦 Serviços
+Sem `mode`, a deteccao ocorre pelo destino.
 
-```yaml
-services:
-  frontend:
-  backend:
-  postgres:
-  redis:
-  evolution-api:
-  workers:
+## Variaveis De Ambiente Relevantes
+
+```env
+DATABASE_URL="postgresql://..."
+OPENAI_API_KEY="..."
+BACKEND_URL="http://host.docker.internal:3001"
+EVOLUTION_API_URL="http://localhost:8080"
+EVOLUTION_API_KEY="global_api_key_talkion"
+EVOLUTION_INSTANCE_NAME="talkion_main"
+ALLOW_SELF_WHATSAPP_TEST="true"
 ```
 
----
+Notas:
 
-# 📡 Comunicação em Tempo Real
+- `BACKEND_URL` define o webhook publico/visivel para a Evolution;
+- `ALLOW_SELF_WHATSAPP_TEST` permite testar quiz e audio enviados pelo proprio numero;
+- antes de producao, essa flag deve ser desligada.
 
-- WebSocket
-- Atualização de status
-- Logs de processamento
-- Feedback em tempo real
+## Logs
 
----
+Padrao de logs atual:
 
-# 🔐 Segurança
+- `[ENTRADA]`
+- `[STATUS]`
+- `[QUIZ]`
+- `[QUIZ][RESOLUCAO]`
+- `[AUDIO][SAIDA]`
+- `[DB][ERRO]`
 
-- JWT
-- Rate limiting
-- Criptografia de dados
-- Logs de auditoria
-- Controle de acesso
+Esses logs foram desenhados para mostrar rapidamente:
 
----
+- quem enviou;
+- tipo da mensagem;
+- se houve citacao;
+- como o quiz foi resolvido;
+- qual noticia foi usada;
+- o que foi salvo ou ignorado.
 
-# 📊 Escalabilidade
+## Observacoes Tecnicas
 
-- Workers separados
-- Processamento assíncrono
-- Filas
-- Cache Redis
+- o titulo da noticia enviado no WhatsApp remove o sufixo de `level`;
+- o destaque de `Difficult Words` aparece no corpo da noticia e na secao final;
+- o feedback de speaking e enviado em portugues brasileiro;
+- palavras problemáticas permanecem em ingles quando isso melhora o valor pedagogico;
+- o backend ja registra `remote_jid`, `related_news_id` e `related_quiz_id` para rastreabilidade.
 
----
+## Pendencias Naturais Do Projeto
 
-# 📈 Métricas Futuras
-
-O sistema poderá calcular:
-
-- quantidade de quizzes respondidos;
-- taxa de acerto;
-- evolução do speaking;
-- frequência diária;
-- ranking de alunos;
-- tempo médio de resposta;
-- palavras com maior dificuldade.
-
----
-
-# 🚀 Roadmap Futuro
-
-- Dashboard para professores
-- Ranking de alunos
-- Gamificação
-- Flashcards automáticos
-- Correção gramatical avançada
-- Conversação em tempo real com IA
-- Integração com Telegram
-- Integração com Discord
-- Recomendações personalizadas via IA
-
----
-
-# ✅ Conclusão
-
-A plataforma une:
-
-- WhatsApp
-- Inteligência Artificial
-- Ensino de inglês
-- Automação
-- Speaking analysis
-- Conteúdo real do cotidiano
-
-Criando uma experiência contínua e prática de aprendizado baseada em:
-
-- consumo diário de conteúdo real;
-- interação natural;
-- feedback automatizado;
-- evolução contínua do aluno.
-
-O diferencial do projeto está no uso de IA para transformar notícias reais em experiências completas de aprendizado de inglês com foco em:
-
-- speaking;
-- interpretação;
-- vocabulário;
-- fluência;
-- engajamento diário.
-````
+- agendamento automatico do ciclo diario;
+- cadastro operacional de grupos reais;
+- dashboards de acompanhamento;
+- ranking e analytics de engajamento;
+- relatórios pedagogicos por aluno;
+- refinamento visual dos templates de WhatsApp.
