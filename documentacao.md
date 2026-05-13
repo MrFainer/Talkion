@@ -1,27 +1,27 @@
-# Documentacao Tecnica Do Talkion
+# Documentação Técnica Do Talkion
 
 ## Resumo
 
-Talkion e um backend em NestJS para ensino de ingles via WhatsApp. O sistema integra scraping de noticias, OpenAI, Evolution API e persistencia em PostgreSQL para suportar:
+Talkion é um backend em NestJS para ensino de inglês via WhatsApp. O sistema integra scraping de notícias, OpenAI, Evolution API e persistência em PostgreSQL para suportar:
 
-- envio diario de noticias;
-- quiz de interpretacao;
-- speaking por audio;
-- historico de mensagens e interacoes.
+- envio diário de notícias;
+- quiz de interpretação;
+- speaking por áudio;
+- histórico de mensagens e interações.
 
 ## Escopo Implementado
 
 Hoje o projeto cobre:
 
-- noticias por nivel;
+- notícias por nível;
 - fallback por IA;
 - quiz `3x3`;
 - envio privado e envio em grupo;
 - gabarito do quiz no ciclo seguinte;
-- transcricao real com Whisper;
+- transcrição real com Whisper;
 - feedback de speaking com OpenAI;
-- associacao por mensagem citada;
-- persistencia de quiz, audio e feedback.
+- associação por mensagem citada;
+- persistência de quiz, áudio e feedback.
 
 ## Arquitetura Atual
 
@@ -38,29 +38,29 @@ Hoje o projeto cobre:
                      [Webhook Handler]
 ```
 
-## Servicos Principais
+## Serviços Principais
 
 ### `NewsService`
 
 Responsabilidades:
 
-- buscar noticias no `newsinlevels.com`;
-- extrair titulo, conteudo, nivel e URL;
-- normalizar o conteudo;
-- salvar noticias;
-- acionar fallback em IA quando necessario.
+- buscar notícias no `newsinlevels.com`;
+- extrair título, conteúdo, nível e URL;
+- normalizar o conteúdo;
+- salvar notícias;
+- acionar fallback em IA quando necessário.
 
 ### `AiService`
 
 Responsabilidades:
 
-- gerar noticia de fallback;
+- gerar notícia de fallback;
 - gerar quiz em JSON;
-- transcrever audio com `whisper-1`;
+- transcrever áudio com `whisper-1`;
 - avaliar speaking com `gpt-4o-mini`;
 - devolver feedback estruturado.
 
-Saida atual do speaking:
+Saída atual do speaking:
 
 - `score`
 - `feedback`
@@ -74,31 +74,31 @@ Saida atual do speaking:
 
 Responsabilidades:
 
-- criar quiz vinculado a uma noticia;
-- reutilizar quiz existente para a mesma noticia;
-- evitar custo desnecessario de OpenAI;
+- criar quiz vinculado a uma notícia;
+- reutilizar quiz existente para a mesma notícia;
+- evitar custo desnecessário de OpenAI;
 - persistir o quiz em `Quiz`.
 
 ### `WhatsappService`
 
 Responsabilidades:
 
-- gerenciar instancia Evolution;
+- gerenciar instância Evolution;
 - registrar webhook;
 - enviar mensagens;
 - salvar mensagens enviadas e recebidas;
 - distinguir fluxo privado e fluxo de grupo;
 - processar respostas de quiz;
-- processar audios de speaking;
-- resolver noticia e quiz por mensagem citada.
+- processar áudios de speaking;
+- resolver notícia e quiz por mensagem citada.
 
-## Regras De Negocio
+## Regras De Negócio
 
-### Noticias
+### Notícias
 
-- sao buscadas por nivel do aluno quando possivel;
-- se nao houver noticia por nivel, o sistema usa a mais recente geral;
-- se nao houver noticia valida, o fallback por IA e acionado.
+- são buscadas por nível do aluno quando possível;
+- se não houver notícia por nível, o sistema usa a mais recente geral;
+- se não houver notícia válida, o fallback por IA é acionado.
 
 ### Quiz
 
@@ -111,61 +111,61 @@ Responsabilidades:
   - `1A,2B,3C`
   - `1A, 2B, 3C`
 
-Persistencia:
+Persistência:
 
 - `1` linha por aluno por quiz em `QuizAnswer`;
 - `question_id = FULL_QUIZ`;
 - `submitted_text` guarda o texto original;
 - `correct_answer` guarda o gabarito normalizado;
 - `is_correct = true` apenas com quiz inteiro correto;
-- reenvio do mesmo aluno para o mesmo quiz e ignorado.
+- reenvio do mesmo aluno para o mesmo quiz é ignorado.
 
 ### Grupo
 
-- o grupo nao recebe correcao imediata;
+- o grupo não recebe correção imediata;
 - o gabarito vai no ciclo seguinte;
-- o fluxo diario atual e:
+- o fluxo diário atual é:
 
 ```txt
 1. Good morning
 2. Gabarito do quiz anterior
-3. Introducao da noticia do dia
-4. Noticia
-5. Cabecalho do quiz
+3. Introdução da notícia do dia
+4. Notícia
+5. Cabeçalho do quiz
 6. Quiz
 ```
 
 ### Privado
 
-- o privado e usado para speaking;
-- o fluxo atual e:
+- o privado é usado para speaking;
+- o fluxo atual é:
 
 ```txt
 1. Good morning
-2. Introducao do desafio de speaking
-3. Introducao da noticia do dia
-4. Noticia
+2. Introdução do desafio de speaking
+3. Introdução da notícia do dia
+4. Notícia
 ```
 
-## Resolucao Por Mensagem Citada
+## Resolução Por Mensagem Citada
 
 O `WhatsappService` usa `quoted_message_id` e `external_message_id` para resolver o contexto correto da resposta.
 
 ### Quiz
 
-Ordem de resolucao:
+Ordem de resolução:
 
 1. mensagem citada do quiz;
-2. mensagem citada da noticia;
+2. mensagem citada da notícia;
 3. fallback para quiz mais recente.
 
-### Audio
+### Áudio
 
-Ordem de resolucao:
+Ordem de resolução:
 
-1. mensagem citada da noticia;
-2. noticia mais recente do nivel do aluno;
-3. noticia mais recente geral.
+1. mensagem citada da notícia;
+2. notícia mais recente do nível do aluno;
+3. notícia mais recente geral.
 
 ## Modelos Principais
 
@@ -246,7 +246,7 @@ created_at
 
 ## Endpoints Operacionais
 
-### Status E Conexao
+### Status E Conexão
 
 - `GET /whatsapp/status`
 - `GET /whatsapp/qrcode`
@@ -259,9 +259,9 @@ created_at
 - `POST /whatsapp/send-latest-news-quiz`
 - `POST /whatsapp/webhook`
 
-### Endpoint De Envio Diario
+### Endpoint De Envio Diário
 
-Body minimo:
+Body mínimo:
 
 ```json
 {
@@ -269,7 +269,7 @@ Body minimo:
 }
 ```
 
-Body para teste forcado:
+Body para teste forçado:
 
 ```json
 {
@@ -283,9 +283,9 @@ Body para teste forcado:
 - `PRIVATE`
 - `GROUP`
 
-Sem `mode`, a deteccao ocorre pelo destino.
+Sem `mode`, a detecção ocorre pelo destino.
 
-## Variaveis De Ambiente Relevantes
+## Variáveis De Ambiente Relevantes
 
 ```env
 DATABASE_URL="postgresql://..."
@@ -299,13 +299,13 @@ ALLOW_SELF_WHATSAPP_TEST="true"
 
 Notas:
 
-- `BACKEND_URL` define o webhook publico/visivel para a Evolution;
-- `ALLOW_SELF_WHATSAPP_TEST` permite testar quiz e audio enviados pelo proprio numero;
-- antes de producao, essa flag deve ser desligada.
+- `BACKEND_URL` define o webhook público/visível para a Evolution;
+- `ALLOW_SELF_WHATSAPP_TEST` permite testar quiz e áudio enviados pelo próprio número;
+- antes de produção, essa flag deve ser desligada.
 
 ## Logs
 
-Padrao de logs atual:
+Padrão de logs atual:
 
 - `[ENTRADA]`
 - `[STATUS]`
@@ -318,24 +318,24 @@ Esses logs foram desenhados para mostrar rapidamente:
 
 - quem enviou;
 - tipo da mensagem;
-- se houve citacao;
+- se houve citação;
 - como o quiz foi resolvido;
-- qual noticia foi usada;
+- qual notícia foi usada;
 - o que foi salvo ou ignorado.
 
-## Observacoes Tecnicas
+## Observações Técnicas
 
-- o titulo da noticia enviado no WhatsApp remove o sufixo de `level`;
-- o destaque de `Difficult Words` aparece no corpo da noticia e na secao final;
-- o feedback de speaking e enviado em portugues brasileiro;
-- palavras problemáticas permanecem em ingles quando isso melhora o valor pedagogico;
-- o backend ja registra `remote_jid`, `related_news_id` e `related_quiz_id` para rastreabilidade.
+- o título da notícia enviado no WhatsApp remove o sufixo de `level`;
+- o destaque de `Difficult Words` aparece no corpo da notícia e na seção final;
+- o feedback de speaking é enviado em português brasileiro;
+- palavras problemáticas permanecem em inglês quando isso melhora o valor pedagógico;
+- o backend já registra `remote_jid`, `related_news_id` e `related_quiz_id` para rastreabilidade.
 
-## Pendencias Naturais Do Projeto
+## Pendências Naturais Do Projeto
 
-- agendamento automatico do ciclo diario;
+- agendamento automático do ciclo diário;
 - cadastro operacional de grupos reais;
 - dashboards de acompanhamento;
 - ranking e analytics de engajamento;
-- relatórios pedagogicos por aluno;
+- relatórios pedagógicos por aluno;
 - refinamento visual dos templates de WhatsApp.
