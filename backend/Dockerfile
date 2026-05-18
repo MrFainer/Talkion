@@ -37,4 +37,4 @@ EXPOSE 3001
 
 # O comando inicia o servidor compilado. 
 # Nota: Você pode precisar rodar `npx prisma migrate deploy` no Coolify (Pre-deploy command) antes de iniciar.
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
