@@ -32,9 +32,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 EXPOSE 3001
 
-# O comando inicia o servidor compilado. 
-# Nota: Você pode precisar rodar `npx prisma migrate deploy` no Coolify (Pre-deploy command) antes de iniciar.
-CMD ["node", "dist/src/main.js"]
+CMD ["sh", "-c", "if [ -z \"$DATABASE_URL\" ]; then echo \"DATABASE_URL não está definido no runtime\"; exit 1; fi; npx prisma migrate deploy && node dist/src/main.js"]
