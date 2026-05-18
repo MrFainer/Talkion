@@ -5,11 +5,11 @@ import { QuizService } from './quiz.service';
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
 
-  // Rota temporária para forçar a geração de um quiz para uma notícia
-  @Post('test-generate/:newsId')
+  // Rota para forçar a geração de um quiz para uma notícia
+  @Post('generate/:newsId')
   @HttpCode(HttpStatus.OK)
-  async testGenerateQuiz(@Param('newsId') newsId: string) {
-    const quiz = await this.quizService.generateQuizForNews(newsId);
-    return { message: 'Quiz gerado!', quiz };
+  async generateQuiz(@Param('newsId') newsId: string) {
+    const result = await this.quizService.generateQuizForNews(newsId);
+    return { message: 'Quiz gerado!', ...result };
   }
 }

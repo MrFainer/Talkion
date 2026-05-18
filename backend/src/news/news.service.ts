@@ -1,9 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { SourceType } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
+import type { UsageTrackingContext } from '../ai/usage-cost.service';
+import { QuizService } from '../quiz/quiz.service';
+
+type NewsProcessingStatus =
+  | 'created'
+  | 'skipped_same_day'
+  | 'skipped_same_news'
+  | 'error';
+
+type NewsProcessingResult = {
+  level: string;
+  status: NewsProcessingStatus;
+  title?: string;
+  newsId?: string;
+  reason?: string;
+};
+
+type QuizProcessingResult = {
+  level: string;
+  newsId?: string;
+  quizId?: string;
+  status: 'created' | 'existing' | 'skipped' | 'error';
+  reason?: string;
+};
 
 @Injectable()
 export class NewsService {
@@ -20,16 +45,71 @@ export class NewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly quizService: QuizService,
   ) {}
 
-  // Executa todos os dias às 06:00 da manhã
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  @Cron(process.env.NEWS_DAILY_CRON || '0 8 * * *', {
+    timeZone: process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo',
+  })
   async handleDailyNewsScraping() {
-    this.logger.log('Iniciando captura diária de notícias...');
-    await this.scrapeLatestNews();
+    this.logger.log('Iniciando captura diária de notícias e quizzes para todos os professores...');
+    const activeTeachers = await this.prisma.user.findMany({
+      where: { role: 'TEACHER', active: true },
+      select: { id: true },
+    });
+
+    for (const teacher of activeTeachers) {
+      try {
+        await this.runDailyNewsAndQuiz({
+          teacherId: teacher.id,
+          referenceType: 'daily_news_job',
+          referenceId: new Date().toISOString().slice(0, 10),
+          metadata: {
+            trigger: 'cron',
+          },
+        });
+      } catch (error) {
+        this.logger.error(`Erro ao gerar notícia para o professor ${teacher.id}:`, error);
+      }
+    }
+    
+    // Fallback global legacy se nenhum professor existir (ou pra ter sempre a do dia)
+    if (activeTeachers.length === 0) {
+      await this.runDailyNewsAndQuiz({
+        referenceType: 'daily_news_job',
+        referenceId: new Date().toISOString().slice(0, 10),
+        metadata: {
+          trigger: 'cron',
+        },
+      });
+    }
   }
 
-  async scrapeLatestNews() {
+  async runDailyNewsAndQuiz(tracking?: UsageTrackingContext) {
+    const newsResults = await this.scrapeLatestNews(tracking);
+    const quizResults = await this.generateQuizzesForResults(newsResults, tracking);
+
+    return {
+      message: 'Processamento diário de notícias e quiz concluído.',
+      news: {
+        created: newsResults.filter((item) => item.status === 'created').length,
+        skippedSameDay: newsResults.filter((item) => item.status === 'skipped_same_day').length,
+        skippedSameNews: newsResults.filter((item) => item.status === 'skipped_same_news').length,
+        errors: newsResults.filter((item) => item.status === 'error').length,
+        items: newsResults,
+      },
+      quizzes: {
+        created: quizResults.filter((item) => item.status === 'created').length,
+        existing: quizResults.filter((item) => item.status === 'existing').length,
+        errors: quizResults.filter((item) => item.status === 'error').length,
+        items: quizResults,
+      },
+    };
+  }
+
+  async scrapeLatestNews(tracking?: UsageTrackingContext): Promise<NewsProcessingResult[]> {
+    const results: NewsProcessingResult[] = [];
+
     try {
       const response = await axios.get(this.baseUrl);
       const data: string = response.data as string;
@@ -42,40 +122,63 @@ export class NewsService {
 
       this.logger.log(`Última notícia encontrada: ${firstNewsLink}`);
 
-      await this.extractNewsDetails(firstNewsLink, 'LEVEL_1');
-      await this.extractNewsDetails(firstNewsLink, 'LEVEL_2');
-      await this.extractNewsDetails(firstNewsLink, 'LEVEL_3');
+      results.push(
+        await this.extractNewsDetails(firstNewsLink, 'LEVEL_1', tracking),
+        await this.extractNewsDetails(firstNewsLink, 'LEVEL_2', tracking),
+        await this.extractNewsDetails(firstNewsLink, 'LEVEL_3', tracking),
+      );
     } catch (error) {
       this.logger.error(
         'Erro ao buscar notícias do NewsInLevels, acionando fallback IA...',
         error,
       );
-      await this.generateFallbackNewsForAllLevels();
+      results.push(...(await this.generateFallbackNewsForAllLevels(tracking)));
     }
+
+    return results;
   }
 
-  private async generateFallbackNewsForAllLevels() {
+  private async generateFallbackNewsForAllLevels(
+    tracking?: UsageTrackingContext,
+  ): Promise<NewsProcessingResult[]> {
     const levels = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'];
+    const results: NewsProcessingResult[] = [];
     for (const level of levels) {
       try {
         const { title, content } =
-          await this.aiService.generateFallbackNews(level);
-        await this.prisma.news.create({
-          data: {
-            title,
-            content,
-            level,
-            source_type: 'AI_GENERATED',
-          },
-        });
-        this.logger.log(`Notícia Fallback salva via IA: [${level}] ${title}`);
+          await this.aiService.generateFallbackNews(level, {
+            ...tracking,
+            referenceType: tracking?.referenceType || 'news_fallback',
+            referenceId: tracking?.referenceId || level,
+          });
+        const result = await this.saveNewsIfAllowed({
+          title,
+          content,
+          level,
+          sourceType: SourceType.AI_GENERATED,
+        }, tracking);
+        results.push(result);
+        if (result.status === 'created') {
+          this.logger.log(`Notícia Fallback salva via IA: [${level}] ${title}`);
+        }
       } catch (err) {
         this.logger.error(`Falha ao gerar notícia fallback para ${level}`, err);
+        results.push({
+          level,
+          status: 'error',
+          reason: 'Falha ao gerar notícia fallback via IA.',
+        });
       }
     }
+
+    return results;
   }
 
-  private async extractNewsDetails(baseLink: string, level: string) {
+  private async extractNewsDetails(
+    baseLink: string,
+    level: string,
+    tracking?: UsageTrackingContext,
+  ): Promise<NewsProcessingResult> {
     try {
       // Exemplo de link: https://www.newsinlevels.com/products/london-bridge-is-falling-down-level-1/
       // Ajusta o link para o nível correto
@@ -97,52 +200,209 @@ export class NewsService {
         this.logger.warn(
           `Não foi possível extrair conteúdo completo de: ${url}`,
         );
-        return;
+        return {
+          level,
+          status: 'error',
+          reason: 'Não foi possível extrair conteúdo completo.',
+        };
       }
 
-      // Verifica se já existem registros para o mesmo nível/url e sincroniza todos
-      const existingNews = await this.prisma.news.findMany({
-        where: {
-          OR: [
-            { source_url: url, level },
-            { title, level },
-          ],
-        },
-      });
-
-      if (existingNews.length === 0) {
-        await this.prisma.news.create({
-          data: {
-            title,
-            content,
-            level,
-            source_type: 'SCRAPED',
-            source_url: url,
-          },
-        });
-        this.logger.log(`Notícia salva: [${level}] ${title}`);
-      } else {
-        const existingIds = existingNews.map((news) => news.id);
-        const updateResult = await this.prisma.news.updateMany({
-          where: { id: { in: existingIds } },
-          data: {
-            title,
-            content,
-            level,
-            source_type: 'SCRAPED',
-            source_url: url,
-          },
-        });
-        this.logger.log(
-          `Notícia atualizada: [${level}] ${title} | registros: ${updateResult.count} | ids: ${existingIds.join(', ')}`,
-        );
+      const result = await this.saveNewsIfAllowed({
+        title,
+        content,
+        level,
+        sourceType: SourceType.SCRAPED,
+        sourceUrl: url,
+      }, tracking);
+      if (result.status === 'created') {
+        this.logger.log(`Nova notícia salva: [${level}] ${title}`);
       }
+      return result;
     } catch (error) {
       this.logger.error(
         `Erro ao extrair nível ${level}`,
         error instanceof Error ? error.message : String(error),
       );
+      return {
+        level,
+        status: 'error',
+        reason:
+          error instanceof Error ? error.message : 'Erro ao extrair notícia.',
+      };
     }
+  }
+
+  private async generateQuizzesForResults(
+    newsResults: NewsProcessingResult[],
+    tracking?: UsageTrackingContext,
+  ): Promise<QuizProcessingResult[]> {
+    const quizResults: QuizProcessingResult[] = [];
+
+    for (const item of newsResults) {
+      if (!item.newsId) {
+        quizResults.push({
+          level: item.level,
+          status: item.status === 'error' ? 'error' : 'skipped',
+          reason: item.reason || 'Nenhuma notícia elegível para gerar quiz.',
+        });
+        continue;
+      }
+
+      try {
+        const quizResult = await this.quizService.generateQuizForNews(item.newsId, {
+          ...tracking,
+          newsId: item.newsId,
+          referenceType: tracking?.referenceType || 'daily_news_quiz',
+          referenceId: tracking?.referenceId || item.newsId,
+        });
+
+        quizResults.push({
+          level: item.level,
+          newsId: item.newsId,
+          quizId: quizResult.quiz.id,
+          status: quizResult.created ? 'created' : 'existing',
+        });
+      } catch (error) {
+        quizResults.push({
+          level: item.level,
+          newsId: item.newsId,
+          status: 'error',
+          reason:
+            error instanceof Error ? error.message : 'Erro ao gerar quiz.',
+        });
+      }
+    }
+
+    return quizResults;
+  }
+
+  private async saveNewsIfAllowed(input: {
+    title: string;
+    content: string;
+    level: string;
+    sourceType: SourceType;
+    sourceUrl?: string;
+  }, tracking?: UsageTrackingContext): Promise<NewsProcessingResult> {
+    const { startOfDay, endOfDay } = this.getTodayRange();
+
+    const existingToday = await this.prisma.news.findFirst({
+      where: {
+        level: input.level,
+        teacher_id: tracking?.teacherId || null,
+        created_at: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (existingToday) {
+      this.logger.log(
+        `Notícia do dia já existente ignorada: [${input.level}] ${input.title} | id existente: ${existingToday.id}`,
+      );
+      return {
+        level: input.level,
+        status: 'skipped_same_day',
+        title: existingToday.title,
+        newsId: existingToday.id,
+        reason: 'Já existe uma notícia cadastrada para este nível hoje.',
+      };
+    }
+
+    const existingSameNews = await this.prisma.news.findFirst({
+      where: {
+        level: input.level,
+        teacher_id: tracking?.teacherId || null,
+        OR: [
+          ...(input.sourceUrl ? [{ source_url: input.sourceUrl }] : []),
+          { title: input.title },
+        ],
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (
+      existingSameNews ||
+      (await this.hasEquivalentLatestNews(input.level, input.title, input.content, input.sourceUrl, tracking))
+    ) {
+      const matchedNews =
+        existingSameNews ||
+        (await this.prisma.news.findFirst({
+          where: { 
+            level: input.level,
+            teacher_id: tracking?.teacherId || null,
+          },
+          orderBy: { created_at: 'desc' },
+        }));
+
+      if (matchedNews) {
+        this.logger.log(
+          `Notícia repetida ignorada: [${input.level}] ${input.title} | mesma notícia já existe no banco (${matchedNews.id}).`,
+        );
+        return {
+          level: input.level,
+          status: 'skipped_same_news',
+          title: matchedNews.title,
+          newsId: matchedNews.id,
+          reason: 'Essa notícia já existe na base.',
+        };
+      }
+    }
+
+    const createdNews = await this.prisma.news.create({
+      data: {
+        teacher_id: tracking?.teacherId || null,
+        title: input.title,
+        content: input.content,
+        level: input.level,
+        source_type: input.sourceType,
+        source_url: input.sourceUrl,
+      },
+    });
+
+    return {
+      level: input.level,
+      status: 'created',
+      title: createdNews.title,
+      newsId: createdNews.id,
+    };
+  }
+
+  private async hasEquivalentLatestNews(
+    level: string,
+    title: string,
+    content: string,
+    sourceUrl?: string,
+    tracking?: UsageTrackingContext,
+  ) {
+    const latestSavedNews = await this.prisma.news.findFirst({
+      where: { 
+        level,
+        teacher_id: tracking?.teacherId || null,
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (!latestSavedNews) {
+      return false;
+    }
+
+    return this.isSameNews(latestSavedNews, {
+      title,
+      content,
+      source_url: sourceUrl || '',
+    });
+  }
+
+  private getTodayRange() {
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return { startOfDay, endOfDay };
   }
 
   private extractTitle(
@@ -231,6 +491,63 @@ export class NewsService {
     }
 
     return cleanedTitle;
+  }
+
+  private isSameNews(
+    existingNews: {
+      title: string;
+      content: string;
+      source_url: string | null;
+    },
+    incomingNews: {
+      title: string;
+      content: string;
+      source_url: string;
+    },
+  ): boolean {
+    const normalizedExistingUrl = this.normalizeComparableValue(
+      existingNews.source_url,
+    );
+    const normalizedIncomingUrl = this.normalizeComparableValue(
+      incomingNews.source_url,
+    );
+
+    if (normalizedExistingUrl && normalizedExistingUrl === normalizedIncomingUrl) {
+      return true;
+    }
+
+    const normalizedExistingTitle = this.normalizeComparableValue(
+      existingNews.title,
+    );
+    const normalizedIncomingTitle = this.normalizeComparableValue(
+      incomingNews.title,
+    );
+
+    if (
+      normalizedExistingTitle &&
+      normalizedExistingTitle === normalizedIncomingTitle
+    ) {
+      return true;
+    }
+
+    const normalizedExistingContent = this.normalizeComparableValue(
+      existingNews.content,
+    );
+    const normalizedIncomingContent = this.normalizeComparableValue(
+      incomingNews.content,
+    );
+
+    return (
+      normalizedExistingContent.length > 0 &&
+      normalizedExistingContent === normalizedIncomingContent
+    );
+  }
+
+  private normalizeComparableValue(value: string | null | undefined): string {
+    return (value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
   }
 
   private extractContent(

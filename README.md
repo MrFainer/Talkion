@@ -200,13 +200,15 @@ O sistema já suporta:
 - gabarito no dia seguinte;
 - speaking com IA real;
 - associação por mensagem citada;
-- histórico para futuras métricas de engajamento.
+- histórico para futuras métricas de engajamento;
+- dashboard administrativo para gestão de professores e monitoramento de custos;
+- tela de configurações de mensagens permitindo ao professor customizar saudação, fluxos e variáveis dinâmicas;
+- rastreamento detalhado de custos e uso da OpenAI (LLM: input/output/total tokens, Whisper: segundos) vinculado a cada professor e aluno, base para faturamento;
+- arquitetura Multi-Tenant isolando webhooks, notícias e configurações dinamicamente por `teacher_id`.
 
 ## Roadmap
 
-- dashboard administrativo;
 - ranking de alunos;
 - análise de engajamento;
 - gestão real de grupos;
 - automação por agendamento;
-- refinamento dos templates de mensagem.

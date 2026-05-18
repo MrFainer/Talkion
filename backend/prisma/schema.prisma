@@ -33,41 +33,75 @@ enum MessageDirection {
   OUTGOING
 }
 
-model User {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  password_hash String
-  role          Role     @default(STUDENT)
-  created_at    DateTime @default(now())
+enum CostProvider {
+  OPENAI
+}
 
-  student Student?
+enum CostAction {
+  NEWS_FALLBACK_GENERATION
+  QUIZ_GENERATION
+  SPEAKING_TRANSCRIPTION
+  SPEAKING_EVALUATION
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  name               String
+  email              String   @unique
+  password_hash      String
+  role               Role     @default(STUDENT)
+  email_verified     Boolean  @default(false)
+  verification_token String?
+  password_reset_token      String?
+  password_reset_expires_at DateTime?
+  news_group_title   String?
+  whatsapp_instance_name String? @unique
+  active             Boolean  @default(true)
+  created_at         DateTime @default(now())
+
+  student         Student?
+  ownedStudents   Student[]        @relation("TeacherStudents")
+  ownedGroups     WhatsappGroup[]  @relation("TeacherWhatsappGroups")
+  usageCostEvents UsageCostEvent[] @relation("TeacherUsageCostEvents")
+  news            News[]           @relation("TeacherNews")
+  quizzes         Quiz[]           @relation("TeacherQuizzes")
+  messageSettings        MessageSettings?         @relation("TeacherMessageSettings")
+  messageSettingsHistory MessageSettingsHistory[] @relation("TeacherMessageSettingsHistory")
 }
 
 model Student {
   id              String       @id @default(uuid())
-  user_id         String       @unique
+  user_id         String?      @unique
+  teacher_id      String?
   full_name       String
   whatsapp_number String       @unique
+  whatsapp_valid  Boolean      @default(false)
   english_level   EnglishLevel @default(LEVEL_1)
   active          Boolean      @default(true)
+  receive_private_news Boolean @default(false)
   created_at      DateTime     @default(now())
 
-  user             User               @relation(fields: [user_id], references: [id])
+  user             User?             @relation(fields: [user_id], references: [id])
+  teacher          User?             @relation("TeacherStudents", fields: [teacher_id], references: [id])
   quizAnswers      QuizAnswer[]
   whatsappMessages WhatsappMessage[]
   audioSubmissions AudioSubmission[]
+  usageCostEvents  UsageCostEvent[]
 }
 
 model WhatsappGroup {
   id               String   @id @default(uuid())
+  teacher_id       String?
   group_name       String
   group_identifier String   @unique
   created_at       DateTime @default(now())
+
+  teacher User? @relation("TeacherWhatsappGroups", fields: [teacher_id], references: [id])
 }
 
 model News {
   id          String     @id @default(uuid())
+  teacher_id  String?
   title       String
   content     String     @db.Text
   level       String
@@ -75,6 +109,7 @@ model News {
   source_url  String?
   created_at  DateTime   @default(now())
 
+  teacher          User?             @relation("TeacherNews", fields: [teacher_id], references: [id])
   quizzes          Quiz[]
   audioSubmissions AudioSubmission[]
 }
@@ -82,10 +117,12 @@ model News {
 model Quiz {
   id         String   @id @default(uuid())
   news_id    String
+  teacher_id String?
   questions  Json
   created_at DateTime @default(now())
 
   news        News         @relation(fields: [news_id], references: [id])
+  teacher     User?        @relation("TeacherQuizzes", fields: [teacher_id], references: [id])
   quizAnswers QuizAnswer[]
 }
 
@@ -100,26 +137,26 @@ model QuizAnswer {
   is_correct      Boolean
   created_at      DateTime @default(now())
 
-  student Student @relation(fields: [student_id], references: [id])
+  student Student @relation(fields: [student_id], references: [id], onDelete: Cascade)
   quiz    Quiz    @relation(fields: [quiz_id], references: [id])
 }
 
 model WhatsappMessage {
-  id           String           @id @default(uuid())
-  student_id   String?
-  message_type MessageType
-  direction    MessageDirection
-  content      String           @db.Text
-  media_url    String?
-  remote_jid   String?
-  external_message_id String?   @unique
+  id                  String           @id @default(uuid())
+  student_id          String?
+  message_type        MessageType
+  direction           MessageDirection
+  content             String           @db.Text
+  media_url           String?
+  remote_jid          String?
+  external_message_id String?          @unique
   quoted_message_id   String?
   related_news_id     String?
   related_quiz_id     String?
   content_kind        String?
-  created_at   DateTime         @default(now())
+  created_at          DateTime         @default(now())
 
-  student Student? @relation(fields: [student_id], references: [id])
+  student Student? @relation(fields: [student_id], references: [id], onDelete: Cascade)
 }
 
 model AudioSubmission {
@@ -130,8 +167,8 @@ model AudioSubmission {
   transcription String?  @db.Text
   created_at    DateTime @default(now())
 
-  student           Student             @relation(fields: [student_id], references: [id])
-  news              News                @relation(fields: [news_id], references: [id])
+  student           Student            @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  news              News               @relation(fields: [news_id], references: [id])
   speakingFeedbacks SpeakingFeedback[]
 }
 
@@ -143,5 +180,89 @@ model SpeakingFeedback {
   mistakes            Json?
   created_at          DateTime @default(now())
 
-  audioSubmission AudioSubmission @relation(fields: [audio_submission_id], references: [id])
+  audioSubmission AudioSubmission @relation(fields: [audio_submission_id], references: [id], onDelete: Cascade)
+}
+
+model UsageCostEvent {
+  id                  String       @id @default(uuid())
+  teacher_id          String?
+  student_id          String?
+  provider            CostProvider
+  action              CostAction
+  model_name          String?
+  reference_type      String?
+  reference_id        String?
+  news_id             String?
+  quiz_id             String?
+  whatsapp_message_id String?
+  input_tokens        Int?
+  output_tokens       Int?
+  cached_input_tokens Int?
+  total_tokens        Int?
+  audio_seconds       Float?
+  quantity            Float?
+  unit                String?
+  estimated_cost_usd  Float        @default(0)
+  estimated_cost_brl  Float?
+  metadata            Json?
+  created_at          DateTime     @default(now())
+
+  teacher User?    @relation("TeacherUsageCostEvents", fields: [teacher_id], references: [id])
+  student Student? @relation(fields: [student_id], references: [id], onDelete: SetNull)
+
+  @@index([teacher_id, created_at])
+  @@index([student_id, created_at])
+  @@index([provider, action, created_at])
+}
+
+model MessageSettings {
+  id                          String   @id @default(uuid())
+  teacher_id                  String   @unique
+
+  // Aba 1 - Mensagens Privadas
+  private_greeting_message    String   @db.Text @default("Good morning! ☀️🌴🎉")
+  speaking_intro_message      String   @db.Text @default("*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*")
+  news_intro_message          String   @db.Text @default("📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*")
+  
+  private_delay_seconds       Int      @default(2)
+  private_simulate_typing     Boolean  @default(true)
+
+  // Aba 2 - Mensagens em Grupo
+  group_greeting_message      String   @db.Text @default("Good morning! 🎉🎉")
+  group_news_intro_message    String   @db.Text @default("📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*")
+  group_quiz_header_message   String   @db.Text @default("📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀")
+  group_quiz_footer_message   String   @db.Text @default("📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!")
+  
+  group_delay_seconds         Int      @default(3)
+  group_simulate_typing       Boolean  @default(true)
+
+  // Ambiente / IA
+  ai_temperature              Float    @default(0.7)
+  ai_model                    String   @default("gpt-4o-mini")
+  min_delay                   Int      @default(1)
+  max_delay                   Int      @default(5)
+  messages_per_minute         Int      @default(10)
+  response_timeout            Int      @default(30)
+  system_prompt               String   @db.Text @default("You are a helpful English teacher.")
+  allowed_response_start      String   @default("00:00")
+  allowed_response_end        String   @default("23:59")
+  
+  ignored_groups              Json     @default("[]")
+  ignored_contacts            Json     @default("[]")
+
+  created_at                  DateTime @default(now())
+  updated_at                  DateTime @updatedAt
+
+  teacher User @relation("TeacherMessageSettings", fields: [teacher_id], references: [id], onDelete: Cascade)
+}
+
+model MessageSettingsHistory {
+  id                String   @id @default(uuid())
+  teacher_id        String
+  previous_settings Json
+  new_settings      Json
+  changed_by        String?
+  created_at        DateTime @default(now())
+
+  teacher User @relation("TeacherMessageSettingsHistory", fields: [teacher_id], references: [id], onDelete: Cascade)
 }

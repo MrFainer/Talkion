@@ -331,6 +331,30 @@ Esses logs foram desenhados para mostrar rapidamente:
 - palavras problemáticas permanecem em inglês quando isso melhora o valor pedagógico;
 - o backend já registra `remote_jid`, `related_news_id` e `related_quiz_id` para rastreabilidade.
 
+## Custos e Faturamento (Billing)
+
+O sistema possui uma camada robusta de rastreamento de custos focada na arquitetura Multi-Tenant:
+- registra custos de IA da OpenAI (GPT-4o-mini e Whisper);
+- associa os custos estritamente ao professor responsável (`teacher_id`) e ao aluno que gerou o evento (`student_id`);
+- o isolamento garante que o custo de uma "Notícia Fallback" ou "Quiz de IA" gerado para um grupo ou um aluno seja sempre atrelado à conta do professor que disparou a ação;
+- em deleções, a exclusão de um aluno não exclui o custo associado da conta do professor (via `SetNull`), mantendo a exatidão financeira.
+
+## Painel Administrativo
+
+O Talkion possui um módulo de administração (`/admin/teachers`) acessível apenas por usuários com a role `ADMIN`. Este painel fornece:
+- listagem de todos os professores cadastrados;
+- totalização de custos em tokens e áudios (integrado ao módulo de Billing);
+- filtro de custos por período (data inicial e final);
+- controle de acesso: ativação e inativação (bloqueio) das contas dos professores.
+
+## Configurações Dinâmicas de Mensagem (Settings)
+
+Os professores têm total controle sobre o comportamento do bot e os textos padrão por meio da tela de **Configurações**:
+- Os textos (saudações, introduções de notícias, cabeçalho de quiz, rodapé) não são mais estáticos no código, residindo agora no banco de dados (`MessageSettings`);
+- Variáveis dinâmicas (como `{{nome}}`, `{{telefone}}`, `{{data}}`, `{{hora}}`) podem ser utilizadas e são interpoladas no momento do envio (`renderVars`);
+- Suporte a definições separadas para fluxos privados e de grupo;
+- Configurações de UX no envio, como *Delay* (segundos) e *Simular digitação*.
+
 ## Pendências Naturais Do Projeto
 
 - agendamento automático do ciclo diário;

@@ -7,7 +7,11 @@ import { QuizModule } from './quiz/quiz.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { AiModule } from './ai/ai.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { BillingModule } from './billing/billing.module';
+import { AdminModule } from './admin/admin.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { StudentsModule } from './students/students.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -18,6 +22,10 @@ import { ScheduleModule } from '@nestjs/schedule';
     WhatsappModule,
     AiModule,
     PrismaModule,
+    BillingModule,
+    AdminModule,
+    StudentsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

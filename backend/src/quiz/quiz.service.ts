@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
+import type { UsageTrackingContext } from '../ai/usage-cost.service';
 
 @Injectable()
 export class QuizService {
@@ -14,7 +15,7 @@ export class QuizService {
   /**
    * Gera um quiz para uma notícia recém-cadastrada que ainda não tenha quiz.
    */
-  async generateQuizForNews(newsId: string) {
+  async generateQuizForNews(newsId: string, tracking?: UsageTrackingContext) {
     try {
       const news = await this.prisma.news.findUnique({
         where: { id: newsId },
@@ -24,19 +25,30 @@ export class QuizService {
         throw new Error('Notícia não encontrada');
       }
 
-      // Verifica se já existe um quiz para essa notícia
+      // Verifica se já existe um quiz para essa notícia para o professor atual
       const existingQuiz = await this.prisma.quiz.findFirst({
-        where: { news_id: news.id },
+        where: {
+          news_id: news.id,
+          teacher_id: tracking?.teacherId || null,
+        },
       });
 
       if (existingQuiz) {
         this.logger.log(`Quiz já existe para a notícia ${newsId}`);
-        return existingQuiz;
+        return {
+          quiz: existingQuiz,
+          created: false,
+        };
       }
 
       this.logger.log(`Gerando novo quiz para a notícia ${newsId}...`);
       
-      const questions = await this.aiService.generateQuiz(news.content);
+      const questions = await this.aiService.generateQuiz(news.content, {
+        ...tracking,
+        newsId: tracking?.newsId || news.id,
+        referenceType: tracking?.referenceType || 'news',
+        referenceId: tracking?.referenceId || news.id,
+      });
 
       if (!questions || questions.length === 0) {
         throw new Error('A IA não gerou perguntas válidas.');
@@ -45,12 +57,16 @@ export class QuizService {
       const newQuiz = await this.prisma.quiz.create({
         data: {
           news_id: news.id,
+          teacher_id: tracking?.teacherId || null,
           questions: questions, // Prisma vai serializar como JSON automaticamente
         },
       });
 
       this.logger.log(`Quiz criado com sucesso para a notícia ${newsId}`);
-      return newQuiz;
+      return {
+        quiz: newQuiz,
+        created: true,
+      };
 
     } catch (error) {
       this.logger.error(`Erro ao gerar quiz para notícia ${newsId}`, error);

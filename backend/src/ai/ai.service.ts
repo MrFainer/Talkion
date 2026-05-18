@@ -3,7 +3,10 @@ import { createReadStream } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CostAction } from '@prisma/client';
+import { parseBuffer, parseFile } from 'music-metadata';
 import { OpenAI } from 'openai';
+import { UsageCostService, type UsageTrackingContext } from './usage-cost.service';
 
 type SpeakingEvaluationResult = {
   score: number;
@@ -20,7 +23,7 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private openai: OpenAI;
 
-  constructor() {
+  constructor(private readonly usageCostService: UsageCostService) {
     try {
       this.openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY || 'dummy_key_to_start',
@@ -37,6 +40,7 @@ export class AiService {
    */
   async generateFallbackNews(
     level: string,
+    tracking?: UsageTrackingContext,
   ): Promise<{ title: string; content: string }> {
     this.logger.log(`Gerando notícia via IA para o nível: ${level}`);
 
@@ -59,6 +63,18 @@ Regras:
         response_format: { type: 'json_object' },
       });
 
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.NEWS_FALLBACK_GENERATION,
+        modelName: 'gpt-4o-mini',
+        response,
+        tracking: {
+          ...tracking,
+          referenceType: tracking?.referenceType || 'news_fallback',
+          referenceId: tracking?.referenceId || level,
+        },
+        metadata: { level },
+      });
+
       const result = JSON.parse(
         response.choices[0].message.content || '{}',
       ) as { title?: string; content?: string };
@@ -79,7 +95,10 @@ Regras:
   /**
    * Gera um quiz baseado no conteúdo da notícia.
    */
-  async generateQuiz(newsText: string): Promise<any[]> {
+  async generateQuiz(
+    newsText: string,
+    tracking?: UsageTrackingContext,
+  ): Promise<any[]> {
     this.logger.log('Gerando quiz via IA para a notícia...');
 
     const prompt = `Você é um professor de inglês.
@@ -100,6 +119,17 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
         model: 'gpt-4o-mini',
         messages: [{ role: 'system', content: prompt }],
         response_format: { type: 'json_object' },
+      });
+
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.QUIZ_GENERATION,
+        modelName: 'gpt-4o-mini',
+        response,
+        tracking: {
+          ...tracking,
+          referenceType: tracking?.referenceType || 'quiz_generation',
+          referenceId: tracking?.referenceId || tracking?.newsId || null,
+        },
       });
 
       const result = JSON.parse(
@@ -125,6 +155,7 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
     originalText: string,
     audioBase64: string,
     mimeType?: string,
+    tracking?: UsageTrackingContext,
   ): Promise<SpeakingEvaluationResult> {
     const { buffer, extension } = this.decodeAudioBase64(audioBase64, mimeType);
     const tempDir = await mkdtemp(join(tmpdir(), 'talkion-audio-'));
@@ -138,10 +169,25 @@ ${originalText}`;
 
     try {
       await writeFile(tempFilePath, buffer);
+      const resolvedAudioSeconds = await this.resolveAudioSeconds(
+        buffer,
+        tempFilePath,
+        mimeType,
+        tracking?.audioSeconds,
+      );
 
       const transcriptionResponse = await this.openai.audio.transcriptions.create({
         file: createReadStream(tempFilePath),
         model: 'whisper-1',
+      });
+
+      await this.usageCostService.recordWhisperTranscription({
+        tracking: {
+          ...tracking,
+          audioSeconds: resolvedAudioSeconds,
+          referenceType: tracking?.referenceType || 'speaking_transcription',
+          referenceId: tracking?.referenceId || tracking?.newsId || null,
+        },
       });
 
       const studentTranscription = transcriptionResponse.text?.trim();
@@ -168,6 +214,17 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
         model: 'gpt-4o-mini',
         messages: [{ role: 'system', content: evaluationPrompt }],
         response_format: { type: 'json_object' },
+      });
+
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.SPEAKING_EVALUATION,
+        modelName: 'gpt-4o-mini',
+        response,
+        tracking: {
+          ...tracking,
+          referenceType: tracking?.referenceType || 'speaking_evaluation',
+          referenceId: tracking?.referenceId || tracking?.newsId || null,
+        },
       });
 
       const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
@@ -225,6 +282,50 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
       buffer: Buffer.from(base64Content, 'base64'),
       extension: this.getAudioExtension(effectiveMimeType),
     };
+  }
+
+  private async resolveAudioSeconds(
+    buffer: Buffer,
+    filePath: string,
+    mimeType?: string,
+    fallbackSeconds?: number | null,
+  ) {
+    if (typeof fallbackSeconds === 'number' && fallbackSeconds > 0) {
+      return Number(fallbackSeconds.toFixed(3));
+    }
+
+    try {
+      const metadata = await parseFile(filePath, { duration: true });
+      const durationSeconds = metadata.format.duration;
+
+      if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)) {
+        return Math.max(0.001, Number(durationSeconds.toFixed(3)));
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Nao foi possivel identificar a duracao do audio pelo arquivo: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    try {
+      const normalizedMimeType = mimeType?.split(';')[0]?.trim() || undefined;
+      const metadata = await parseBuffer(
+        buffer,
+        normalizedMimeType ? { mimeType: normalizedMimeType } : undefined,
+        { duration: true },
+      );
+      const durationSeconds = metadata.format.duration;
+
+      if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)) {
+        return Math.max(0.001, Number(durationSeconds.toFixed(3)));
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Nao foi possivel identificar a duracao do audio automaticamente: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    return 0;
   }
 
   private getAudioExtension(mimeType: string) {

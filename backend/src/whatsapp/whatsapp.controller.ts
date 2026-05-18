@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -6,7 +7,10 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
+  Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
 
@@ -16,24 +20,46 @@ export class WhatsappController {
 
   constructor(private readonly whatsappService: WhatsappService) {}
 
-  @Get('status')
-  async getStatus() {
-    return this.whatsappService.getStatus();
+  @Get('status/:teacherId')
+  async getStatus(@Param('teacherId') teacherId: string) {
+    if (!teacherId) throw new BadRequestException('teacherId is required');
+    return this.whatsappService.getStatus(teacherId);
   }
 
-  @Get('qrcode')
-  async getQrCode() {
-    return this.whatsappService.getQrCode();
+  @Get('sync-status/:teacherId')
+  async getSyncStatus(@Param('teacherId') teacherId: string) {
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.getSyncStatus(teacherId);
+  }
+
+  @Post('sync/:teacherId')
+  async triggerSync(@Param('teacherId') teacherId: string) {
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.triggerSync(teacherId);
+  }
+
+  @Get('qrcode/:teacherId')
+  async getQrCode(@Param('teacherId') teacherId: string) {
+    if (!teacherId) throw new BadRequestException('teacherId is required');
+    return this.whatsappService.getQrCode(teacherId);
   }
 
   @Post('webhook/register')
-  async registerWebhook() {
-    return this.whatsappService.registerWebhook();
+  async registerWebhook(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) throw new BadRequestException('teacherId is required');
+    return this.whatsappService.registerWebhook(body.teacherId);
   }
 
-  @Delete('logout')
-  async logout() {
-    return this.whatsappService.logout();
+  @Delete('logout/:teacherId')
+  async logout(@Param('teacherId') teacherId: string) {
+    if (!teacherId) throw new BadRequestException('teacherId is required');
+    return this.whatsappService.logout(teacherId);
   }
 
   @Post('webhook')
@@ -51,21 +77,149 @@ export class WhatsappController {
     }
   }
 
-  @Post('test-send')
+  @Post('broadcast-private')
+  async broadcastPrivate(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) throw new BadRequestException('teacherId is required');
+    return this.whatsappService.broadcastPrivate(body.teacherId);
+  }
+
+  @Get('groups/:teacherId')
+  async listGroups(@Param('teacherId') teacherId: string) {
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.listGroups(teacherId);
+  }
+
+  @Get('groups/cached/:teacherId')
+  async listStoredGroups(@Param('teacherId') teacherId: string) {
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.listStoredGroups(teacherId);
+  }
+
+  @Post('groups/validate-title')
+  async validateGroupTitle(
+    @Body() body: { teacherId: string; title: string },
+  ) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    if (!body.title) {
+      throw new BadRequestException('title is required');
+    }
+
+    return this.whatsappService.validateGroupTitle(body.teacherId, body.title);
+  }
+
+  @Get('groups/news-target/:teacherId')
+  async getConfiguredNewsGroup(@Param('teacherId') teacherId: string) {
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.getConfiguredNewsGroup(teacherId);
+  }
+
+  @Get('groups/settings/:teacherId')
+  async getNewsGroupSettings(
+    @Param('teacherId') teacherId: string,
+    @Query('title') title?: string,
+  ) {
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.getNewsGroupSettings(teacherId, title);
+  }
+
+  @Patch('groups/settings')
+  async updateNewsGroupSettings(
+    @Body() body: { teacherId: string; title: string },
+  ) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    if (!body.title) {
+      throw new BadRequestException('title is required');
+    }
+
+    return this.whatsappService.updateNewsGroupSettings(
+      body.teacherId,
+      body.title,
+    );
+  }
+
+  @Post('groups/send-news-target')
+  async sendLatestNewsToConfiguredGroup(
+    @Body() body: { teacherId: string; title?: string; groupId?: string },
+  ) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.sendLatestNewsToConfiguredGroup(
+      body.teacherId,
+      {
+        title: body.title,
+        groupId: body.groupId,
+      },
+    );
+  }
+
+  @Post('dispatch-news')
+  async dispatchNews(
+    @Body()
+    body: {
+      teacherId: string;
+      sendPrivate?: boolean;
+      sendGroup?: boolean;
+      groupTitle?: string;
+      groupId?: string;
+      groupLevel?: string;
+    },
+  ) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.dispatchNews(body.teacherId, {
+      sendPrivate: body.sendPrivate,
+      sendGroup: body.sendGroup,
+      groupTitle: body.groupTitle,
+      groupId: body.groupId,
+      groupLevel: body.groupLevel,
+    });
+  }
+
+  @Post('send')
   @HttpCode(HttpStatus.OK)
-  async testSendMessage(@Body() body: { number: string; text: string }) {
-    await this.whatsappService.sendMessage(body.number, body.text);
+  async sendMessage(@Body() body: { teacherId: string; number: string; text: string }) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+    await this.whatsappService.sendMessage(body.teacherId, body.number, body.text);
     return { message: 'Requisição de envio processada!' };
   }
 
   @Post('send-latest-news-quiz')
   @HttpCode(HttpStatus.OK)
   async sendLatestNewsAndQuiz(
-    @Body() body: { number: string; mode?: 'PRIVATE' | 'GROUP' },
+    @Body() body: { teacherId: string; number: string; mode?: 'GROUP' | 'PRIVATE' },
   ) {
-    const result = await this.whatsappService.sendLatestNewsAndQuiz(body.number, {
-      forceTargetType: body.mode,
-    });
-    return { message: 'Fluxo diário enviado com sucesso!', result };
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+    if (!body.number) {
+      throw new BadRequestException('Phone number is required');
+    }
+
+    const result = await this.whatsappService.sendLatestNewsAndQuiz(body.number, body.mode, body.teacherId);
+    return result;
   }
 }
