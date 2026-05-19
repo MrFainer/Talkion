@@ -13,7 +13,11 @@ export class SettingsService {
 
     if (!settings) {
       settings = await this.prisma.messageSettings.create({
-        data: { teacher_id: teacherId },
+        data: {
+          teacher_id: teacherId,
+          private_greeting_message: 'Good {{period}}, {{nome}}! 🎉🎉',
+          group_greeting_message: 'Good {{period}}! 🎉🎉',
+        },
       });
     }
 

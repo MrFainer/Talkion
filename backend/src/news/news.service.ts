@@ -58,6 +58,11 @@ export class NewsService {
       select: { id: true },
     });
 
+    if (activeTeachers.length === 0) {
+      this.logger.log('Nenhum professor ativo encontrado. Cron de notícias não executado.');
+      return;
+    }
+
     for (const teacher of activeTeachers) {
       try {
         await this.runDailyNewsAndQuiz({
@@ -71,17 +76,6 @@ export class NewsService {
       } catch (error) {
         this.logger.error(`Erro ao gerar notícia para o professor ${teacher.id}:`, error);
       }
-    }
-    
-    // Fallback global legacy se nenhum professor existir (ou pra ter sempre a do dia)
-    if (activeTeachers.length === 0) {
-      await this.runDailyNewsAndQuiz({
-        referenceType: 'daily_news_job',
-        referenceId: new Date().toISOString().slice(0, 10),
-        metadata: {
-          trigger: 'cron',
-        },
-      });
     }
   }
 

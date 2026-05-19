@@ -738,7 +738,11 @@ export class WhatsappService {
 
     if (!settings) {
       settings = await this.prisma.messageSettings.create({
-        data: { teacher_id: teacherId }
+        data: {
+          teacher_id: teacherId,
+          private_greeting_message: 'Good {{period}}, {{nome}}! 🎉🎉',
+          group_greeting_message: 'Good {{period}}! 🎉🎉',
+        }
       });
     }
 
@@ -760,11 +764,22 @@ export class WhatsappService {
     // Resolve as variáveis dinâmicas (ex: {{nome}})
     const renderVars = (text: string) => {
       if (!text) return '';
+      const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+      const hourStr = new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit',
+        hour12: false,
+        timeZone,
+      }).format(new Date());
+      const hour = Number(hourStr);
+      const period =
+        hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+
       return text
         .replace(/{{nome}}/g, student?.full_name || 'Student')
         .replace(/{{telefone}}/g, student?.whatsapp_number || '')
         .replace(/{{data}}/g, new Date().toLocaleDateString('pt-BR'))
-        .replace(/{{hora}}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+        .replace(/{{hora}}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
+        .replace(/{{period}}/g, period);
     };
 
     if (isGroupTarget) {

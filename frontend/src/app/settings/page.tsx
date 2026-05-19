@@ -13,6 +13,14 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
 import { toast } from "sonner";
 import { MessageSquare, Users, Settings2, Variable, Save, RotateCcw, SmilePlus } from "lucide-react";
@@ -23,6 +31,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
   useEffect(() => {
     hydrate();
@@ -64,7 +73,6 @@ export default function SettingsPage() {
 
   const handleReset = async () => {
     if (!user?.id) return;
-    if (!confirm("Tem certeza que deseja restaurar as configurações originais? Isso apagará suas modificações.")) return;
     
     setSaving(true);
     try {
@@ -75,6 +83,14 @@ export default function SettingsPage() {
       toast.error("Erro ao restaurar configurações.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    try {
+      await handleReset();
+    } finally {
+      setIsResetDialogOpen(false);
     }
   };
 
@@ -187,7 +203,11 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={handleReset} disabled={saving}>
+            <Button
+              variant="outline"
+              onClick={() => setIsResetDialogOpen(true)}
+              disabled={saving}
+            >
               <RotateCcw className="w-4 h-4 mr-2" />
               Restaurar Padrão
             </Button>
@@ -198,13 +218,36 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Restaurar configurações padrão</DialogTitle>
+              <DialogDescription>
+                Isso vai apagar suas modificações e voltar ao padrão do Talkion.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsResetDialogOpen(false)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmReset} disabled={saving}>
+                {saving ? "Restaurando..." : "Restaurar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Tabs defaultValue="private" className="space-y-6">
           <TabsList className="grid w-full max-w-2xl grid-cols-3">
             <TabsTrigger value="private" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Privadas</span>
+              <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Privado</span>
             </TabsTrigger>
             <TabsTrigger value="group" className="flex items-center gap-2">
-              <Users className="w-4 h-4" /> <span className="hidden sm:inline">Grupos</span>
+              <Users className="w-4 h-4" /> <span className="hidden sm:inline">Grupo</span>
             </TabsTrigger>
             <TabsTrigger value="vars" className="flex items-center gap-2">
               <Variable className="w-4 h-4" /> <span className="hidden sm:inline">Variáveis</span>
@@ -214,7 +257,7 @@ export default function SettingsPage() {
           <TabsContent value="private" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Comportamento em Conversas Privadas</CardTitle>
+                <CardTitle>Comportamento em Conversas no Privado</CardTitle>
                 <CardDescription>Ajuste como o bot responde mensagens diretamente aos alunos.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -267,7 +310,7 @@ export default function SettingsPage() {
           <TabsContent value="group" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Comportamento em Grupos</CardTitle>
+                <CardTitle>Comportamento em Conversas no Grupo</CardTitle>
                 <CardDescription>Ajuste as respostas do bot dentro de grupos do WhatsApp.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -414,6 +457,7 @@ export default function SettingsPage() {
                     { tag: "{{grupo}}", desc: "Nome do grupo (se houver)" },
                     { tag: "{{data}}", desc: "Data atual (ex: 18/05/2026)" },
                     { tag: "{{hora}}", desc: "Hora atual (ex: 14:30)" },
+                    { tag: "{{period}}", desc: "Período do dia: morning / afternoon / evening" },
                   ].map((v) => (
                     <div key={v.tag} className="border p-4 rounded-lg bg-muted/20 flex flex-col justify-between items-start h-full">
                       <div>
@@ -436,9 +480,9 @@ export default function SettingsPage() {
                 </div>
                 <div className="mt-8 p-4 border rounded-lg bg-primary/5">
                   <h4 className="font-medium mb-2">Exemplo Prático:</h4>
-                  <p className="font-mono text-sm">Olá {"{{nome}}"}! Bem-vindo ao curso da {"{{empresa}}"}.</p>
+                  <p className="font-mono text-sm">Good {"{{period}}"}, {"{{nome}}"}! Hoje é {"{{data}}"} às {"{{hora}}"}.</p>
                   <p className="text-sm mt-2 text-muted-foreground">Como será enviado:</p>
-                  <p className="font-mono text-sm bg-background p-2 rounded border mt-1">Olá João! Bem-vindo ao curso da Talkion.</p>
+                  <p className="font-mono text-sm bg-background p-2 rounded border mt-1">Good morning, João! Hoje é 19/05/2026 às 08:30.</p>
                 </div>
               </CardContent>
             </Card>
