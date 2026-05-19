@@ -52,6 +52,7 @@ model User {
   role               Role     @default(STUDENT)
   email_verified     Boolean  @default(false)
   verification_token String?
+  verification_token_sent_at DateTime?
   password_reset_token      String?
   password_reset_expires_at DateTime?
   news_group_title   String?

@@ -5,15 +5,21 @@ import * as nodemailer from 'nodemailer';
 export class MailService {
   private transporter: nodemailer.Transporter;
   private readonly logger = new Logger(MailService.name);
+  private readonly from: string;
 
   constructor() {
-    // Para MVP, usando um mock simples com Ethereal Email ou SMTP local
-    // Em produção, você colocaria process.env.SMTP_HOST etc.
+    const host = process.env.SMTP_HOST || 'smtp.ethereal.email';
+    const port = Number(process.env.SMTP_PORT) || 587;
+    const secure = port === 465;
+    this.from =
+      process.env.SMTP_FROM?.trim() || '"Talkion" <noreply@talkion.com>';
+
     this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-      port: Number(process.env.SMTP_PORT) || 587,
+      host,
+      port,
+      secure,
       auth: {
-        user: process.env.SMTP_USER || 'ethereal.user@ethereal.email', // preencher com real se tiver
+        user: process.env.SMTP_USER || 'ethereal.user@ethereal.email',
         pass: process.env.SMTP_PASS || 'ethereal.pass',
       },
     });
@@ -22,7 +28,7 @@ export class MailService {
   async sendVerificationEmail(to: string, token: string) {
     try {
       const info = await this.transporter.sendMail({
-        from: '"Talkion MVP" <noreply@talkion.com>',
+        from: this.from,
         to,
         subject: 'Verifique seu e-mail no Talkion',
         text: `Seu código de verificação é: ${token}`,
@@ -53,7 +59,7 @@ export class MailService {
   async sendPasswordResetEmail(to: string, token: string) {
     try {
       const info = await this.transporter.sendMail({
-        from: '"Talkion MVP" <noreply@talkion.com>',
+        from: this.from,
         to,
         subject: 'Redefina sua senha no Talkion',
         text: `Seu código para redefinir a senha é: ${token}`,

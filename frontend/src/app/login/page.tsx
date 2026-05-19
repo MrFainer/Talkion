@@ -99,6 +99,9 @@ export default function LoginPage() {
   const [resetCodeSent, setResetCodeSent] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+  const [loginErrorMessage, setLoginErrorMessage] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
 
   const validatePassword = (pass: string) => {
     const minLength = 8;
@@ -110,6 +113,14 @@ export default function LoginPage() {
   };
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+  useEffect(() => {
+    if (view !== "verify" || resendCooldownSeconds <= 0) return;
+    const intervalId = window.setInterval(() => {
+      setResendCooldownSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [view, resendCooldownSeconds]);
 
   const passwordChecks = {
     minLength: password.length >= 8,
@@ -123,6 +134,7 @@ export default function LoginPage() {
     e.preventDefault();
     const normalizedEmail = normalizeEmail(email);
     setLoading(true);
+    setLoginErrorMessage(null);
     try {
       const response = await api.post("/auth/login", { email: normalizedEmail, password });
       login(response.data.user, response.data.access_token, rememberMe);
@@ -134,7 +146,9 @@ export default function LoginPage() {
         setView("verify");
         toast.error("Você precisa verificar seu e-mail antes de logar.");
       } else {
-        toast.error(error.response?.data?.message || "Erro ao fazer login.");
+        const message = error.response?.data?.message || "Erro ao fazer login.";
+        setLoginErrorMessage(message);
+        toast.error(message);
       }
     } finally {
       setLoading(false);
@@ -159,6 +173,7 @@ export default function LoginPage() {
       if (response.data.requiresVerification) {
         setRegisteredEmail(response.data.email);
         setView("verify");
+        setResendCooldownSeconds(60);
         toast.success("Conta criada! Verifique seu e-mail.");
       } else {
         login(response.data.user, response.data.access_token, true);
@@ -181,13 +196,52 @@ export default function LoginPage() {
         email: normalizedEmail,
         token: verificationToken,
       });
-      login(response.data.user, response.data.access_token, true);
-      toast.success("E-mail verificado com sucesso!");
-      router.push("/dashboard");
+      if (response.data?.access_token && response.data?.user) {
+        login(response.data.user, response.data.access_token, true);
+        toast.success("E-mail verificado com sucesso!");
+        router.push("/dashboard");
+      } else {
+        toast.success(response.data?.message || "E-mail verificado.");
+        setView("login");
+        setEmail(normalizedEmail);
+        setPassword("");
+        setVerificationToken("");
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Token inválido.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const extractSecondsFromMessage = (message: string): number | null => {
+    const match = message.match(/(\d+)\s*(segundos|segundo|s)\b/i);
+    if (!match) return null;
+    const value = Number(match[1]);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value;
+  };
+
+  const handleResendVerification = async () => {
+    const normalizedEmail = normalizeEmail(registeredEmail);
+    if (!normalizedEmail) {
+      toast.error("Informe um e-mail para reenviar o código.");
+      return;
+    }
+
+    setResendLoading(true);
+    try {
+      const response = await api.post("/auth/resend-verification", { email: normalizedEmail });
+      toast.success(response.data?.message || "Código reenviado! Verifique seu e-mail.");
+      setVerificationToken("");
+      setResendCooldownSeconds(60);
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Erro ao reenviar código.";
+      const seconds = typeof message === "string" ? extractSecondsFromMessage(message) : null;
+      if (seconds) setResendCooldownSeconds(seconds);
+      toast.error(message);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -390,6 +444,12 @@ export default function LoginPage() {
                         </button>
                       </div>
                     </div>
+
+                    {loginErrorMessage ? (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {loginErrorMessage}
+                      </div>
+                    ) : null}
 
                     <div className="flex items-center justify-start gap-3 text-sm">
                       <label className="flex items-center gap-2 text-slate-500">
@@ -716,6 +776,20 @@ export default function LoginPage() {
                   disabled={loading || verificationToken.length < 6}
                 >
                   {loading ? "Verificando..." : "Verificar e entrar"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full rounded-xl border-slate-200"
+                  onClick={handleResendVerification}
+                  disabled={resendLoading || resendCooldownSeconds > 0}
+                >
+                  {resendLoading
+                    ? "Reenviando..."
+                    : resendCooldownSeconds > 0
+                      ? `Reenviar código em ${resendCooldownSeconds}s`
+                      : "Reenviar código"}
                 </Button>
 
                 <Button

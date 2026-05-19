@@ -38,13 +38,20 @@ export class AuthService {
         role: 'TEACHER',
         email_verified: false,
         verification_token,
+        active: false,
+        verification_token_sent_at: new Date(),
       },
     });
 
     // Envia e-mail de forma assíncrona
     this.mailService.sendVerificationEmail(email, verification_token).catch(console.error);
 
-    return { message: 'Registro realizado. Verifique seu e-mail.', requiresVerification: true, email };
+    return {
+      message:
+        'Registro realizado. Verifique seu e-mail. Após a verificação, sua conta ficará bloqueada até liberação do administrador.',
+      requiresVerification: true,
+      email,
+    };
   }
 
   async verifyEmail(data: { email: string; token: string }) {
@@ -61,6 +68,14 @@ export class AuthService {
       throw new BadRequestException('Usuário não encontrado.');
     }
     if (user.email_verified) {
+      if (!user.active) {
+        return {
+          message:
+            'E-mail já verificado. Sua conta está bloqueada. Entre em contato com o administrador do sistema Talkion.',
+          blocked: true,
+          email,
+        };
+      }
       return this.generateAuthResponse(user);
     }
     if (user.verification_token !== token) {
@@ -72,8 +87,18 @@ export class AuthService {
       data: {
         email_verified: true,
         verification_token: null,
+        verification_token_sent_at: null,
       },
     });
+
+    if (!updatedUser.active) {
+      return {
+        message:
+          'E-mail verificado com sucesso. Sua conta está bloqueada. Entre em contato com o administrador do sistema Talkion.',
+        blocked: true,
+        email,
+      };
+    }
 
     return this.generateAuthResponse(updatedUser);
   }
@@ -101,10 +126,53 @@ export class AuthService {
     }
 
     if (!user.active) {
-      throw new UnauthorizedException('Sua conta está desativada. Entre em contato com o suporte.');
+      throw new UnauthorizedException(
+        'Sua conta está bloqueada. Entre em contato com o administrador do sistema Talkion.',
+      );
     }
 
     return this.generateAuthResponse(user);
+  }
+
+  async resendVerification(data: { email: string }) {
+    const email = this.normalizeEmail(data.email);
+    if (!email) {
+      throw new BadRequestException('E-mail é obrigatório.');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return { message: 'Se o e-mail estiver cadastrado, enviaremos um novo código.' };
+    }
+
+    if (user.email_verified) {
+      return { message: 'Este e-mail já foi verificado.' };
+    }
+
+    const minSeconds = 60;
+    if (user.verification_token_sent_at) {
+      const diffMs = Date.now() - new Date(user.verification_token_sent_at).getTime();
+      const remaining = Math.ceil((minSeconds * 1000 - diffMs) / 1000);
+      if (remaining > 0) {
+        throw new BadRequestException(
+          `Aguarde ${remaining}s para reenviar o código.`,
+        );
+      }
+    }
+
+    const verification_token = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verification_token,
+        verification_token_sent_at: new Date(),
+      },
+    });
+
+    this.mailService.sendVerificationEmail(email, verification_token).catch(console.error);
+
+    return { message: 'Novo código enviado para seu e-mail.' };
   }
 
   async requestPasswordReset(data: { email: string }) {
