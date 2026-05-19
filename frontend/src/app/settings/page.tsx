@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,7 +22,82 @@ import {
 } from "@/components/ui/dialog";
 import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
 import { toast } from "sonner";
-import { MessageSquare, Users, Settings2, Variable, Save, RotateCcw, SmilePlus } from "lucide-react";
+import { MessageSquare, Users, Variable, Save, RotateCcw, SmilePlus } from "lucide-react";
+
+type TextEditorProps = {
+  label: string;
+  field: string;
+  value: string;
+  onChange: (field: string, value: string) => void;
+  onInsertEmoji: (field: string, emoji: string) => void;
+  minHeight?: string;
+};
+
+function TextEditor({
+  label,
+  field,
+  value,
+  onChange,
+  onInsertEmoji,
+  minHeight = "min-h-[100px]",
+}: TextEditorProps) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <Popover>
+          <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-2 text-muted-foreground">
+            <SmilePlus className="w-4 h-4 mr-2" /> Emojis
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end" side="top">
+            <EmojiPicker
+              theme={Theme.AUTO}
+              onEmojiClick={(emoji: EmojiClickData) => onInsertEmoji(field, emoji.emoji)}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <Textarea
+        id={field}
+        value={value}
+        onChange={(e) => onChange(field, e.target.value)}
+        className={minHeight}
+      />
+      <div className="flex justify-between items-center text-xs text-muted-foreground">
+        <span>{value.length} caracteres</span>
+      </div>
+    </div>
+  );
+}
+
+function WhatsappFormatGuide() {
+  return (
+    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6 text-sm">
+      <h4 className="font-semibold mb-2 flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-primary" />
+        Guia de Formatação
+      </h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-muted-foreground">
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">*texto*</code>
+          <p className="mt-1 font-bold text-foreground">Negrito</p>
+        </div>
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">_texto_</code>
+          <p className="mt-1 italic text-foreground">Itálico</p>
+        </div>
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">~texto~</code>
+          <p className="mt-1 line-through text-foreground">Tachado</p>
+        </div>
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">`texto`</code>
+          <p className="mt-1 font-mono text-xs text-foreground">Monoespaçado</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -117,69 +191,6 @@ export default function SettingsPage() {
     }, 10);
   };
 
-  const TextEditor = ({ 
-    label, 
-    field, 
-    minHeight = "min-h-[100px]" 
-  }: { 
-    label: string; 
-    field: string; 
-    minHeight?: string; 
-  }) => (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label>{label}</Label>
-        <Popover>
-          <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-2 text-muted-foreground">
-            <SmilePlus className="w-4 h-4 mr-2" /> Emojis
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end" side="top">
-            <EmojiPicker 
-              theme={Theme.AUTO}
-              onEmojiClick={(emoji: EmojiClickData) => insertTextAtCursor(field, emoji.emoji)} 
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-      <Textarea 
-        id={field}
-        value={settings?.[field] || ""} 
-        onChange={(e) => updateSetting(field, e.target.value)}
-        className={minHeight}
-      />
-      <div className="flex justify-between items-center text-xs text-muted-foreground">
-        <span>{settings?.[field]?.length || 0} caracteres</span>
-      </div>
-    </div>
-  );
-
-  const WhatsappFormatGuide = () => (
-    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6 text-sm">
-      <h4 className="font-semibold mb-2 flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-primary" />
-        Guia de Formatação do WhatsApp
-      </h4>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-muted-foreground">
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">*texto*</code>
-          <p className="mt-1 font-bold text-foreground">Negrito</p>
-        </div>
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">_texto_</code>
-          <p className="mt-1 italic text-foreground">Itálico</p>
-        </div>
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">~texto~</code>
-          <p className="mt-1 line-through text-foreground">Tachado</p>
-        </div>
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">```texto```</code>
-          <p className="mt-1 font-mono text-xs text-foreground">Monoespaçado</p>
-        </div>
-      </div>
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="flex h-screen w-full">
@@ -258,50 +269,38 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Comportamento em Conversas no Privado</CardTitle>
-                <CardDescription>Ajuste como o bot responde mensagens diretamente aos alunos.</CardDescription>
+                <CardDescription>Configure uma ideia de como a IA vai montar e enviar as mensagens no privado.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <WhatsappFormatGuide />
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="flex items-center justify-between border rounded-lg p-4">
-                    <div className="space-y-0.5">
-                      <Label>Delay entre mensagens (segundos)</Label>
-                      <p className="text-sm text-muted-foreground">Pausa antes de enviar a próxima mensagem.</p>
-                    </div>
-                    <Input 
-                      type="number" 
-                      value={settings?.private_delay_seconds || 2} 
-                      onChange={(e) => updateSetting("private_delay_seconds", Number(e.target.value))}
-                      className="w-24"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between border rounded-lg p-4">
-                    <div className="space-y-0.5">
-                      <Label>Simular digitação</Label>
-                      <p className="text-sm text-muted-foreground">Mostra "digitando..." pelo tempo do delay.</p>
-                    </div>
-                    <Switch
-                      checked={settings?.private_simulate_typing}
-                      onCheckedChange={(v) => updateSetting("private_simulate_typing", v)}
-                    />
-                  </div>
-                </div>
 
                 <div className="space-y-6">
-                  <TextEditor 
-                    label="Saudação Inicial (Privado)" 
-                    field="private_greeting_message" 
-                  />
-                  <TextEditor 
-                    label="Introdução do Desafio de Áudio (Speaking)" 
-                    field="speaking_intro_message" 
-                    minHeight="min-h-[150px]"
-                  />
-                  <TextEditor 
-                    label="Introdução da Notícia" 
-                    field="news_intro_message" 
-                  />
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <TextEditor
+                      label="Saudação"
+                      field="private_greeting_idea"
+                      value={settings?.private_greeting_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho do Desafio"
+                      field="private_speaking_intro_idea"
+                      value={settings?.private_speaking_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho da Notícia"
+                      field="private_news_intro_idea"
+                      value={settings?.private_news_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -311,54 +310,54 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Comportamento em Conversas no Grupo</CardTitle>
-                <CardDescription>Ajuste as respostas do bot dentro de grupos do WhatsApp.</CardDescription>
+                <CardDescription>Configure uma ideia de como a IA vai montar e enviar as mensagens no grupo.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <WhatsappFormatGuide />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="flex items-center justify-between border rounded-lg p-4">
-                    <div className="space-y-0.5">
-                      <Label>Delay entre mensagens (segundos)</Label>
-                      <p className="text-sm text-muted-foreground">Pausa antes de enviar a próxima mensagem.</p>
-                    </div>
-                    <Input 
-                      type="number" 
-                      value={settings?.group_delay_seconds || 3} 
-                      onChange={(e) => updateSetting("group_delay_seconds", Number(e.target.value))}
-                      className="w-24"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between border rounded-lg p-4">
-                    <div className="space-y-0.5">
-                      <Label>Simular digitação</Label>
-                      <p className="text-sm text-muted-foreground">Mostra "digitando..." pelo tempo do delay.</p>
-                    </div>
-                    <Switch
-                      checked={settings?.group_simulate_typing}
-                      onCheckedChange={(v) => updateSetting("group_simulate_typing", v)}
-                    />
-                  </div>
-                </div>
-
                 <div className="space-y-6">
-                  <TextEditor 
-                    label="Saudação de Boas-vindas" 
-                    field="group_greeting_message" 
-                  />
-                  <TextEditor 
-                    label="Introdução da Notícia" 
-                    field="group_news_intro_message" 
-                  />
-                  <TextEditor 
-                    label="Cabeçalho do Quiz" 
-                    field="group_quiz_header_message" 
-                    minHeight="min-h-[150px]"
-                  />
-                  <TextEditor 
-                    label="Rodapé do Quiz" 
-                    field="group_quiz_footer_message" 
-                  />
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <TextEditor
+                      label="Saudação"
+                      field="group_greeting_idea"
+                      value={settings?.group_greeting_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho do Quiz do Dia Anterior"
+                      field="group_previous_quiz_header_idea"
+                      value={settings?.group_previous_quiz_header_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho da Notícia"
+                      field="group_news_intro_idea"
+                      value={settings?.group_news_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho do Quiz"
+                      field="group_quiz_header_idea"
+                      value={settings?.group_quiz_header_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor 
+                      label="Rodapé do Quiz" 
+                      field="group_quiz_footer_message" 
+                      value={settings?.group_quiz_footer_message || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
 import { QuizService } from '../quiz/quiz.service';
 import { NewsService } from '../news/news.service';
+import { randomUUID } from 'crypto';
 
 type QuizQuestion = {
   question: string;
@@ -654,28 +655,58 @@ export class WhatsappService {
       );
     }
 
-    const result: {
-      success: boolean;
-      private?: any;
-      group?: any;
-    } = { success: true };
+    const jobId = randomUUID();
 
-    if (sendPrivate) {
-      result.private = await this.broadcastPrivate(teacherId);
-    }
-
-    if (sendGroup) {
-      result.group = await this.sendLatestNewsToConfiguredGroup(
-        teacherId,
-        {
-          title: options?.groupTitle,
-          groupId: options?.groupId,
-          groupLevel: options?.groupLevel,
-        },
+    void (async () => {
+      this.logger.log(
+        `[DISPATCH][${jobId}] Iniciando disparo (teacherId=${teacherId}) private=${sendPrivate} group=${sendGroup}`,
       );
-    }
 
-    return result;
+      const result: {
+        success: boolean;
+        private?: any;
+        group?: any;
+        errors?: Array<{ scope: 'private' | 'group'; message: string }>;
+      } = { success: true, errors: [] };
+
+      if (sendPrivate) {
+        try {
+          result.private = await this.broadcastPrivate(teacherId);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.error(`[DISPATCH][${jobId}] Falha no privado: ${message}`);
+          result.errors?.push({ scope: 'private', message });
+          result.success = false;
+        }
+      }
+
+      if (sendGroup) {
+        try {
+          result.group = await this.sendLatestNewsToConfiguredGroup(teacherId, {
+            title: options?.groupTitle,
+            groupId: options?.groupId,
+            groupLevel: options?.groupLevel,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.error(`[DISPATCH][${jobId}] Falha no grupo: ${message}`);
+          result.errors?.push({ scope: 'group', message });
+          result.success = false;
+        }
+      }
+
+      this.logger.log(
+        `[DISPATCH][${jobId}] Finalizado | success=${result.success} | private=${Boolean(
+          result.private,
+        )} | group=${Boolean(result.group)} | errors=${result.errors?.length || 0}`,
+      );
+    })();
+
+    return {
+      success: true,
+      jobId,
+      message: 'Disparo iniciado. As mensagens serão enviadas em segundo plano.',
+    };
   }
 
   async broadcastPrivate(teacherId: string) {
@@ -687,6 +718,12 @@ export class WhatsappService {
         receive_private_news: true,
         whatsapp_valid: true,
       },
+      select: {
+        id: true,
+        full_name: true,
+        whatsapp_number: true,
+        english_level: true,
+      },
     });
 
     this.logger.log(`[BROADCAST] Alunos encontrados para disparo: ${students.length}`);
@@ -695,16 +732,282 @@ export class WhatsappService {
       return { success: true, count: 0, message: 'Nenhum aluno configurado e válido para receber notícia no privado. (Lembre-se de ativar o envio na tela de alunos)' };
     }
 
-    // Processamento em lote, para evitar rate limit, poderia ser feito um por um com delay
-    let count = 0;
+    let settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+    });
+
+    if (!settings) {
+      const defaultPrivateGreeting = 'Good {{period}}, {{nome}}! 🎉🎉';
+      const defaultGroupGreeting = 'Good {{period}}! 🎉🎉';
+      const defaultSpeakingIntro =
+        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
+      const defaultNewsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+      const defaultGroupNewsIntro = defaultNewsIntro;
+      const defaultGroupQuizHeader =
+        "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
+      const defaultPreviousQuizHeader =
+        '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+
+      settings = await this.prisma.messageSettings.create({
+        data: {
+          teacher_id: teacherId,
+          private_greeting_message: defaultPrivateGreeting,
+          speaking_intro_message: defaultSpeakingIntro,
+          news_intro_message: defaultNewsIntro,
+          group_greeting_message: defaultGroupGreeting,
+          group_news_intro_message: defaultGroupNewsIntro,
+          group_quiz_header_message: defaultGroupQuizHeader,
+          private_greeting_idea: `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${defaultPrivateGreeting}`,
+          private_speaking_intro_idea: `Você pode montar a introdução do desafio de áudio com base nesse modelo aqui:\n\n${defaultSpeakingIntro}`,
+          private_news_intro_idea: `Você pode montar a introdução da notícia com base nesse modelo aqui:\n\n${defaultNewsIntro}`,
+          group_greeting_idea: `Você pode montar a saudação inicial do grupo com base nesse modelo aqui:\n\n${defaultGroupGreeting}`,
+          group_previous_quiz_header_idea: `Você pode montar o cabeçalho do quiz do dia anterior com base nesse modelo aqui:\n\n${defaultPreviousQuizHeader}`,
+          group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
+          group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
+        },
+      });
+    }
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const getNewsByLevel = async () => {
+      const levels = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'] as const;
+      const records = await this.prisma.news.findMany({
+        where: {
+          teacher_id: teacherId,
+          level: { in: levels as any },
+          created_at: { gte: startOfDay, lte: endOfDay },
+        },
+        orderBy: { created_at: 'desc' },
+      });
+
+      const byLevel = new Map<string, { title: string; content: string; level: string }>();
+      for (const item of records) {
+        if (!byLevel.has(item.level)) {
+          byLevel.set(item.level, {
+            title: item.title,
+            content: item.content,
+            level: item.level,
+          });
+        }
+      }
+
+      if (byLevel.size < 3) {
+        await this.newsService.runDailyNewsAndQuiz({
+          teacherId,
+          referenceType: 'private_broadcast_autofill',
+          referenceId: new Date().toISOString().slice(0, 10),
+          metadata: { trigger: 'broadcast_private' },
+        });
+
+        const after = await this.prisma.news.findMany({
+          where: {
+            teacher_id: teacherId,
+            level: { in: levels as any },
+            created_at: { gte: startOfDay, lte: endOfDay },
+          },
+          orderBy: { created_at: 'desc' },
+        });
+
+        for (const item of after) {
+          if (!byLevel.has(item.level)) {
+            byLevel.set(item.level, {
+              title: item.title,
+              content: item.content,
+              level: item.level,
+            });
+          }
+        }
+      }
+
+      return {
+        LEVEL_1: byLevel.get('LEVEL_1') || null,
+        LEVEL_2: byLevel.get('LEVEL_2') || null,
+        LEVEL_3: byLevel.get('LEVEL_3') || null,
+      };
+    };
+
+    const newsByLevel = await getNewsByLevel();
+
+    const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+    const hourStr = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(new Date());
+    const hour = Number(hourStr);
+    const period =
+      hour >= 5 && hour < 12
+        ? 'morning'
+        : hour >= 12 && hour < 18
+          ? 'afternoon'
+          : 'evening';
+
+    const modelosDeMensagens = {
+      greeting: settings.private_greeting_idea || null,
+      challenge: settings.private_speaking_intro_idea || null,
+      news_intro: settings.private_news_intro_idea || null,
+      news_by_level: newsByLevel,
+      quiz_footer_hint:
+        'No privado não há quiz, apenas notícia e speaking. Encoraje o aluno a responder com áudio.',
+      variables: {
+        data: new Date().toLocaleDateString('pt-BR'),
+        hora: new Date().toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        period,
+      },
+    };
+
+    const computeVariante = (whatsappNumber: string): 1 | 2 | 3 => {
+      const digit = Number(String(whatsappNumber).slice(-1));
+      const v = ((Number.isFinite(digit) ? digit : 0) % 3) + 1;
+      return v === 1 ? 1 : v === 2 ? 2 : 3;
+    };
+
+    let generated: Array<{
+      nome: string;
+      whatsapp: string;
+      mensagens: Array<{ tipo: string; mensagem: string }>;
+    }> = [];
+    try {
+      generated = await this.aiService.generatePrivateBroadcastMessages({
+        model: settings.ai_model || 'gpt-4o-mini',
+        temperature: settings.ai_temperature ?? 0.7,
+        systemPrompt: settings.system_prompt || null,
+        modelosDeMensagens,
+        totalAlunos: students.length,
+        alunos: students.map((s) => ({
+          nome: s.full_name,
+          whatsapp: s.whatsapp_number,
+          nivel: s.english_level,
+          variante: computeVariante(s.whatsapp_number),
+        })),
+        tracking: {
+          teacherId,
+          referenceType: 'whatsapp_private_broadcast',
+          referenceId: new Date().toISOString(),
+          flowType: 'OUTGOING',
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `[BROADCAST][IA] Erro ao gerar mensagens em lote: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      generated = [];
+    }
+
+    const studentsByWhatsapp = new Map<string, (typeof students)[number]>();
     for (const student of students) {
+      studentsByWhatsapp.set(student.whatsapp_number, student);
+    }
+
+    const fallbackBlocksForStudent = (student: (typeof students)[number]) => {
+      const selectedNews =
+        (student.english_level === 'LEVEL_1' ? newsByLevel.LEVEL_1 : null) ||
+        (student.english_level === 'LEVEL_2' ? newsByLevel.LEVEL_2 : null) ||
+        (student.english_level === 'LEVEL_3' ? newsByLevel.LEVEL_3 : null) ||
+        newsByLevel.LEVEL_1 ||
+        newsByLevel.LEVEL_2 ||
+        newsByLevel.LEVEL_3;
+
+      const greeting = `Good ${period}, ${student.full_name}!`;
+      const challenge =
+        'Can you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?';
+      const newsIntro = '📰 Let’s go to today’s news!';
+      const newsBody = selectedNews
+        ? this.formatNewsBodyForWhatsapp(selectedNews.title, selectedNews.content)
+        : '';
+
+      return [
+        { tipo: 'GREETING', mensagem: greeting },
+        { tipo: 'SPEAKING_INTRO', mensagem: challenge },
+        { tipo: 'NEWS_INTRO', mensagem: newsIntro },
+        { tipo: 'NEWS', mensagem: newsBody },
+      ];
+    };
+
+    const requiredOrder = ['GREETING', 'SPEAKING_INTRO', 'NEWS_INTRO', 'NEWS'] as const;
+
+    let count = 0;
+    const processed = new Set<string>();
+    for (const entry of generated) {
+      const student = studentsByWhatsapp.get(entry.whatsapp);
+      if (!student) {
+        this.logger.warn(
+          `[BROADCAST][IA] WhatsApp retornado sem correspondência: "${entry.whatsapp}" (nome: "${entry.nome}").`,
+        );
+        continue;
+      }
+
       try {
-        await this.sendLatestNewsAndQuiz(student.whatsapp_number, 'PRIVATE', teacherId);
-        count++;
-        // Pausa pequena de 2 segundos entre mensagens para segurança do número
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        processed.add(student.whatsapp_number);
+        const byType = new Map<string, string>();
+        for (const block of entry.mensagens || []) {
+          if (block?.tipo && typeof block.mensagem === 'string') {
+            if (!byType.has(String(block.tipo))) {
+              byType.set(String(block.tipo), block.mensagem.trim());
+            }
+          }
+        }
+
+        const fallbackBlocks = fallbackBlocksForStudent(student);
+        const fallbackByType = new Map<string, string>();
+        for (const b of fallbackBlocks) {
+          fallbackByType.set(b.tipo, b.mensagem);
+        }
+
+        for (const tipo of requiredOrder) {
+          const text =
+            tipo === 'NEWS'
+              ? String(fallbackByType.get('NEWS') || '').trim()
+              : String(byType.get(tipo) || fallbackByType.get(tipo) || '').trim();
+          if (!text) continue;
+
+          await this.sendMessage(teacherId, student.whatsapp_number, text, {
+            studentId: student.id,
+            relatedNewsId: null,
+            contentKind: `PRIVATE_BROADCAST_${tipo}`,
+          });
+          count++;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       } catch (error) {
-        this.logger.error(`[BROADCAST] Erro ao enviar para ${student.whatsapp_number}: ${error.message}`);
+        this.logger.error(
+          `[BROADCAST] Erro ao enviar para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    const missingStudents = students.filter((s) => !processed.has(s.whatsapp_number));
+    if (missingStudents.length > 0) {
+      this.logger.warn(
+        `[BROADCAST][IA] ${missingStudents.length} aluno(s) ficaram sem retorno da IA. Enviando fallback por blocos.`,
+      );
+      for (const student of missingStudents) {
+        try {
+          const blocks = fallbackBlocksForStudent(student);
+          for (const block of blocks) {
+            const text = String(block.mensagem || '').trim();
+            if (!text) continue;
+            await this.sendMessage(teacherId, student.whatsapp_number, text, {
+              studentId: student.id,
+              relatedNewsId: null,
+              contentKind: `PRIVATE_BROADCAST_FALLBACK_${block.tipo}`,
+            });
+            count++;
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        } catch (error) {
+          this.logger.error(
+            `[BROADCAST] Erro ao enviar fallback para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
     }
 
@@ -737,11 +1040,33 @@ export class WhatsappService {
     });
 
     if (!settings) {
+      const defaultPrivateGreeting = 'Good {{period}}, {{nome}}! 🎉🎉';
+      const defaultGroupGreeting = 'Good {{period}}! 🎉🎉';
+      const defaultSpeakingIntro =
+        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
+      const defaultNewsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+      const defaultGroupNewsIntro = defaultNewsIntro;
+      const defaultGroupQuizHeader =
+        "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
+      const defaultPreviousQuizHeader =
+        '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+
       settings = await this.prisma.messageSettings.create({
         data: {
           teacher_id: teacherId,
-          private_greeting_message: 'Good {{period}}, {{nome}}! 🎉🎉',
-          group_greeting_message: 'Good {{period}}! 🎉🎉',
+          private_greeting_message: defaultPrivateGreeting,
+          speaking_intro_message: defaultSpeakingIntro,
+          news_intro_message: defaultNewsIntro,
+          group_greeting_message: defaultGroupGreeting,
+          group_news_intro_message: defaultGroupNewsIntro,
+          group_quiz_header_message: defaultGroupQuizHeader,
+          private_greeting_idea: `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${defaultPrivateGreeting}`,
+          private_speaking_intro_idea: `Você pode montar a introdução do desafio de áudio com base nesse modelo aqui:\n\n${defaultSpeakingIntro}`,
+          private_news_intro_idea: `Você pode montar a introdução da notícia com base nesse modelo aqui:\n\n${defaultNewsIntro}`,
+          group_greeting_idea: `Você pode montar a saudação inicial do grupo com base nesse modelo aqui:\n\n${defaultGroupGreeting}`,
+          group_previous_quiz_header_idea: `Você pode montar o cabeçalho do quiz do dia anterior com base nesse modelo aqui:\n\n${defaultPreviousQuizHeader}`,
+          group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
+          group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
         }
       });
     }
@@ -761,46 +1086,165 @@ export class WhatsappService {
     let quizId: string | null = null;
     let previousQuizId: string | null = null;
 
-    // Resolve as variáveis dinâmicas (ex: {{nome}})
+    const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+    const hourStr = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(new Date());
+    const hour = Number(hourStr);
+    const period =
+      hour >= 5 && hour < 12
+        ? 'morning'
+        : hour >= 12 && hour < 18
+          ? 'afternoon'
+          : 'evening';
+
+    const variables = {
+      nome: student?.full_name || null,
+      telefone: student?.whatsapp_number || null,
+      data: new Date().toLocaleDateString('pt-BR'),
+      hora: new Date().toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      period: period as 'morning' | 'afternoon' | 'evening',
+    };
+
     const renderVars = (text: string) => {
       if (!text) return '';
-      const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
-      const hourStr = new Intl.DateTimeFormat('en-US', {
-        hour: '2-digit',
-        hour12: false,
-        timeZone,
-      }).format(new Date());
-      const hour = Number(hourStr);
-      const period =
-        hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
-
       return text
-        .replace(/{{nome}}/g, student?.full_name || 'Student')
-        .replace(/{{telefone}}/g, student?.whatsapp_number || '')
-        .replace(/{{data}}/g, new Date().toLocaleDateString('pt-BR'))
-        .replace(/{{hora}}/g, new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))
-        .replace(/{{period}}/g, period);
+        .replace(/{{nome}}/g, variables.nome || '')
+        .replace(/{{telefone}}/g, variables.telefone || '')
+        .replace(/{{data}}/g, variables.data || '')
+        .replace(/{{hora}}/g, variables.hora || '')
+        .replace(/{{period}}/g, variables.period || '');
+    };
+
+    const getAiMessages = async (input: {
+      mode: 'GROUP' | 'PRIVATE';
+      quizQuestions?: any;
+      previousAnswerKey?: string | null;
+    }) => {
+      const legacyIdea =
+        input.mode === 'GROUP'
+          ? settings.group_message_idea
+          : settings.private_message_idea;
+      const greetingIdea =
+        input.mode === 'GROUP'
+          ? settings.group_greeting_idea || legacyIdea || null
+          : settings.private_greeting_idea || legacyIdea || null;
+      const previousQuizHeaderIdea =
+        input.mode === 'GROUP'
+          ? settings.group_previous_quiz_header_idea || legacyIdea || null
+          : null;
+      const challengeIdea =
+        input.mode === 'GROUP'
+          ? settings.group_quiz_header_idea || legacyIdea || null
+          : settings.private_speaking_intro_idea || legacyIdea || null;
+      const newsIntroIdea =
+        input.mode === 'GROUP'
+          ? settings.group_news_intro_idea || legacyIdea || null
+          : settings.private_news_intro_idea || legacyIdea || null;
+      const defaultPreviousQuizHeader =
+        '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+      const templates =
+        input.mode === 'GROUP'
+          ? {
+              greeting: renderVars(settings.group_greeting_message),
+              previousQuizHeader: defaultPreviousQuizHeader,
+              newsIntro: renderVars(settings.group_news_intro_message),
+              quizHeader: renderVars(settings.group_quiz_header_message),
+              quizFooter: settings.group_quiz_footer_message,
+            }
+          : {
+              greeting: renderVars(settings.private_greeting_message),
+              speakingIntro: renderVars(settings.speaking_intro_message),
+              newsIntro: renderVars(settings.news_intro_message),
+            };
+
+      return this.aiService.generateWhatsappOutboundMessages({
+        mode: input.mode,
+        model: settings.ai_model || 'gpt-4o-mini',
+        temperature: settings.ai_temperature ?? 0.7,
+        systemPrompt: settings.system_prompt || null,
+        ideas: {
+          greetingIdea,
+          previousQuizHeaderIdea,
+          challengeIdea,
+          newsIntroIdea,
+        },
+        variables,
+        templates: templates as any,
+        content: {
+          newsTitle: latestNews.title,
+          newsText: latestNews.content,
+          level: latestNews.level,
+          quizQuestions: input.quizQuestions,
+          previousAnswerKey: input.previousAnswerKey || null,
+        },
+        tracking: {
+          teacherId,
+          studentId: student?.id || null,
+          newsId: latestNews.id,
+          referenceType: 'whatsapp_outbound',
+          referenceId: `${input.mode}:${new Date().toISOString()}`,
+          remoteJid: this.normalizeRemoteJid(targetNumber),
+          flowType: 'OUTGOING',
+        },
+      });
     };
 
     if (isGroupTarget) {
       const quizResult = await this.quizService.generateQuizForNews(latestNews.id, baseTracking);
       const previousQuiz = await this.findPreviousQuizForAnswerKey(latestNews.id);
       const answerKeyMessage = this.formatAnswerKeyForWhatsapp(previousQuiz);
-      const newsIntroMessage = renderVars(settings.group_news_intro_message);
+      let aiMessages: Array<{ kind: string; text: string }> = [];
+      try {
+        aiMessages = await getAiMessages({
+          mode: 'GROUP',
+          quizQuestions: quizResult.quiz.questions,
+          previousAnswerKey: answerKeyMessage || null,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `[OUTBOUND][IA] Falha ao gerar mensagens via IA (GROUP). Usando templates padrão. ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      const byKind = new Map<string, string>();
+      for (const msg of aiMessages) {
+        if (!byKind.has(msg.kind)) {
+          byKind.set(msg.kind, msg.text);
+        }
+      }
+
+      const greetingMessage =
+        byKind.get('GROUP_GREETING') || renderVars(settings.group_greeting_message);
+      const answerKeyHeaderMessage =
+        byKind.get('ANSWER_KEY_HEADER') ||
+        '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+      const newsIntroMessage =
+        byKind.get('NEWS_INTRO') || renderVars(settings.group_news_intro_message);
       const newsMessage = this.formatNewsBodyForWhatsapp(
         latestNews.title,
         latestNews.content,
       );
-      const quizHeaderMessage = renderVars(settings.group_quiz_header_message);
-      const quizMessage = this.formatQuizBodyForWhatsapp(
-        quizResult.quiz.questions as QuizQuestion[],
-        settings.group_quiz_footer_message
-      );
+      const quizHeaderMessage =
+        byKind.get('QUIZ_HEADER') || renderVars(settings.group_quiz_header_message);
+      const quizFooterMessage =
+        byKind.get('QUIZ_FOOTER') || renderVars(settings.group_quiz_footer_message);
+      const quizMessage =
+        byKind.get('QUIZ') ||
+        this.formatQuizBodyForWhatsapp(
+          quizResult.quiz.questions as QuizQuestion[],
+          '',
+        );
 
       quizId = quizResult.quiz.id;
       previousQuizId = previousQuiz?.id || null;
 
-      await this.sendMessage(teacherId, targetNumber, renderVars(settings.group_greeting_message), {
+      await this.sendMessage(teacherId, targetNumber, greetingMessage, {
         studentId: student?.id || null,
         relatedNewsId: latestNews.id,
         relatedQuizId: quizResult.quiz.id,
@@ -808,6 +1252,12 @@ export class WhatsappService {
       });
 
       if (answerKeyMessage) {
+        await this.sendMessage(teacherId, targetNumber, answerKeyHeaderMessage, {
+          studentId: student?.id || null,
+          relatedNewsId: previousQuiz?.news_id || null,
+          relatedQuizId: previousQuiz?.id || null,
+          contentKind: 'ANSWER_KEY_HEADER',
+        });
         await this.sendMessage(teacherId, targetNumber, answerKeyMessage, {
           studentId: student?.id || null,
           relatedNewsId: previousQuiz?.news_id || null,
@@ -838,32 +1288,64 @@ export class WhatsappService {
         relatedQuizId: quizResult.quiz.id,
         contentKind: 'QUIZ',
       });
+      if (quizFooterMessage?.trim()) {
+        await this.sendMessage(teacherId, targetNumber, quizFooterMessage, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          relatedQuizId: quizResult.quiz.id,
+          contentKind: 'QUIZ_FOOTER',
+        });
+      }
     } else {
-      await this.sendMessage(teacherId, targetNumber, renderVars(settings.private_greeting_message), {
+      let aiMessages: Array<{ kind: string; text: string }> = [];
+      try {
+        aiMessages = await getAiMessages({
+          mode: 'PRIVATE',
+        });
+      } catch (error) {
+        this.logger.warn(
+          `[OUTBOUND][IA] Falha ao gerar mensagens via IA (PRIVATE). Usando templates padrão. ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      const byKind = new Map<string, string>();
+      for (const msg of aiMessages) {
+        if (!byKind.has(msg.kind)) {
+          byKind.set(msg.kind, msg.text);
+        }
+      }
+
+      const greetingMessage =
+        byKind.get('PRIVATE_GREETING') || renderVars(settings.private_greeting_message);
+      const speakingIntroMessage =
+        byKind.get('SPEAKING_INTRO') || renderVars(settings.speaking_intro_message);
+      const newsIntroMessage =
+        byKind.get('NEWS_INTRO') || renderVars(settings.news_intro_message);
+      const newsMessage = this.formatNewsBodyForWhatsapp(
+        latestNews.title,
+        latestNews.content,
+      );
+
+      await this.sendMessage(teacherId, targetNumber, greetingMessage, {
         studentId: student?.id || null,
         relatedNewsId: latestNews.id,
         contentKind: 'PRIVATE_GREETING',
       });
-      await this.sendMessage(teacherId, targetNumber, renderVars(settings.speaking_intro_message), {
+      await this.sendMessage(teacherId, targetNumber, speakingIntroMessage, {
         studentId: student?.id || null,
         relatedNewsId: latestNews.id,
         contentKind: 'SPEAKING_INTRO',
       });
-      await this.sendMessage(teacherId, targetNumber, renderVars(settings.news_intro_message), {
+      await this.sendMessage(teacherId, targetNumber, newsIntroMessage, {
         studentId: student?.id || null,
         relatedNewsId: latestNews.id,
         contentKind: 'NEWS_INTRO',
       });
-      await this.sendMessage(
-        teacherId,
-        targetNumber,
-        this.formatNewsBodyForWhatsapp(latestNews.title, latestNews.content),
-        {
-          studentId: student?.id || null,
-          relatedNewsId: latestNews.id,
-          contentKind: 'NEWS',
-        },
-      );
+      await this.sendMessage(teacherId, targetNumber, newsMessage, {
+        studentId: student?.id || null,
+        relatedNewsId: latestNews.id,
+        contentKind: 'NEWS',
+      });
     }
 
     return {

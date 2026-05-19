@@ -18,6 +18,80 @@ type SpeakingEvaluationResult = {
   transcription: string;
 };
 
+type WhatsappOutboundMessage = {
+  kind:
+    | 'ANSWER_KEY_HEADER'
+    | 'GROUP_GREETING'
+    | 'PRIVATE_GREETING'
+    | 'SPEAKING_INTRO'
+    | 'NEWS_INTRO'
+    | 'NEWS'
+    | 'QUIZ_HEADER'
+    | 'QUIZ_FOOTER'
+    | 'QUIZ';
+  text: string;
+};
+
+type WhatsappOutboundGenerationInput = {
+  mode: 'GROUP' | 'PRIVATE';
+  model?: string;
+  temperature?: number;
+  systemPrompt?: string | null;
+  ideas?: {
+    greetingIdea?: string | null;
+    previousQuizHeaderIdea?: string | null;
+    challengeIdea?: string | null;
+    newsIntroIdea?: string | null;
+  };
+  variables: {
+    nome?: string | null;
+    telefone?: string | null;
+    data?: string | null;
+    hora?: string | null;
+    period?: 'morning' | 'afternoon' | 'evening' | null;
+  };
+  templates: {
+    greeting: string;
+    previousQuizHeader?: string;
+    speakingIntro?: string;
+    newsIntro: string;
+    quizHeader?: string;
+    quizFooter?: string;
+  };
+  content: {
+    newsTitle: string;
+    newsText: string;
+    level?: string | null;
+    quizQuestions?: unknown;
+    previousAnswerKey?: string | null;
+  };
+  tracking?: UsageTrackingContext;
+};
+
+type PrivateBroadcastMessageItem = {
+  nome: string;
+  whatsapp: string;
+  mensagens: Array<{
+    tipo: 'GREETING' | 'SPEAKING_INTRO' | 'NEWS_INTRO' | 'NEWS';
+    mensagem: string;
+  }>;
+};
+
+type PrivateBroadcastGenerationInput = {
+  model?: string;
+  temperature?: number;
+  systemPrompt?: string | null;
+  modelosDeMensagens: any;
+  totalAlunos: number;
+  alunos: Array<{
+    nome: string;
+    whatsapp: string;
+    nivel?: string | null;
+    variante?: 1 | 2 | 3;
+  }>;
+  tracking?: UsageTrackingContext;
+};
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -146,6 +220,250 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
       this.logger.error('Erro ao gerar quiz via IA', error);
       throw error;
     }
+  }
+
+  async generateWhatsappOutboundMessages(
+    input: WhatsappOutboundGenerationInput,
+  ): Promise<WhatsappOutboundMessage[]> {
+    const model = input.model || 'gpt-4o-mini';
+    const temperature =
+      typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+        ? input.temperature
+        : 0.7;
+
+    const greetingIdea = String(input.ideas?.greetingIdea || '').trim();
+    const previousQuizHeaderIdea = String(input.ideas?.previousQuizHeaderIdea || '').trim();
+    const challengeIdea = String(input.ideas?.challengeIdea || '').trim();
+    const newsIntroIdea = String(input.ideas?.newsIntroIdea || '').trim();
+    const defaultIdea =
+      'Crie mensagens curtas, claras e motivacionais no estilo WhatsApp. Use inglês como idioma principal e, quando fizer sentido, inclua uma linha em português brasileiro para ajudar alunos. Evite textos longos.';
+    const hasAnyIdea = Boolean(
+      greetingIdea || previousQuizHeaderIdea || challengeIdea || newsIntroIdea,
+    );
+    const effectiveIdeas = hasAnyIdea
+      ? {
+          greeting: greetingIdea || null,
+          previous_quiz_header: previousQuizHeaderIdea || null,
+          challenge: challengeIdea || null,
+          news_intro: newsIntroIdea || null,
+        }
+      : {
+          greeting: defaultIdea,
+          previous_quiz_header: defaultIdea,
+          challenge: defaultIdea,
+          news_intro: defaultIdea,
+        };
+
+    const systemPrompt = `${input.systemPrompt || 'Você é um professor de inglês e assistente do Talkion.'}
+
+Tarefa:
+- Gerar as mensagens que serão enviadas no WhatsApp.
+- Modo: ${input.mode}
+
+Importante:
+- Use as templates fornecidas como referência forte de tom e estrutura.
+- Use as "IDEIAS" por bloco para personalizar e adaptar cada mensagem:
+  - greeting -> (GROUP_GREETING ou PRIVATE_GREETING)
+  - previous_quiz_header -> (ANSWER_KEY_HEADER, apenas se existir previousAnswerKey no CONTEÚDO e modo = GROUP)
+  - challenge -> (SPEAKING_INTRO no privado, QUIZ_HEADER no grupo)
+  - news_intro -> (NEWS_INTRO)
+- Retorne SOMENTE JSON no formato: {"messages":[{"kind":"...","text":"..."}]}
+- kind deve ser um destes: ANSWER_KEY_HEADER, GROUP_GREETING, PRIVATE_GREETING, SPEAKING_INTRO, NEWS_INTRO, NEWS, QUIZ_HEADER, QUIZ, QUIZ_FOOTER
+- Se modo = PRIVATE, não retorne GROUP_GREETING e QUIZ/QUIZ_HEADER.
+- Se modo = GROUP, não retorne PRIVATE_GREETING e SPEAKING_INTRO.
+- Se modo = GROUP, retorne QUIZ (perguntas) sem o rodapé; retorne o rodapé em QUIZ_FOOTER.
+- Cada text deve estar pronto para envio, com formatação do WhatsApp quando útil (*negrito*, _itálico_, etc).
+- Não use placeholders tipo {{nome}}; use os valores reais recebidos em VARIABLES quando existirem.
+- Não inclua nada fora do JSON.`;
+
+    const userPrompt = `IDEIAS:
+${JSON.stringify(effectiveIdeas)}
+
+VARIABLES:
+${JSON.stringify(input.variables)}
+
+TEMPLATES:
+${JSON.stringify(input.templates)}
+
+CONTEÚDO:
+${JSON.stringify(input.content)}`;
+
+    const response = await this.openai.chat.completions.create({
+      model,
+      temperature,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.WHATSAPP_MESSAGE_GENERATION,
+      modelName: model,
+      response,
+      tracking: {
+        ...input.tracking,
+        referenceType: input.tracking?.referenceType || 'whatsapp_message_generation',
+        referenceId: input.tracking?.referenceId || null,
+      },
+      metadata: {
+        mode: input.mode,
+      },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
+      messages?: WhatsappOutboundMessage[];
+    };
+
+    if (!Array.isArray(parsed.messages)) {
+      return [];
+    }
+
+    const allowedKinds = new Set<WhatsappOutboundMessage['kind']>([
+      'ANSWER_KEY_HEADER',
+      'GROUP_GREETING',
+      'PRIVATE_GREETING',
+      'SPEAKING_INTRO',
+      'NEWS_INTRO',
+      'NEWS',
+      'QUIZ_HEADER',
+      'QUIZ_FOOTER',
+      'QUIZ',
+    ]);
+
+    return parsed.messages
+      .filter((m: any) => m && typeof m === 'object')
+      .map((m: any) => ({
+        kind: m.kind,
+        text: String(m.text || '').trim(),
+      }))
+      .filter((m: any) => allowedKinds.has(m.kind) && m.text.length > 0);
+  }
+
+  async generatePrivateBroadcastMessages(
+    input: PrivateBroadcastGenerationInput,
+  ): Promise<PrivateBroadcastMessageItem[]> {
+    const model = input.model || 'gpt-4o-mini';
+    const temperature =
+      typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+        ? input.temperature
+        : 0.7;
+
+    const keys = input.alunos.map((a) => ({ nome: a.nome, whatsapp: a.whatsapp }));
+
+    const systemPrompt = `${input.systemPrompt || 'Você é um assistente do Talkion.'}
+
+Objetivo:
+- Gerar mensagens personalizadas para CADA aluno, para envio no WhatsApp (privado), em BLOCOS separados.
+
+Entrada:
+- modelos de mensagens (MODELOS)
+- total de alunos (TOTAL)
+- lista de alunos (ALUNOS)
+
+Regras obrigatórias da resposta:
+- Retorne SOMENTE JSON válido.
+- Estrutura exata:
+{
+  "mensagens": [
+    {
+      "nome": "Nome do aluno",
+      "whatsapp": "Número do WhatsApp do aluno",
+      "mensagens": [
+        { "tipo": "GREETING", "mensagem": "..." },
+        { "tipo": "SPEAKING_INTRO", "mensagem": "..." },
+        { "tipo": "NEWS_INTRO", "mensagem": "..." },
+        { "tipo": "NEWS", "mensagem": "..." }
+      ]
+    }
+  ]
+}
+- Não adicione campos extras.
+- Não retorne texto fora do JSON.
+- O campo "nome" deve ser exatamente igual ao nome enviado (mesmos caracteres, acentos e espaços).
+- O campo "whatsapp" deve ser exatamente igual ao whatsapp enviado.
+- Deve existir exatamente 1 item para cada aluno fornecido em ALUNOS (mesma quantidade).
+- Em "mensagens", sempre retorne exatamente 4 itens, nesta ordem:
+  1) GREETING
+  2) SPEAKING_INTRO
+  3) NEWS_INTRO
+  4) NEWS
+
+Conteúdo:
+- Use WhatsApp formatting quando fizer sentido (*negrito*, _itálico_, etc).
+- Cada bloco deve seguir os MODELOS e ser coerente com o contexto fornecido neles.
+- Não inclua placeholders tipo {{nome}}; use os valores reais quando existirem em MODELOS/ALUNOS.`;
+
+    const variationRules = `
+
+Personalização (IMPORTANTE):
+- As mensagens não podem ficar idênticas entre alunos diferentes.
+- Use sempre o nome do aluno no bloco GREETING.
+- Use o campo "variante" (1, 2 ou 3) enviado em ALUNOS para variar frase, tom e/ou emoji.
+- Para alunos com variantes diferentes, garanta que pelo menos o GREETING e o SPEAKING_INTRO sejam diferentes.
+- Evite inventar fatos sobre o aluno. Personalize com variações leves (1 frase/emoji) e tom motivacional.`;
+
+    const userPrompt = `MODELOS:
+${JSON.stringify(input.modelosDeMensagens)}
+
+TOTAL:
+${input.totalAlunos}
+
+ALUNOS:
+${JSON.stringify(input.alunos)}
+
+CHAVES_EXATAS (use exatamente como está):
+${JSON.stringify(keys)}${variationRules}`;
+
+    const response = await this.openai.chat.completions.create({
+      model,
+      temperature,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.WHATSAPP_MESSAGE_GENERATION,
+      modelName: model,
+      response,
+      tracking: {
+        ...input.tracking,
+        referenceType:
+          input.tracking?.referenceType || 'whatsapp_private_broadcast_generation',
+        referenceId: input.tracking?.referenceId || null,
+      },
+      metadata: {
+        totalAlunos: input.totalAlunos,
+      },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
+      mensagens?: unknown;
+    };
+
+    if (!Array.isArray((parsed as any).mensagens)) {
+      return [];
+    }
+
+    return (parsed as any).mensagens
+      .filter((item: any) => item && typeof item === 'object')
+      .map((item: any) => ({
+        nome: String(item.nome ?? ''),
+        whatsapp: String(item.whatsapp ?? ''),
+        mensagens: Array.isArray(item.mensagens)
+          ? item.mensagens
+              .filter((m: any) => m && typeof m === 'object')
+              .map((m: any) => ({
+                tipo: m.tipo,
+                mensagem: String(m.mensagem ?? ''),
+              }))
+          : [],
+      }))
+      .filter((item: any) => item.nome && item.whatsapp && item.mensagens.length > 0);
   }
 
   /**

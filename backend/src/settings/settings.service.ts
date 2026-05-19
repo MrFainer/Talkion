@@ -12,13 +12,75 @@ export class SettingsService {
     });
 
     if (!settings) {
+      const defaultPrivateGreeting = 'Good {{period}}, {{nome}}! 🎉🎉';
+      const defaultGroupGreeting = 'Good {{period}}! 🎉🎉';
+      const defaultSpeakingIntro =
+        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
+      const defaultNewsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+      const defaultGroupNewsIntro = defaultNewsIntro;
+      const defaultGroupQuizHeader =
+        "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
+      const defaultPreviousQuizHeader =
+        '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+
       settings = await this.prisma.messageSettings.create({
         data: {
           teacher_id: teacherId,
-          private_greeting_message: 'Good {{period}}, {{nome}}! 🎉🎉',
-          group_greeting_message: 'Good {{period}}! 🎉🎉',
+          private_greeting_message: defaultPrivateGreeting,
+          speaking_intro_message: defaultSpeakingIntro,
+          news_intro_message: defaultNewsIntro,
+          group_greeting_message: defaultGroupGreeting,
+          group_news_intro_message: defaultGroupNewsIntro,
+          group_quiz_header_message: defaultGroupQuizHeader,
+          private_greeting_idea: `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${defaultPrivateGreeting}`,
+          private_speaking_intro_idea: `Você pode montar a introdução do desafio de áudio com base nesse modelo aqui:\n\n${defaultSpeakingIntro}`,
+          private_news_intro_idea: `Você pode montar a introdução da notícia com base nesse modelo aqui:\n\n${defaultNewsIntro}`,
+          group_greeting_idea: `Você pode montar a saudação inicial do grupo com base nesse modelo aqui:\n\n${defaultGroupGreeting}`,
+          group_previous_quiz_header_idea: `Você pode montar o cabeçalho do quiz do dia anterior com base nesse modelo aqui:\n\n${defaultPreviousQuizHeader}`,
+          group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
+          group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
         },
       });
+    }
+    else {
+      const updates: Record<string, any> = {};
+      const privateGreeting = settings.private_greeting_message || '';
+      const speakingIntro = settings.speaking_intro_message || '';
+      const newsIntro = settings.news_intro_message || '';
+      const groupGreeting = settings.group_greeting_message || '';
+      const groupNewsIntro = settings.group_news_intro_message || '';
+      const groupQuizHeader = settings.group_quiz_header_message || '';
+      const defaultPreviousQuizHeader =
+        '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+
+      if (!settings.private_greeting_idea) {
+        updates.private_greeting_idea = `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${privateGreeting}`;
+      }
+      if (!settings.private_speaking_intro_idea) {
+        updates.private_speaking_intro_idea = `Você pode montar a introdução do desafio de áudio com base nesse modelo aqui:\n\n${speakingIntro}`;
+      }
+      if (!settings.private_news_intro_idea) {
+        updates.private_news_intro_idea = `Você pode montar a introdução da notícia com base nesse modelo aqui:\n\n${newsIntro}`;
+      }
+      if (!settings.group_greeting_idea) {
+        updates.group_greeting_idea = `Você pode montar a saudação inicial do grupo com base nesse modelo aqui:\n\n${groupGreeting}`;
+      }
+      if (!settings.group_previous_quiz_header_idea) {
+        updates.group_previous_quiz_header_idea = `Você pode montar o cabeçalho do quiz do dia anterior com base nesse modelo aqui:\n\n${defaultPreviousQuizHeader}`;
+      }
+      if (!settings.group_quiz_header_idea) {
+        updates.group_quiz_header_idea = `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${groupQuizHeader}`;
+      }
+      if (!settings.group_news_intro_idea) {
+        updates.group_news_intro_idea = `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${groupNewsIntro}`;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        settings = await this.prisma.messageSettings.update({
+          where: { teacher_id: teacherId },
+          data: updates,
+        });
+      }
     }
 
     return settings;

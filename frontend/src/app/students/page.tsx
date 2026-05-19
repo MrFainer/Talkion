@@ -105,7 +105,12 @@ export default function StudentsPage() {
     }
     try {
       const res = await api.get(`/students/teacher/${user.id}`);
-      setStudents(res.data);
+      const sorted = [...(res.data || [])].sort((a: any, b: any) =>
+        String(a?.full_name || "").localeCompare(String(b?.full_name || ""), "pt-BR", {
+          sensitivity: "base",
+        }),
+      );
+      setStudents(sorted);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao carregar alunos.");

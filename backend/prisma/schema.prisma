@@ -42,6 +42,7 @@ enum CostAction {
   QUIZ_GENERATION
   SPEAKING_TRANSCRIPTION
   SPEAKING_EVALUATION
+  WHATSAPP_MESSAGE_GENERATION
 }
 
 model User {
@@ -222,20 +223,23 @@ model MessageSettings {
 
   // Aba 1 - Mensagens Privadas
   private_greeting_message    String   @db.Text @default("Good morning! ☀️🌴🎉")
+  private_message_idea        String?  @db.Text
+  private_greeting_idea       String?  @db.Text
+  private_speaking_intro_idea String?  @db.Text
+  private_news_intro_idea     String?  @db.Text
   speaking_intro_message      String   @db.Text @default("*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*")
   news_intro_message          String   @db.Text @default("📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*")
-  
-  private_delay_seconds       Int      @default(2)
-  private_simulate_typing     Boolean  @default(true)
 
   // Aba 2 - Mensagens em Grupo
   group_greeting_message      String   @db.Text @default("Good morning! 🎉🎉")
+  group_message_idea          String?  @db.Text
+  group_greeting_idea         String?  @db.Text
+  group_previous_quiz_header_idea String? @db.Text
+  group_quiz_header_idea      String?  @db.Text
+  group_news_intro_idea       String?  @db.Text
   group_news_intro_message    String   @db.Text @default("📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*")
   group_quiz_header_message   String   @db.Text @default("📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀")
   group_quiz_footer_message   String   @db.Text @default("📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!")
-  
-  group_delay_seconds         Int      @default(3)
-  group_simulate_typing       Boolean  @default(true)
 
   // Ambiente / IA
   ai_temperature              Float    @default(0.7)

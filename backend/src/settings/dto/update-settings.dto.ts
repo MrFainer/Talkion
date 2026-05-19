@@ -1,16 +1,21 @@
 export class UpdateSettingsDto {
   private_greeting_message?: string;
+  private_message_idea?: string;
+  private_greeting_idea?: string;
+  private_speaking_intro_idea?: string;
+  private_news_intro_idea?: string;
   speaking_intro_message?: string;
   news_intro_message?: string;
-  private_delay_seconds?: number;
-  private_simulate_typing?: boolean;
 
   group_greeting_message?: string;
+  group_message_idea?: string;
+  group_greeting_idea?: string;
+  group_previous_quiz_header_idea?: string;
+  group_quiz_header_idea?: string;
+  group_news_intro_idea?: string;
   group_news_intro_message?: string;
   group_quiz_header_message?: string;
   group_quiz_footer_message?: string;
-  group_delay_seconds?: number;
-  group_simulate_typing?: boolean;
 
   ai_temperature?: number;
   ai_model?: string;

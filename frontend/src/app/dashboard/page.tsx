@@ -228,6 +228,20 @@ export default function DashboardPage() {
     brl: toNumber(d.estimatedCostBrl)
   })) || [];
 
+  const topStudentsAlphabetical = (data?.students || [])
+    .slice(0, 5)
+    .sort((a: any, b: any) =>
+      String(a?.fullName || "").localeCompare(String(b?.fullName || ""), "pt-BR", {
+        sensitivity: "base",
+      }),
+    );
+
+  const actionsAlphabetical = [...(data?.actions || [])].sort((a: any, b: any) => {
+    const labelA = actionLabels[a.action] || a.action;
+    const labelB = actionLabels[b.action] || b.action;
+    return String(labelA).localeCompare(String(labelB), "pt-BR", { sensitivity: "base" });
+  });
+
   const whisperAction = data?.actions?.find(
     (item: any) => item.action === "SPEAKING_TRANSCRIPTION",
   );
@@ -436,7 +450,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {data?.students?.slice(0, 5).map((student: any) => (
+                {topStudentsAlphabetical.map((student: any) => (
                   <div key={student.studentId} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{student.fullName}</p>
@@ -460,7 +474,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {data?.actions?.map((item: any) => (
+                {actionsAlphabetical.map((item: any) => (
                   <div key={item.action} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
