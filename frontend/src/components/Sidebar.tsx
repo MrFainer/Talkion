@@ -104,6 +104,13 @@ export function Sidebar() {
   const handleNavigate = (href: string) => {
     if (href === pathname || pathname.startsWith(`${href}/`)) return;
 
+    const ev = new CustomEvent("talkion:before-navigate", {
+      detail: { href },
+      cancelable: true,
+    });
+    window.dispatchEvent(ev);
+    if (ev.defaultPrevented) return;
+
     const leavingWhatsappSection =
       !(
         href === "/whatsapp" ||

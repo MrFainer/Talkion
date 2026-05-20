@@ -22,6 +22,8 @@ export class SettingsService {
         "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+      const defaultGroupQuizFooter =
+        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
 
       settings = await this.prisma.messageSettings.create({
         data: {
@@ -38,6 +40,7 @@ export class SettingsService {
           group_greeting_idea: `Você pode montar a saudação inicial do grupo com base nesse modelo aqui:\n\n${defaultGroupGreeting}`,
           group_previous_quiz_header_idea: `Você pode montar o cabeçalho do quiz do dia anterior com base nesse modelo aqui:\n\n${defaultPreviousQuizHeader}`,
           group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
+          group_quiz_footer_idea: `Você pode montar o rodapé do quiz com base nesse modelo aqui:\n\n${defaultGroupQuizFooter}`,
           group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
         },
       });
@@ -52,6 +55,8 @@ export class SettingsService {
       const groupQuizHeader = settings.group_quiz_header_message || '';
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+      const defaultGroupQuizFooter =
+        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
 
       if (!settings.private_greeting_idea) {
         updates.private_greeting_idea = `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${privateGreeting}`;
@@ -70,6 +75,10 @@ export class SettingsService {
       }
       if (!settings.group_quiz_header_idea) {
         updates.group_quiz_header_idea = `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${groupQuizHeader}`;
+      }
+      if (!settings.group_quiz_footer_idea) {
+        const quizFooterModel = settings.group_quiz_footer_message || defaultGroupQuizFooter;
+        updates.group_quiz_footer_idea = `Você pode montar o rodapé do quiz com base nesse modelo aqui:\n\n${quizFooterModel}`;
       }
       if (!settings.group_news_intro_idea) {
         updates.group_news_intro_idea = `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${groupNewsIntro}`;

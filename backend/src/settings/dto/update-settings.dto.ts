@@ -12,6 +12,7 @@ export class UpdateSettingsDto {
   group_greeting_idea?: string;
   group_previous_quiz_header_idea?: string;
   group_quiz_header_idea?: string;
+  group_quiz_footer_idea?: string;
   group_news_intro_idea?: string;
   group_news_intro_message?: string;
   group_quiz_header_message?: string;

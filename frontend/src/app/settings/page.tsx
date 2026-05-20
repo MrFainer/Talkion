@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -99,6 +99,24 @@ function WhatsappFormatGuide() {
   );
 }
 
+const normalizeJson = (value: any): any => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeJson);
+  }
+  if (value && typeof value === "object") {
+    const out: any = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = normalizeJson(value[key]);
+    }
+    return out;
+  }
+  return value;
+};
+
+const stableStringify = (value: any) => {
+  return JSON.stringify(normalizeJson(value));
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isHydrated, hydrate } = useAuthStore();
@@ -106,6 +124,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const savedSnapshotRef = useRef<string>("");
 
   useEffect(() => {
     hydrate();
@@ -120,6 +141,7 @@ export default function SettingsPage() {
     try {
       const res = await api.get(`/message-settings/${user.id}`);
       setSettings(res.data);
+      savedSnapshotRef.current = stableStringify(res.data);
     } catch (error) {
       toast.error("Erro ao carregar configurações.");
     } finally {
@@ -137,9 +159,12 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       await api.put(`/message-settings/${user.id}`, settings);
+      savedSnapshotRef.current = stableStringify(settings);
       toast.success("Configurações salvas com sucesso!");
+      return true;
     } catch (error) {
       toast.error("Erro ao salvar configurações.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -152,6 +177,7 @@ export default function SettingsPage() {
     try {
       const res = await api.post(`/message-settings/${user.id}/reset`);
       setSettings(res.data);
+      savedSnapshotRef.current = stableStringify(res.data);
       toast.success("Configurações restauradas para o padrão.");
     } catch (error) {
       toast.error("Erro ao restaurar configurações.");
@@ -170,6 +196,47 @@ export default function SettingsPage() {
 
   const updateSetting = (key: string, value: any) => {
     setSettings((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const currentSnapshot = useMemo(() => {
+    if (!settings) return "";
+    return stableStringify(settings);
+  }, [settings]);
+
+  const hasUnsavedChanges = Boolean(
+    settings && savedSnapshotRef.current && currentSnapshot !== savedSnapshotRef.current,
+  );
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as any)?.detail as { href?: string } | undefined;
+      if (!hasUnsavedChanges || saving) return;
+      event.preventDefault();
+      setPendingHref(detail?.href || null);
+      setIsUnsavedDialogOpen(true);
+    };
+    window.addEventListener("talkion:before-navigate", handler as any);
+    return () => window.removeEventListener("talkion:before-navigate", handler as any);
+  }, [hasUnsavedChanges, saving]);
+
+  const handleLeaveWithoutSaving = () => {
+    const href = pendingHref;
+    setIsUnsavedDialogOpen(false);
+    setPendingHref(null);
+    if (href) {
+      router.push(href);
+    }
+  };
+
+  const handleSaveAndLeave = async () => {
+    const href = pendingHref;
+    const ok = await handleSave();
+    if (!ok) return;
+    setIsUnsavedDialogOpen(false);
+    setPendingHref(null);
+    if (href) {
+      router.push(href);
+    }
   };
 
   const insertTextAtCursor = (field: string, textToInsert: string) => {
@@ -247,6 +314,44 @@ export default function SettingsPage() {
               </Button>
               <Button onClick={handleConfirmReset} disabled={saving}>
                 {saving ? "Restaurando..." : "Restaurar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isUnsavedDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsUnsavedDialogOpen(false);
+              setPendingHref(null);
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Alterações não salvas</DialogTitle>
+              <DialogDescription>
+                Você tem alterações pendentes. Deseja salvar antes de sair?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsUnsavedDialogOpen(false)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleLeaveWithoutSaving}
+                disabled={saving}
+              >
+                Sair sem salvar
+              </Button>
+              <Button onClick={handleSaveAndLeave} disabled={saving}>
+                {saving ? "Salvando..." : "Salvar"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -351,8 +456,8 @@ export default function SettingsPage() {
                     />
                     <TextEditor 
                       label="Rodapé do Quiz" 
-                      field="group_quiz_footer_message" 
-                      value={settings?.group_quiz_footer_message || ""}
+                      field="group_quiz_footer_idea" 
+                      value={settings?.group_quiz_footer_idea || ""}
                       onChange={updateSetting}
                       onInsertEmoji={insertTextAtCursor}
                       minHeight="min-h-[120px]"

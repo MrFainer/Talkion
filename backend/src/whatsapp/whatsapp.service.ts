@@ -911,6 +911,8 @@ export class WhatsappService {
         "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+      const defaultGroupQuizFooter =
+        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
 
       settings = await this.prisma.messageSettings.create({
         data: {
@@ -1243,6 +1245,8 @@ export class WhatsappService {
         "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
+      const defaultGroupQuizFooter =
+        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
 
       settings = await this.prisma.messageSettings.create({
         data: {
@@ -1259,6 +1263,7 @@ export class WhatsappService {
           group_greeting_idea: `Você pode montar a saudação inicial do grupo com base nesse modelo aqui:\n\n${defaultGroupGreeting}`,
           group_previous_quiz_header_idea: `Você pode montar o cabeçalho do quiz do dia anterior com base nesse modelo aqui:\n\n${defaultPreviousQuizHeader}`,
           group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
+          group_quiz_footer_idea: `Você pode montar o rodapé do quiz com base nesse modelo aqui:\n\n${defaultGroupQuizFooter}`,
           group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
         }
       });
@@ -1335,6 +1340,10 @@ export class WhatsappService {
         input.mode === 'GROUP'
           ? settings.group_quiz_header_idea || legacyIdea || null
           : settings.private_speaking_intro_idea || legacyIdea || null;
+      const quizFooterIdea =
+        input.mode === 'GROUP'
+          ? settings.group_quiz_footer_idea || legacyIdea || null
+          : null;
       const newsIntroIdea =
         input.mode === 'GROUP'
           ? settings.group_news_intro_idea || legacyIdea || null
@@ -1365,6 +1374,7 @@ export class WhatsappService {
           greetingIdea,
           previousQuizHeaderIdea,
           challengeIdea,
+          quizFooterIdea,
           newsIntroIdea,
         },
         variables,

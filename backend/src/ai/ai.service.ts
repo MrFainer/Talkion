@@ -41,6 +41,7 @@ type WhatsappOutboundGenerationInput = {
     greetingIdea?: string | null;
     previousQuizHeaderIdea?: string | null;
     challengeIdea?: string | null;
+    quizFooterIdea?: string | null;
     newsIntroIdea?: string | null;
   };
   variables: {
@@ -234,23 +235,26 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
     const greetingIdea = String(input.ideas?.greetingIdea || '').trim();
     const previousQuizHeaderIdea = String(input.ideas?.previousQuizHeaderIdea || '').trim();
     const challengeIdea = String(input.ideas?.challengeIdea || '').trim();
+    const quizFooterIdea = String(input.ideas?.quizFooterIdea || '').trim();
     const newsIntroIdea = String(input.ideas?.newsIntroIdea || '').trim();
     const defaultIdea =
       'Crie mensagens curtas, claras e motivacionais no estilo WhatsApp. Use inglês como idioma principal e, quando fizer sentido, inclua uma linha em português brasileiro para ajudar alunos. Evite textos longos.';
     const hasAnyIdea = Boolean(
-      greetingIdea || previousQuizHeaderIdea || challengeIdea || newsIntroIdea,
+      greetingIdea || previousQuizHeaderIdea || challengeIdea || quizFooterIdea || newsIntroIdea,
     );
     const effectiveIdeas = hasAnyIdea
       ? {
           greeting: greetingIdea || null,
           previous_quiz_header: previousQuizHeaderIdea || null,
           challenge: challengeIdea || null,
+          quiz_footer: quizFooterIdea || null,
           news_intro: newsIntroIdea || null,
         }
       : {
           greeting: defaultIdea,
           previous_quiz_header: defaultIdea,
           challenge: defaultIdea,
+          quiz_footer: defaultIdea,
           news_intro: defaultIdea,
         };
 
@@ -266,6 +270,7 @@ Importante:
   - greeting -> (GROUP_GREETING ou PRIVATE_GREETING)
   - previous_quiz_header -> (ANSWER_KEY_HEADER, apenas se existir previousAnswerKey no CONTEÚDO e modo = GROUP)
   - challenge -> (SPEAKING_INTRO no privado, QUIZ_HEADER no grupo)
+  - quiz_footer -> (QUIZ_FOOTER, apenas no modo = GROUP)
   - news_intro -> (NEWS_INTRO)
 - Retorne SOMENTE JSON no formato: {"messages":[{"kind":"...","text":"..."}]}
 - kind deve ser um destes: ANSWER_KEY_HEADER, GROUP_GREETING, PRIVATE_GREETING, SPEAKING_INTRO, NEWS_INTRO, NEWS, QUIZ_HEADER, QUIZ, QUIZ_FOOTER

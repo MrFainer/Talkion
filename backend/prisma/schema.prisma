@@ -236,6 +236,7 @@ model MessageSettings {
   group_greeting_idea         String?  @db.Text
   group_previous_quiz_header_idea String? @db.Text
   group_quiz_header_idea      String?  @db.Text
+  group_quiz_footer_idea      String?  @db.Text
   group_news_intro_idea       String?  @db.Text
   group_news_intro_message    String   @db.Text @default("📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*")
   group_quiz_header_message   String   @db.Text @default("📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀")
