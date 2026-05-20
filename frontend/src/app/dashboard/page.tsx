@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -8,24 +8,14 @@ import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { RefreshCw } from "lucide-react";
-import { toast } from "sonner";
 
 const actionLabels: Record<string, string> = {
   NEWS_FALLBACK_GENERATION: "Geração de notícias",
   QUIZ_GENERATION: "Geração de quiz",
   SPEAKING_TRANSCRIPTION: "Whisper / transcrição",
   SPEAKING_EVALUATION: "Avaliação de speaking",
+  WHATSAPP_MESSAGE_GENERATION: "Mensagens WhatsApp (IA)",
 };
 
 const toNumber = (value: unknown) => {
@@ -35,9 +25,6 @@ const toNumber = (value: unknown) => {
 
 const formatInteger = (value: unknown) =>
   new Intl.NumberFormat("pt-BR").format(Math.round(toNumber(value)));
-
-const formatCurrency = (value: unknown, prefix: "R$" | "$") =>
-  `${prefix} ${toNumber(value).toFixed(4)}`;
 
 const formatSeconds = (value: unknown) => {
   const seconds = toNumber(value);
@@ -58,32 +45,11 @@ const formatSeconds = (value: unknown) => {
   return `${minutes}min ${compact.replace(/\.0$/, "").replace(/(\.\d*[1-9])0$/, "$1")}s`;
 };
 
-type DailyRunResponse = {
-  message?: string;
-  news?: {
-    created?: number;
-    skippedSameDay?: number;
-    skippedSameNews?: number;
-    errors?: number;
-  };
-  quizzes?: {
-    created?: number;
-    existing?: number;
-    errors?: number;
-  };
-};
-
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isHydrated, hydrate } = useAuthStore();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [runningDailyNews, setRunningDailyNews] = useState(false);
-  const [dailyRunDialogOpen, setDailyRunDialogOpen] = useState(false);
-  const [dailyRunProgress, setDailyRunProgress] = useState(0);
-  const [dailyRunResult, setDailyRunResult] = useState<DailyRunResponse | null>(null);
-  const [dailyRunError, setDailyRunError] = useState<string | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -138,79 +104,6 @@ export default function DashboardPage() {
     setAppliedTo(toDate);
   };
 
-  const stopProgressTimer = useCallback(() => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      stopProgressTimer();
-    };
-  }, [stopProgressTimer]);
-
-  const resetDailyRunState = useCallback(() => {
-    setDailyRunProgress(0);
-    setDailyRunResult(null);
-    setDailyRunError(null);
-  }, []);
-
-  const handleDailyRunDialogChange = useCallback((open: boolean) => {
-    if (runningDailyNews) return;
-    setDailyRunDialogOpen(open);
-    if (!open) {
-      resetDailyRunState();
-    }
-  }, [resetDailyRunState, runningDailyNews]);
-
-  const handleRunDailyNews = async () => {
-    setDailyRunDialogOpen(true);
-    setRunningDailyNews(true);
-    setDailyRunResult(null);
-    setDailyRunError(null);
-    setDailyRunProgress(12);
-    stopProgressTimer();
-    progressIntervalRef.current = setInterval(() => {
-      setDailyRunProgress((current) => (current >= 88 ? current : current + 8));
-    }, 350);
-    const toastId = toast.loading("Gerando notícia e quiz do dia...");
-
-    try {
-      const res = await api.post("/news/daily-run", { teacherId: user?.id });
-      const payload = res.data as DailyRunResponse;
-      const summary = [
-        payload?.news?.created ? `${payload.news.created} notícia(s) criada(s)` : null,
-        payload?.news?.skippedSameDay ? `${payload.news.skippedSameDay} bloqueio(s) por dia` : null,
-        payload?.news?.skippedSameNews ? `${payload.news.skippedSameNews} bloqueio(s) por mesma notícia` : null,
-        payload?.quizzes?.created ? `${payload.quizzes.created} quiz(es) criado(s)` : null,
-        payload?.quizzes?.existing ? `${payload.quizzes.existing} quiz(es) já existente(s)` : null,
-      ].filter(Boolean);
-
-      stopProgressTimer();
-      setDailyRunProgress(100);
-      setDailyRunResult(payload);
-      toast.success(
-        summary.length ? summary.join(" | ") : "Processamento concluído com sucesso.",
-        { id: toastId },
-      );
-      await fetchDashboard();
-    } catch (error: any) {
-      stopProgressTimer();
-      setDailyRunProgress(100);
-      setDailyRunError(
-        error.response?.data?.message || "Erro ao executar a geração diária.",
-      );
-      toast.error(
-        error.response?.data?.message || "Erro ao executar a geração diária.",
-        { id: toastId },
-      );
-    } finally {
-      setRunningDailyNews(false);
-    }
-  };
-
   if (loading) {
     return (
       <>
@@ -224,8 +117,7 @@ export default function DashboardPage() {
 
   const chartData = data?.daily?.map((d: any) => ({
     date: d.date.split("-").reverse().slice(0, 2).join("/"),
-    usd: toNumber(d.estimatedCostUsd),
-    brl: toNumber(d.estimatedCostBrl)
+    tokens: toNumber(d.totalTokens)
   })) || [];
 
   const topStudentsAlphabetical = (data?.students || [])
@@ -245,97 +137,10 @@ export default function DashboardPage() {
   const whisperAction = data?.actions?.find(
     (item: any) => item.action === "SPEAKING_TRANSCRIPTION",
   );
-  const newsCreated = dailyRunResult?.news?.created || 0;
-  const newsSkippedSameDay = dailyRunResult?.news?.skippedSameDay || 0;
-  const newsSkippedSameNews = dailyRunResult?.news?.skippedSameNews || 0;
-  const quizCreated = dailyRunResult?.quizzes?.created || 0;
-  const quizExisting = dailyRunResult?.quizzes?.existing || 0;
-  const newsStatusMessage = newsCreated > 0
-    ? `${newsCreated} notícia(s) gerada(s) com sucesso.`
-    : "A notícia de hoje já foi gerada.";
-  const quizStatusMessage = quizCreated > 0
-    ? `${quizCreated} quiz(es) gerado(s) com sucesso.`
-    : "O quiz de hoje já foi gerado.";
 
   return (
     <>
       <Sidebar />
-      <Dialog open={dailyRunDialogOpen} onOpenChange={handleDailyRunDialogChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Gerar Notícia e Quiz</DialogTitle>
-            <DialogDescription>
-              {runningDailyNews
-                ? "Buscando a notícia do dia e validando o quiz."
-                : "Confira o status da geração diária."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {runningDailyNews
-                    ? "Processando notícias e quizzes..."
-                    : dailyRunError
-                      ? "Processamento finalizado com erro"
-                      : "Processamento concluído"}
-                </span>
-                <span>{dailyRunProgress}%</span>
-              </div>
-              <Progress value={dailyRunProgress} className="h-2" />
-            </div>
-
-            {dailyRunError ? (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-muted-foreground">
-                {dailyRunError}
-              </div>
-            ) : null}
-
-            {dailyRunResult ? (
-              <div className="space-y-3">
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm font-medium">Notícias</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{newsStatusMessage}</p>
-                  {(newsSkippedSameDay > 0 || newsSkippedSameNews > 0) ? (
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-md bg-muted px-3 py-2 text-sm">
-                        Mesmo dia: {newsSkippedSameDay}
-                      </div>
-                      <div className="rounded-md bg-muted px-3 py-2 text-sm">
-                        Mesma notícia: {newsSkippedSameNews}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm font-medium">Quiz</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{quizStatusMessage}</p>
-                  {quizExisting > 0 ? (
-                    <div className="mt-3 rounded-md bg-muted px-3 py-2 text-sm">
-                      Já existentes: {quizExisting}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <DialogFooter>
-            {dailyRunResult || dailyRunError ? (
-              <Button variant="outline" onClick={() => handleDailyRunDialogChange(false)}>
-                Fechar
-              </Button>
-            ) : (
-              <Button variant="outline" disabled>
-                Aguardando
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <main className="flex-1 min-w-0 overflow-y-auto p-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -358,30 +163,10 @@ export default function DashboardPage() {
                 Filtrar
               </Button>
             </div>
-            <Button onClick={handleRunDailyNews} disabled={runningDailyNews} size="sm" className="h-9">
-              <RefreshCw className={`mr-2 h-4 w-4 ${runningDailyNews ? "animate-spin" : ""}`} />
-              {runningDailyNews ? "Processando..." : "Gerar Notícia e Quiz"}
-            </Button>
           </div>
         </div>
         
         <div className="grid gap-4 md:grid-cols-3 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Custo Estimado (BRL)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(data?.totals?.estimatedCostBrl, "R$")}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Custo Estimado (USD)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(data?.totals?.estimatedCostUsd, "$")}</div>
-            </CardContent>
-          </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Tokens Processados</CardTitle>
@@ -390,9 +175,6 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">{formatInteger(data?.totals?.totalTokens)}</div>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Tokens de Input</CardTitle>
@@ -409,6 +191,9 @@ export default function DashboardPage() {
               <div className="text-2xl font-bold">{formatInteger(data?.totals?.totalOutputTokens)}</div>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 mb-8">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Tokens em Cache</CardTitle>
@@ -430,15 +215,15 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 mb-8">
           <Card className="col-span-1">
             <CardHeader>
-              <CardTitle>Custo Diário (BRL)</CardTitle>
+              <CardTitle>Tokens Diários</CardTitle>
             </CardHeader>
             <CardContent className="h-[300px] w-full min-h-[300px]">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={chartData}>
                   <XAxis dataKey="date" />
                   <YAxis />
-                  <Tooltip formatter={(value: any) => `R$ ${Number(value).toFixed(4)}`} />
-                  <Bar dataKey="brl" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Tooltip formatter={(value: any) => formatInteger(value)} />
+                  <Bar dataKey="tokens" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -456,11 +241,11 @@ export default function DashboardPage() {
                       <p className="font-medium">{student.fullName}</p>
                       <p className="text-sm text-muted-foreground">{student.events} eventos</p>
                     </div>
-                    <div className="font-medium">{formatCurrency(student.estimatedCostBrl, "R$")}</div>
+                    <div className="font-medium">{formatInteger(student.totalTokens)} tokens</div>
                   </div>
                 ))}
                 {(!data?.students || data.students.length === 0) && (
-                  <p className="text-sm text-muted-foreground">Nenhum aluno gerou custos ainda.</p>
+                  <p className="text-sm text-muted-foreground">Nenhum consumo registrado ainda.</p>
                 )}
               </div>
             </CardContent>
@@ -483,14 +268,6 @@ export default function DashboardPage() {
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {item.events} evento(s)
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">
-                          {formatCurrency(item.estimatedCostBrl, "R$")}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatCurrency(item.estimatedCostUsd, "$")}
                         </p>
                       </div>
                     </div>
@@ -539,9 +316,6 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground">Whisper</p>
                   <p className="mt-1 text-lg font-semibold">
                     {formatSeconds(whisperAction?.totalAudioSeconds || data?.totals?.totalAudioSeconds)}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Custo estimado: {formatCurrency(whisperAction?.estimatedCostBrl, "R$")}
                   </p>
                 </div>
 

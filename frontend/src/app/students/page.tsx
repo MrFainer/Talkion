@@ -13,9 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { PlusCircle, Power, PowerOff, Pencil, X, Upload, MessageSquare, Check, RefreshCw, Trash2 } from "lucide-react";
+import { PlusCircle, Power, PowerOff, Pencil, X, Upload, Check, RefreshCw, Trash2 } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 
@@ -33,22 +32,6 @@ type ImportResult = {
   skippedInvalidCount: number;
   totalRows: number;
   failedRows: ImportFailure[];
-};
-
-type WhatsappGroupOption = {
-  id: string;
-  subject: string;
-};
-
-type WhatsappGroupSyncStatus = {
-  stage: string;
-  progress: number;
-  message: string;
-  inProgress: boolean;
-  ready: boolean;
-  stale: boolean;
-  groupsCount: number;
-  lastError: string | null;
 };
 
 export default function StudentsPage() {
@@ -76,17 +59,6 @@ export default function StudentsPage() {
   const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [isBroadcastDialogOpen, setIsBroadcastDialogOpen] = useState(false);
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcastProgress, setBroadcastProgress] = useState(0);
-  const [sendPrivateNews, setSendPrivateNews] = useState(false);
-  const [sendGroupNews, setSendGroupNews] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [selectedGroupLevel, setSelectedGroupLevel] = useState("LEVEL_1");
-  const [availableGroups, setAvailableGroups] = useState<WhatsappGroupOption[]>([]);
-  const [groupOptionsLoading, setGroupOptionsLoading] = useState(false);
-  const [groupSyncStatus, setGroupSyncStatus] = useState<WhatsappGroupSyncStatus | null>(null);
-  const [groupConnectionReady, setGroupConnectionReady] = useState<boolean | null>(null);
   const [deletingStudentId, setDeletingStudentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -384,120 +356,6 @@ export default function StudentsPage() {
     }
   };
 
-  const resetBroadcastModal = useCallback(() => {
-    setSendPrivateNews(false);
-    setSendGroupNews(false);
-    setSelectedGroupId("");
-    setSelectedGroupLevel("LEVEL_1");
-    setGroupSyncStatus(null);
-    setGroupConnectionReady(null);
-    setBroadcasting(false);
-    setBroadcastProgress(0);
-  }, []);
-
-  const fetchStoredGroups = useCallback(async () => {
-    if (!user?.id) return;
-
-    setGroupOptionsLoading(true);
-    try {
-      const res = await api.get(`/whatsapp/groups/cached/${user.id}`);
-      setAvailableGroups(res.data.groups || []);
-      setGroupSyncStatus(res.data.sync || null);
-      setGroupConnectionReady(Boolean(res.data.connected));
-    } catch (error: any) {
-      setAvailableGroups([]);
-      setGroupSyncStatus(null);
-      setGroupConnectionReady(null);
-      toast.error(
-        error.response?.data?.message || "Erro ao carregar grupos sincronizados.",
-      );
-    } finally {
-      setGroupOptionsLoading(false);
-    }
-  }, [user?.id]);
-
-  const handleBroadcastDialogChange = useCallback((open: boolean) => {
-    if (broadcasting) return;
-
-    if (open) {
-      resetBroadcastModal();
-      setIsBroadcastDialogOpen(true);
-      void fetchStoredGroups();
-      return;
-    }
-
-    setIsBroadcastDialogOpen(false);
-    resetBroadcastModal();
-  }, [broadcasting, fetchStoredGroups, resetBroadcastModal]);
-
-  const handleBroadcast = async () => {
-    if (!sendPrivateNews && !sendGroupNews) {
-      toast.error("Selecione pelo menos um destino para o disparo.");
-      return;
-    }
-
-    setBroadcasting(true);
-    setBroadcastProgress(10);
-    
-    // Simula um preenchimento inicial da barra para UX
-    const progressInterval = setInterval(() => {
-      setBroadcastProgress((prev) => (prev < 80 ? prev + 10 : prev));
-    }, 1000);
-
-    try {
-      if (sendGroupNews && !selectedGroupId) {
-        throw new Error("GROUP_REQUIRED");
-      }
-
-      // 1. Verifica o status do WhatsApp primeiro
-      const statusRes = await api.get(`/whatsapp/status/${user?.id}`);
-      if (statusRes.data?.status !== "open") {
-        throw new Error("WHATSAPP_NOT_CONNECTED");
-      }
-
-      // 2. Se conectado, faz o disparo unificado
-      const res = await api.post('/whatsapp/dispatch-news', {
-        teacherId: user?.id,
-        sendPrivate: sendPrivateNews,
-        sendGroup: sendGroupNews,
-        groupId: sendGroupNews ? selectedGroupId : undefined,
-        groupLevel: sendGroupNews ? selectedGroupLevel : undefined,
-      });
-      clearInterval(progressInterval);
-      setBroadcastProgress(100);
-      
-      setTimeout(() => {
-        const privateCount = res.data.private?.count;
-        const groupName = res.data.group?.group?.subject;
-        const summary: string[] = [];
-
-        if (typeof privateCount === "number") {
-          summary.push(`${privateCount} envio(s) no privado`);
-        }
-        if (groupName) {
-          summary.push(`grupo "${groupName}"`);
-        }
-
-        toast.success(summary.length ? `Disparo concluído: ${summary.join(" | ")}.` : "Disparo concluído com sucesso!");
-        setIsBroadcastDialogOpen(false);
-        resetBroadcastModal();
-      }, 500);
-    } catch (error: any) {
-      clearInterval(progressInterval);
-      
-      if (error.message === "WHATSAPP_NOT_CONNECTED") {
-        toast.error("O WhatsApp não está conectado. Acesse a tela 'WhatsApp' e escaneie o QR Code.");
-      } else if (error.message === "GROUP_REQUIRED") {
-        toast.error("Selecione um grupo sincronizado para enviar no grupo.");
-      } else {
-        toast.error(error.response?.data?.message || "Erro ao disparar mensagens.");
-      }
-      
-      setBroadcasting(false);
-      setBroadcastProgress(0);
-    }
-  };
-
   return (
     <>
       <Sidebar />
@@ -686,177 +544,6 @@ export default function StudentsPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={isBroadcastDialogOpen} onOpenChange={handleBroadcastDialogChange}>
-              <DialogTrigger render={<Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700" />}>
-                <MessageSquare className="h-4 w-4" />
-                Disparar Notícia
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Disparar Notícias em Lote</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <p className="text-sm text-muted-foreground">
-                    Configure abaixo onde a notícia deve ser enviada. Você pode disparar no privado, no grupo, ou nos dois ao mesmo tempo.
-                  </p>
-
-                  <div className="space-y-3 rounded-lg border p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">Destinos do disparo</p>
-                        <p className="text-xs text-muted-foreground">Escolha para onde a notícia será enviada.</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant={sendPrivateNews ? "default" : "outline"}
-                        className={sendPrivateNews ? "bg-blue-600 hover:bg-blue-700" : ""}
-                        onClick={() => setSendPrivateNews((prev) => !prev)}
-                        disabled={broadcasting}
-                      >
-                        Privado
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={sendGroupNews ? "default" : "outline"}
-                        className={sendGroupNews ? "bg-blue-600 hover:bg-blue-700" : ""}
-                        onClick={() =>
-                          setSendGroupNews((prev) => {
-                            const next = !prev;
-                            if (!next) {
-                              setSelectedGroupId("");
-                            } else if (availableGroups.length === 0) {
-                              void fetchStoredGroups();
-                            }
-                            return next;
-                          })
-                        }
-                        disabled={broadcasting}
-                      >
-                        Grupo
-                      </Button>
-                    </div>
-                  </div>
-
-                  {sendGroupNews && (
-                    <div className="space-y-3 rounded-lg border p-4">
-                      <div>
-                        <p className="text-sm font-medium">Grupo da Notícia</p>
-                        <p className="text-xs text-muted-foreground">
-                          Selecione um grupo já capturado na sincronização do WhatsApp.
-                        </p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label htmlFor="group-select">Grupo</Label>
-                          </div>
-                          <Select
-                            value={selectedGroupId}
-                            onValueChange={(value) => setSelectedGroupId(value || "")}
-                            disabled={broadcasting || groupOptionsLoading || availableGroups.length === 0}
-                          >
-                            <SelectTrigger id="group-select" className="w-full h-10">
-                              <SelectValue placeholder="Selecione um grupo">
-                                {availableGroups.find((group) => group.id === selectedGroupId)?.subject}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableGroups.map((group) => (
-                                <SelectItem key={group.id} value={group.id}>
-                                  {group.subject}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label htmlFor="group-level-select">Nível da Notícia para o Grupo</Label>
-                          </div>
-                          <Select
-                            value={selectedGroupLevel}
-                            onValueChange={(value) => setSelectedGroupLevel(value || "LEVEL_1")}
-                            disabled={broadcasting || groupOptionsLoading || availableGroups.length === 0}
-                          >
-                            <SelectTrigger id="group-level-select" className="w-full h-10">
-                              <SelectValue placeholder="Selecione o nível">
-                                {selectedGroupLevel === 'LEVEL_1' && 'Nível 1'}
-                                {selectedGroupLevel === 'LEVEL_2' && 'Nível 2'}
-                                {selectedGroupLevel === 'LEVEL_3' && 'Nível 3'}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="LEVEL_1">Nível 1</SelectItem>
-                              <SelectItem value="LEVEL_2">Nível 2</SelectItem>
-                              <SelectItem value="LEVEL_3">Nível 3</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {!groupConnectionReady ? (
-                        <Alert variant="destructive">
-                          <AlertTitle>WhatsApp desconectado</AlertTitle>
-                          <AlertDescription>
-                            Conecte o WhatsApp para sincronizar os grupos e liberar o envio em grupo.
-                          </AlertDescription>
-                        </Alert>
-                      ) : null}
-
-                      {groupConnectionReady &&
-                      !groupOptionsLoading &&
-                      availableGroups.length === 0 ? (
-                        <Alert>
-                          <AlertTitle>Nenhum grupo capturado</AlertTitle>
-                          <AlertDescription>
-                            {groupSyncStatus?.inProgress 
-                              ? 'A sincronização está em andamento. Aguarde alguns instantes.'
-                              : 'Seus grupos não foram encontrados no banco de dados. Por favor, vá a tela de whatsapp e sincronize novamente.'}
-                          </AlertDescription>
-                        </Alert>
-                      ) : null}
-
-                      {groupConnectionReady && !groupOptionsLoading && availableGroups.length > 0 ? (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Não encontrou o grupo que deseja? Vá a tela de whatsapp e sincronize novamente.
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                  
-                  {broadcasting && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Enviando mensagens...</span>
-                        <span>{broadcastProgress}%</span>
-                      </div>
-                      <Progress value={broadcastProgress} className="h-2" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleBroadcastDialogChange(false)}
-                    disabled={broadcasting}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700" 
-                    onClick={handleBroadcast}
-                    disabled={broadcasting}
-                  >
-                    {broadcasting ? "Processando..." : "Confirmar Disparo"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
             <Dialog 
               open={isDialogOpen} 
               onOpenChange={(open) => {
@@ -946,6 +633,7 @@ export default function StudentsPage() {
                     <TableHead>Nível</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Privado?</TableHead>
+                    <TableHead>Recebeu hoje?</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1019,6 +707,15 @@ export default function StudentsPage() {
                             {student.receive_private_news ? "Sim" : "Não"}
                           </span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            student.received_news_today ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {student.received_news_today ? "Sim" : "Não"}
+                        </span>
                       </TableCell>
                       <TableCell className="text-right flex items-center justify-end gap-2">
                         {editingLevelId === student.id ? (

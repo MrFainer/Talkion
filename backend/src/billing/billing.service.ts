@@ -323,6 +323,11 @@ export class BillingService {
         events: number;
         estimatedCostUsd: number;
         estimatedCostBrl: number;
+        totalInputTokens: number;
+        totalOutputTokens: number;
+        totalCachedInputTokens: number;
+        totalTokens: number;
+        totalAudioSeconds: number;
       }
     >();
 
@@ -333,11 +338,21 @@ export class BillingService {
         events: 0,
         estimatedCostUsd: 0,
         estimatedCostBrl: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalCachedInputTokens: 0,
+        totalTokens: 0,
+        totalAudioSeconds: 0,
       };
 
       current.events += 1;
       current.estimatedCostUsd += Number(event.estimated_cost_usd || 0);
       current.estimatedCostBrl += Number(event.estimated_cost_brl || 0);
+      current.totalInputTokens += Number(event.input_tokens || 0);
+      current.totalOutputTokens += Number(event.output_tokens || 0);
+      current.totalCachedInputTokens += Number(event.cached_input_tokens || 0);
+      current.totalTokens += Number(event.total_tokens || 0);
+      current.totalAudioSeconds += Number(event.audio_seconds || 0);
       groups.set(date, current);
     }
 
@@ -346,6 +361,11 @@ export class BillingService {
         ...item,
         estimatedCostUsd: this.roundNumber(item.estimatedCostUsd),
         estimatedCostBrl: this.roundNumber(item.estimatedCostBrl),
+        totalInputTokens: Math.round(item.totalInputTokens),
+        totalOutputTokens: Math.round(item.totalOutputTokens),
+        totalCachedInputTokens: Math.round(item.totalCachedInputTokens),
+        totalTokens: Math.round(item.totalTokens),
+        totalAudioSeconds: this.roundNumber(item.totalAudioSeconds),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }

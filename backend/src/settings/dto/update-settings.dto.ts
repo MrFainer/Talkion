@@ -26,6 +26,10 @@ export class UpdateSettingsDto {
   system_prompt?: string;
   allowed_response_start?: string;
   allowed_response_end?: string;
+  news_capture_time?: string;
+  private_news_send_time?: string;
+  group_news_send_time?: string;
+  auto_group_targets?: any;
 
   ignored_groups?: any;
   ignored_contacts?: any;

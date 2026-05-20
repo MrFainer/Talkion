@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { SourceType } from '@prisma/client';
@@ -48,9 +47,6 @@ export class NewsService {
     private readonly quizService: QuizService,
   ) {}
 
-  @Cron(process.env.NEWS_DAILY_CRON || '0 8 * * *', {
-    timeZone: process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo',
-  })
   async handleDailyNewsScraping() {
     this.logger.log('Iniciando captura diária de notícias e quizzes para todos os professores...');
     const activeTeachers = await this.prisma.user.findMany({

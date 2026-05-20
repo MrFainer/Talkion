@@ -251,6 +251,12 @@ model MessageSettings {
   system_prompt               String   @db.Text @default("You are a helpful English teacher.")
   allowed_response_start      String   @default("00:00")
   allowed_response_end        String   @default("23:59")
+
+  news_capture_time           String   @db.VarChar(5) @default("08:00")
+  private_news_send_time      String   @db.VarChar(5) @default("08:00")
+  group_news_send_time        String   @db.VarChar(5) @default("08:00")
+
+  auto_group_targets          Json     @default("[]")
   
   ignored_groups              Json     @default("[]")
   ignored_contacts            Json     @default("[]")

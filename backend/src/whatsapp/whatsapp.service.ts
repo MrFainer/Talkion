@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
@@ -621,6 +622,32 @@ export class WhatsappService {
       );
     }
 
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+    const alreadySent = await this.prisma.whatsappMessage.findFirst({
+      where: {
+        direction: 'OUTGOING',
+        remote_jid: this.normalizeRemoteJid(resolvedGroup.id),
+        content_kind: 'NEWS',
+        created_at: { gte: startOfDay, lte: endOfDay },
+      },
+      select: { id: true },
+      orderBy: { created_at: 'desc' },
+    });
+    if (alreadySent) {
+      return {
+        success: true,
+        skipped: true,
+        message: 'Este grupo já recebeu a notícia hoje. Envio ignorado para evitar duplicidade.',
+        configuredTitle: target.configuredTitle,
+        group: resolvedGroup,
+        matchedExactly: Boolean(target.exactMatch),
+      };
+    }
+
     const result = await this.sendLatestNewsAndQuiz(
       resolvedGroup.id,
       'GROUP',
@@ -709,6 +736,143 @@ export class WhatsappService {
     };
   }
 
+  @Cron(CronExpression.EVERY_MINUTE, {
+    timeZone: process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo',
+  })
+  async handleNewsAutomationTick() {
+    const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+    const hhmm = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(new Date());
+
+    let teachers: Array<{
+      id: string;
+      messageSettings: {
+        news_capture_time: string;
+        private_news_send_time: string;
+        group_news_send_time: string;
+        auto_group_targets: unknown;
+      } | null;
+    }> = [];
+    try {
+      teachers = await this.prisma.user.findMany({
+        where: { role: 'TEACHER', active: true },
+        select: {
+          id: true,
+          messageSettings: {
+            select: {
+              news_capture_time: true,
+              private_news_send_time: true,
+              group_news_send_time: true,
+              auto_group_targets: true,
+            },
+          },
+        },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2022') {
+        this.logger.warn(
+          `[AUTO] Colunas de horário ainda não existem no banco. Aplique a migration e reinicie o backend. (${error?.meta?.driverAdapterError?.cause?.originalMessage || error?.message || 'P2022'})`,
+        );
+        return;
+      }
+      throw error;
+    }
+
+    for (const teacher of teachers) {
+      const settings = teacher.messageSettings;
+      if (!settings) continue;
+
+      const targetsRaw = settings.auto_group_targets;
+      const targets = Array.isArray(targetsRaw) ? targetsRaw : [];
+      const normalizedTargets = targets
+        .map((item: any) => ({
+          groupId: String(item?.groupId || item?.id || '').trim(),
+          groupLevel: item?.groupLevel ? String(item.groupLevel).trim() : undefined,
+        }))
+        .filter((item: any) => Boolean(item.groupId));
+
+      const captureDue =
+        settings.news_capture_time && settings.news_capture_time === hhmm;
+      const privateDue =
+        settings.private_news_send_time &&
+        settings.private_news_send_time === hhmm;
+      const groupDue =
+        settings.group_news_send_time &&
+        settings.group_news_send_time === hhmm &&
+        normalizedTargets.length > 0;
+
+      if (!captureDue && !privateDue && !groupDue) continue;
+
+      const jobId = randomUUID();
+      void (async () => {
+        this.logger.log(
+          `[AUTO][${jobId}] Tick ${hhmm} | teacherId=${teacher.id} | capture=${Boolean(
+            captureDue,
+          )} private=${Boolean(privateDue)} group=${Boolean(groupDue)}`,
+        );
+
+        try {
+          if (captureDue) {
+            await this.newsService.runDailyNewsAndQuiz({
+              teacherId: teacher.id,
+              referenceType: 'news_automation_capture',
+              referenceId: `${new Date().toISOString()}:${jobId}`,
+              metadata: { trigger: 'automation' },
+            });
+          }
+
+          if (privateDue) {
+            await this.broadcastPrivate(teacher.id);
+          }
+
+          if (groupDue) {
+            const now = new Date();
+            const startOfDay = new Date(now);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(now);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            for (const target of normalizedTargets) {
+              const remoteJid = this.normalizeRemoteJid(target.groupId);
+              const alreadySent = await this.prisma.whatsappMessage.findFirst({
+                where: {
+                  direction: 'OUTGOING',
+                  remote_jid: remoteJid,
+                  content_kind: 'NEWS',
+                  created_at: { gte: startOfDay, lte: endOfDay },
+                },
+                select: { id: true },
+                orderBy: { created_at: 'desc' },
+              });
+              if (alreadySent) {
+                this.logger.log(
+                  `[AUTO][${jobId}] Grupo ${remoteJid} já recebeu a notícia hoje. Ignorando para evitar duplicidade.`,
+                );
+                continue;
+              }
+              await this.sendLatestNewsAndQuiz(
+                target.groupId,
+                'GROUP',
+                teacher.id,
+                target.groupLevel,
+              );
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            `[AUTO][${jobId}] Falha teacherId=${teacher.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      })();
+    }
+  }
+
   async broadcastPrivate(teacherId: string) {
     this.logger.log(`[BROADCAST] Iniciando disparo privado para alunos do professor ${teacherId}`);
     const students = await this.prisma.student.findMany({
@@ -773,6 +937,35 @@ export class WhatsappService {
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
+
+    const sentToday = await this.prisma.whatsappMessage.findMany({
+      where: {
+        student_id: { in: students.map((s) => s.id) },
+        direction: 'OUTGOING',
+        content_kind: 'PRIVATE_BROADCAST_NEWS',
+        created_at: { gte: startOfDay, lte: endOfDay },
+      },
+      select: { student_id: true },
+      distinct: ['student_id'],
+    });
+    const sentStudentIds = new Set(
+      sentToday.map((m) => m.student_id).filter(Boolean) as string[],
+    );
+    const studentsToSend = students.filter((s) => !sentStudentIds.has(s.id));
+    const skippedCount = students.length - studentsToSend.length;
+
+    this.logger.log(
+      `[BROADCAST] Elegíveis hoje: ${studentsToSend.length} | Já enviados hoje (ignorados): ${skippedCount}`,
+    );
+
+    if (studentsToSend.length === 0) {
+      return {
+        success: true,
+        count: 0,
+        skipped: skippedCount,
+        message: 'Todos os alunos já receberam a notícia hoje. Envio ignorado para evitar duplicidade.',
+      };
+    }
 
     const getNewsByLevel = async () => {
       const levels = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'] as const;
@@ -881,8 +1074,8 @@ export class WhatsappService {
         temperature: settings.ai_temperature ?? 0.7,
         systemPrompt: settings.system_prompt || null,
         modelosDeMensagens,
-        totalAlunos: students.length,
-        alunos: students.map((s) => ({
+        totalAlunos: studentsToSend.length,
+        alunos: studentsToSend.map((s) => ({
           nome: s.full_name,
           whatsapp: s.whatsapp_number,
           nivel: s.english_level,
@@ -902,12 +1095,12 @@ export class WhatsappService {
       generated = [];
     }
 
-    const studentsByWhatsapp = new Map<string, (typeof students)[number]>();
-    for (const student of students) {
+    const studentsByWhatsapp = new Map<string, (typeof studentsToSend)[number]>();
+    for (const student of studentsToSend) {
       studentsByWhatsapp.set(student.whatsapp_number, student);
     }
 
-    const fallbackBlocksForStudent = (student: (typeof students)[number]) => {
+    const fallbackBlocksForStudent = (student: (typeof studentsToSend)[number]) => {
       const selectedNews =
         (student.english_level === 'LEVEL_1' ? newsByLevel.LEVEL_1 : null) ||
         (student.english_level === 'LEVEL_2' ? newsByLevel.LEVEL_2 : null) ||
@@ -984,7 +1177,7 @@ export class WhatsappService {
       }
     }
 
-    const missingStudents = students.filter((s) => !processed.has(s.whatsapp_number));
+    const missingStudents = studentsToSend.filter((s) => !processed.has(s.whatsapp_number));
     if (missingStudents.length > 0) {
       this.logger.warn(
         `[BROADCAST][IA] ${missingStudents.length} aluno(s) ficaram sem retorno da IA. Enviando fallback por blocos.`,
@@ -1011,7 +1204,7 @@ export class WhatsappService {
       }
     }
 
-    return { success: true, count, message: 'Disparo finalizado.' };
+    return { success: true, count, skipped: skippedCount, message: 'Disparo finalizado.' };
   }
 
   async sendLatestNewsAndQuiz(

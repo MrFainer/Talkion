@@ -68,10 +68,38 @@ export class StudentsService {
   }
 
   async list(teacherId: string) {
-    return this.prisma.student.findMany({
+    const students = await this.prisma.student.findMany({
       where: { teacher_id: teacherId },
       orderBy: { created_at: 'desc' },
     });
+
+    if (students.length === 0) return [];
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const sentToday = await this.prisma.whatsappMessage.findMany({
+      where: {
+        student_id: { in: students.map((s) => s.id) },
+        direction: 'OUTGOING',
+        content_kind: 'PRIVATE_BROADCAST_NEWS',
+        created_at: { gte: startOfDay, lte: endOfDay },
+      },
+      select: { student_id: true },
+      distinct: ['student_id'],
+    });
+
+    const sentStudentIds = new Set(
+      sentToday.map((m) => m.student_id).filter(Boolean) as string[],
+    );
+
+    return students.map((student) => ({
+      ...student,
+      received_news_today: sentStudentIds.has(student.id),
+    }));
   }
 
   async create(teacherId: string, data: { fullName: string; whatsappNumber: string; englishLevel?: any; receivePrivateNews?: boolean }) {

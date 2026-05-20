@@ -10,6 +10,7 @@ import {
   Users,
   LayoutDashboard,
   MessageCircle,
+  Bot,
   LogOut,
   ShieldAlert,
   Settings2,
@@ -62,6 +63,7 @@ export function Sidebar() {
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/students", label: "Alunos", icon: Users },
+    { href: "/news", label: "Automação", icon: Bot },
   ];
   const adminLink =
     user?.role === "ADMIN"
