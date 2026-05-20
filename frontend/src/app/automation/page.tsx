@@ -56,7 +56,7 @@ type MessageSettingsPayload = {
   auto_group_targets?: any;
 };
 
-export default function NewsPage() {
+export default function AutomationPage() {
   const router = useRouter();
   const { user, isHydrated, hydrate } = useAuthStore();
 
@@ -152,10 +152,9 @@ export default function NewsPage() {
       stopProgressTimer();
       setDailyRunProgress(100);
       setDailyRunResult(payload);
-      toast.success(
-        summary.length ? summary.join(" | ") : "Processamento concluído com sucesso.",
-        { id: toastId },
-      );
+      toast.success(summary.length ? summary.join(" | ") : "Processamento concluído com sucesso.", {
+        id: toastId,
+      });
     } catch (error: any) {
       stopProgressTimer();
       setDailyRunProgress(100);
@@ -248,9 +247,7 @@ export default function NewsPage() {
       clearInterval(progressInterval);
       setDispatchProgress(100);
       toast.success(
-        res.data?.jobId
-          ? `Disparo iniciado (jobId: ${res.data.jobId}).`
-          : "Disparo iniciado com sucesso.",
+        res.data?.jobId ? `Disparo iniciado (jobId: ${res.data.jobId}).` : "Disparo iniciado com sucesso.",
       );
       setDispatchDialogOpen(false);
       resetDispatchModal();
@@ -348,10 +345,7 @@ export default function NewsPage() {
     setAutoGroupTargets((current) => current.filter((item) => item.groupId !== groupId));
   };
 
-  const setGroupLevelForTarget = (
-    groupId: string,
-    level: "LEVEL_1" | "LEVEL_2" | "LEVEL_3",
-  ) => {
+  const setGroupLevelForTarget = (groupId: string, level: "LEVEL_1" | "LEVEL_2" | "LEVEL_3") => {
     setAutoGroupTargets((current) =>
       current.map((item) => (item.groupId === groupId ? { ...item, groupLevel: level } : item)),
     );
@@ -359,9 +353,7 @@ export default function NewsPage() {
 
   const normalizedQuery = groupSearch.trim().toLowerCase();
   const availableGroupsFiltered = normalizedQuery
-    ? availableGroups.filter((group) =>
-        String(group.subject || "").toLowerCase().includes(normalizedQuery),
-      )
+    ? availableGroups.filter((group) => String(group.subject || "").toLowerCase().includes(normalizedQuery))
     : availableGroups;
 
   const hasAutoGroupsSelected = autoGroupTargets.length > 0;
@@ -379,9 +371,7 @@ export default function NewsPage() {
             <CardTitle>Gerar Notícia e Quiz</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              Busca a notícia do dia e valida/cria os quizzes de cada nível.
-            </p>
+            <p className="text-sm text-muted-foreground">Busca a notícia do dia e valida/cria os quizzes de cada nível.</p>
             <Button onClick={handleRunDailyNews} disabled={runningDailyNews} className="h-9">
               {runningDailyNews ? "Processando..." : "Gerar"}
             </Button>
@@ -408,7 +398,8 @@ export default function NewsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Configure os horários. Quando os 3 horários forem iguais, o sistema executa em sequência: capturar notícia → enviar no privado → enviar no grupo.
+              Configure os horários. Quando os 3 horários forem iguais, o sistema executa em sequência: capturar notícia → enviar
+              no privado → enviar no grupo.
             </p>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -462,9 +453,7 @@ export default function NewsPage() {
               {!groupConnectionReady ? (
                 <Alert variant="destructive">
                   <AlertTitle>WhatsApp desconectado</AlertTitle>
-                  <AlertDescription>
-                    Conecte o WhatsApp para sincronizar os grupos e liberar a seleção.
-                  </AlertDescription>
+                  <AlertDescription>Conecte o WhatsApp para sincronizar os grupos e liberar a seleção.</AlertDescription>
                 </Alert>
               ) : null}
 
@@ -495,9 +484,7 @@ export default function NewsPage() {
 
                     <div className="max-h-80 overflow-y-auto rounded-md border">
                       {availableGroupsFiltered.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">
-                          Nenhum grupo encontrado para este filtro.
-                        </p>
+                        <p className="p-4 text-sm text-muted-foreground">Nenhum grupo encontrado para este filtro.</p>
                       ) : (
                         <div className="divide-y">
                           {availableGroupsFiltered.map((group) => {
@@ -528,9 +515,7 @@ export default function NewsPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium">Selecionados ({autoGroupTargets.length})</p>
-                        <p className="text-xs text-muted-foreground">
-                          Esses grupos receberão automaticamente.
-                        </p>
+                        <p className="text-xs text-muted-foreground">Esses grupos receberão automaticamente.</p>
                       </div>
                       {autoGroupTargets.length > 0 ? (
                         <Button
@@ -555,8 +540,7 @@ export default function NewsPage() {
                       <div className="max-h-80 overflow-y-auto rounded-md border">
                         <div className="divide-y">
                           {autoGroupTargets.map((target) => {
-                            const groupName =
-                              availableGroups.find((g) => g.id === target.groupId)?.subject || target.groupId;
+                            const groupName = availableGroups.find((g) => g.id === target.groupId)?.subject || target.groupId;
                             return (
                               <div key={target.groupId} className="flex items-center justify-between gap-3 p-3">
                                 <div className="min-w-0 flex-1">
@@ -569,11 +553,7 @@ export default function NewsPage() {
                                     onValueChange={(value) =>
                                       setGroupLevelForTarget(
                                         target.groupId,
-                                        (value === "LEVEL_2"
-                                          ? "LEVEL_2"
-                                          : value === "LEVEL_3"
-                                            ? "LEVEL_3"
-                                            : "LEVEL_1") as any,
+                                        (value === "LEVEL_2" ? "LEVEL_2" : value === "LEVEL_3" ? "LEVEL_3" : "LEVEL_1") as any,
                                       )
                                     }
                                     disabled={scheduleLoading || scheduleSaving}
@@ -626,9 +606,7 @@ export default function NewsPage() {
           <DialogHeader>
             <DialogTitle>Gerar Notícia e Quiz</DialogTitle>
             <DialogDescription>
-              {runningDailyNews
-                ? "Buscando a notícia do dia e validando o quiz."
-                : "Confira o status da geração diária."}
+              {runningDailyNews ? "Buscando a notícia do dia e validando o quiz." : "Confira o status da geração diária."}
             </DialogDescription>
           </DialogHeader>
 
@@ -657,13 +635,11 @@ export default function NewsPage() {
               <div className="space-y-2 rounded-lg border p-3 text-sm">
                 <p className="font-medium">Resumo</p>
                 <p className="text-muted-foreground">
-                  Notícias: {dailyRunResult?.news?.created || 0} criada(s) |{" "}
-                  {dailyRunResult?.news?.skippedSameDay || 0} bloqueio(s) por dia |{" "}
-                  {dailyRunResult?.news?.skippedSameNews || 0} bloqueio(s) por mesma notícia
+                  Notícias: {dailyRunResult?.news?.created || 0} criada(s) | {dailyRunResult?.news?.skippedSameDay || 0} bloqueio(s)
+                  por dia | {dailyRunResult?.news?.skippedSameNews || 0} bloqueio(s) por mesma notícia
                 </p>
                 <p className="text-muted-foreground">
-                  Quiz: {dailyRunResult?.quizzes?.created || 0} criado(s) |{" "}
-                  {dailyRunResult?.quizzes?.existing || 0} já existente(s)
+                  Quiz: {dailyRunResult?.quizzes?.created || 0} criado(s) | {dailyRunResult?.quizzes?.existing || 0} já existente(s)
                 </p>
               </div>
             ) : null}
@@ -675,9 +651,7 @@ export default function NewsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Disparar Notícias em Lote</DialogTitle>
-            <DialogDescription>
-              Configure abaixo onde a notícia deve ser enviada. O envio roda em segundo plano.
-            </DialogDescription>
+            <DialogDescription>Configure abaixo onde a notícia deve ser enviada. O envio roda em segundo plano.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
@@ -685,9 +659,7 @@ export default function NewsPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Destinos do disparo</p>
-                  <p className="text-xs text-muted-foreground">
-                    Escolha para onde a notícia será enviada.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Escolha para onde a notícia será enviada.</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -724,9 +696,7 @@ export default function NewsPage() {
               <div className="space-y-3 rounded-lg border p-4">
                 <div>
                   <p className="text-sm font-medium">Grupo da Notícia</p>
-                  <p className="text-xs text-muted-foreground">
-                    Selecione um grupo já capturado na sincronização do WhatsApp.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Selecione um grupo já capturado na sincronização do WhatsApp.</p>
                 </div>
 
                 <div className="space-y-4">
@@ -782,9 +752,7 @@ export default function NewsPage() {
                 {!groupConnectionReady ? (
                   <Alert variant="destructive">
                     <AlertTitle>WhatsApp desconectado</AlertTitle>
-                    <AlertDescription>
-                      Conecte o WhatsApp para sincronizar os grupos e liberar o envio em grupo.
-                    </AlertDescription>
+                    <AlertDescription>Conecte o WhatsApp para sincronizar os grupos e liberar o envio em grupo.</AlertDescription>
                   </Alert>
                 ) : null}
 
@@ -813,11 +781,7 @@ export default function NewsPage() {
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => handleDispatchDialogChange(false)}
-              disabled={dispatching}
-            >
+            <Button variant="outline" onClick={() => handleDispatchDialogChange(false)} disabled={dispatching}>
               Cancelar
             </Button>
             <Button onClick={handleDispatch} disabled={dispatching}>
