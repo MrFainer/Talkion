@@ -184,7 +184,19 @@ export default function AutomationPage() {
       const res = await api.get(`/whatsapp/groups/cached/${user.id}`);
       setAvailableGroups(res.data.groups || []);
       setGroupSyncStatus(res.data.sync || null);
-      setGroupConnectionReady(Boolean(res.data.connected));
+      const connectedFromGroups = res.data.connected === true ? true : res.data.connected === false ? false : null;
+      if (connectedFromGroups === false) {
+        try {
+          const statusRes = await api.get(`/whatsapp/status/${user.id}`);
+          const raw = String(statusRes.data?.status || "").trim().toLowerCase();
+          const normalized = ["open", "connected", "online"].includes(raw) ? "open" : raw;
+          setGroupConnectionReady(normalized === "open");
+        } catch {
+          setGroupConnectionReady(false);
+        }
+      } else {
+        setGroupConnectionReady(connectedFromGroups);
+      }
     } catch (error: any) {
       setAvailableGroups([]);
       setGroupSyncStatus(null);
@@ -450,7 +462,7 @@ export default function AutomationPage() {
                 </div>
               </div>
 
-              {!groupConnectionReady ? (
+              {groupConnectionReady === false ? (
                 <Alert variant="destructive">
                   <AlertTitle>WhatsApp desconectado</AlertTitle>
                   <AlertDescription>Conecte o WhatsApp para sincronizar os grupos e liberar a seleção.</AlertDescription>
@@ -749,7 +761,7 @@ export default function AutomationPage() {
                   </div>
                 </div>
 
-                {!groupConnectionReady ? (
+                {groupConnectionReady === false ? (
                   <Alert variant="destructive">
                     <AlertTitle>WhatsApp desconectado</AlertTitle>
                     <AlertDescription>Conecte o WhatsApp para sincronizar os grupos e liberar o envio em grupo.</AlertDescription>

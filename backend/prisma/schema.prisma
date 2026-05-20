@@ -80,7 +80,6 @@ model Student {
   whatsapp_valid  Boolean      @default(false)
   english_level   EnglishLevel @default(LEVEL_1)
   active          Boolean      @default(true)
-  receive_private_news Boolean @default(false)
   created_at      DateTime     @default(now())
 
   user             User?             @relation(fields: [user_id], references: [id])

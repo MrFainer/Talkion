@@ -33,11 +33,6 @@ export class StudentsController {
     return this.studentsService.toggleActive(teacherId, studentId);
   }
 
-  @Patch('teacher/:teacherId/:studentId/toggle-private')
-  async togglePrivateNews(@Param('teacherId') teacherId: string, @Param('studentId') studentId: string) {
-    return this.studentsService.togglePrivateNews(teacherId, studentId);
-  }
-
   @Patch('teacher/:teacherId/:studentId/level')
   async updateLevel(
     @Param('teacherId') teacherId: string, 

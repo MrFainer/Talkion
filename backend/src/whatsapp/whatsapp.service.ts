@@ -246,8 +246,11 @@ export class WhatsappService {
 
   async getSyncStatus(teacherId: string) {
     const instance = await this.getOrCreateInstance(teacherId);
+    return this.buildSyncStatus(teacherId, instance.status);
+  }
 
-    if (instance.status !== 'open') {
+  private async buildSyncStatus(teacherId: string, instanceStatus: string) {
+    if (instanceStatus !== 'open') {
       const state = this.updateSyncState(teacherId, {
         stage: 'waiting_connection',
         progress: 0,
@@ -281,12 +284,11 @@ export class WhatsappService {
           sync: this.getSyncState(teacherId),
         };
       } else {
-        // Já tem grupos no banco mas o estado de sync na memória estava vazio (ex: servidor reiniciou)
         const lastGroup = await this.prisma.whatsappGroup.findFirst({
           where: { teacher_id: teacherId },
-          orderBy: { created_at: 'desc' }
+          orderBy: { created_at: 'desc' },
         });
-        
+
         const state = this.updateSyncState(teacherId, {
           stage: 'ready',
           progress: 100,
@@ -294,7 +296,9 @@ export class WhatsappService {
           inProgress: false,
           ready: true,
           groupsCount: groupCount,
-          completedAt: lastGroup ? lastGroup.created_at.toISOString() : new Date().toISOString(),
+          completedAt: lastGroup
+            ? lastGroup.created_at.toISOString()
+            : new Date().toISOString(),
         });
 
         return {
@@ -400,11 +404,25 @@ export class WhatsappService {
    */
   async checkNumber(teacherId: string, number: string) {
     try {
-      const instanceName = await this.resolveInstanceName(teacherId);
+      const instance = await this.getOrCreateInstance(teacherId);
+      const instanceName = instance.instanceName;
+
+      const normalizeNumber = (value: string) =>
+        String(value || '').replace(/[^\d]/g, '');
+      const ownerDigits = normalizeNumber(String(instance.owner || ''));
+      const inputDigits = normalizeNumber(number);
+      if (ownerDigits && inputDigits && ownerDigits === inputDigits) {
+        return true;
+      }
+
       // Usando o endpoint /chat/whatsappNumbers/{instance} que é comum em Evolution API V2
-      const response = await this.http.post(`/chat/whatsappNumbers/${instanceName}`, {
-        numbers: [number]
-      }, { timeout: 15000 }); // Aguarda até 15 segundos pela validação real
+      const response = await this.http.post(
+        `/chat/whatsappNumbers/${instanceName}`,
+        {
+          numbers: [number],
+        },
+        { timeout: 30000 },
+      );
 
       // A API retorna um array de resultados
       if (Array.isArray(response.data) && response.data.length > 0) {
@@ -486,12 +504,12 @@ export class WhatsappService {
 
   async listStoredGroups(teacherId: string) {
     const instance = await this.getOrCreateInstance(teacherId);
-    const syncStatus = await this.getSyncStatus(teacherId);
+    const syncStatus = await this.buildSyncStatus(teacherId, instance.status);
 
     const groups = await this.getCachedGroups(teacherId);
 
     return {
-      connected: instance.status === 'open',
+      connected: syncStatus.connected,
       count: groups.length,
       groups,
       sync: syncStatus.sync,
@@ -879,7 +897,6 @@ export class WhatsappService {
       where: {
         teacher_id: teacherId,
         active: true,
-        receive_private_news: true,
         whatsapp_valid: true,
       },
       select: {
@@ -893,7 +910,11 @@ export class WhatsappService {
     this.logger.log(`[BROADCAST] Alunos encontrados para disparo: ${students.length}`);
 
     if (students.length === 0) {
-      return { success: true, count: 0, message: 'Nenhum aluno configurado e válido para receber notícia no privado. (Lembre-se de ativar o envio na tela de alunos)' };
+      return {
+        success: true,
+        count: 0,
+        message: 'Nenhum aluno ativo e válido para receber notícia no privado.',
+      };
     }
 
     let settings = await this.prisma.messageSettings.findUnique({
@@ -1401,13 +1422,23 @@ export class WhatsappService {
     if (isGroupTarget) {
       const quizResult = await this.quizService.generateQuizForNews(latestNews.id, baseTracking);
       const previousQuiz = await this.findPreviousQuizForAnswerKey(latestNews.id);
-      const answerKeyMessage = this.formatAnswerKeyForWhatsapp(previousQuiz);
+      let answerKeyMessage: string | null = null;
+      let shouldSendAnswerKey = false;
+      if (previousQuiz?.id) {
+        const answerCount = await this.prisma.quizAnswer.count({
+          where: { quiz_id: previousQuiz.id },
+        });
+        if (answerCount > 0) {
+          answerKeyMessage = this.formatAnswerKeyForWhatsapp(previousQuiz);
+          shouldSendAnswerKey = Boolean(answerKeyMessage?.trim());
+        }
+      }
       let aiMessages: Array<{ kind: string; text: string }> = [];
       try {
         aiMessages = await getAiMessages({
           mode: 'GROUP',
           quizQuestions: quizResult.quiz.questions,
-          previousAnswerKey: answerKeyMessage || null,
+          previousAnswerKey: shouldSendAnswerKey ? answerKeyMessage : null,
         });
       } catch (error) {
         this.logger.warn(
@@ -1445,7 +1476,7 @@ export class WhatsappService {
         );
 
       quizId = quizResult.quiz.id;
-      previousQuizId = previousQuiz?.id || null;
+      previousQuizId = shouldSendAnswerKey ? previousQuiz?.id || null : null;
 
       await this.sendMessage(teacherId, targetNumber, greetingMessage, {
         studentId: student?.id || null,
@@ -1454,7 +1485,7 @@ export class WhatsappService {
         contentKind: 'GROUP_GREETING',
       });
 
-      if (answerKeyMessage) {
+      if (shouldSendAnswerKey && answerKeyMessage) {
         await this.sendMessage(teacherId, targetNumber, answerKeyHeaderMessage, {
           studentId: student?.id || null,
           relatedNewsId: previousQuiz?.news_id || null,

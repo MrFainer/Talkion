@@ -43,13 +43,12 @@ export default function StudentsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<{ id: string; full_name: string } | null>(null);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
-  const [editingData, setEditingData] = useState<{ whatsappNumber: string, level: string, receivePrivateNews: boolean } | null>(null);
+  const [editingData, setEditingData] = useState<{ whatsappNumber: string; level: string } | null>(null);
 
   // Formulário
   const [fullName, setFullName] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [englishLevel, setEnglishLevel] = useState("LEVEL_1");
-  const [receivePrivateNews, setReceivePrivateNews] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
   // Ref para upload de arquivo
@@ -127,14 +126,12 @@ export default function StudentsPage() {
         fullName: normalizedFullName,
         whatsappNumber: rawWhatsappNumber,
         englishLevel,
-        receivePrivateNews
       });
       toast.success("Aluno cadastrado com sucesso!");
       setIsDialogOpen(false);
       setFullName("");
       setWhatsappNumber("");
       setEnglishLevel("LEVEL_1");
-      setReceivePrivateNews(false);
       fetchStudents();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro ao cadastrar aluno.");
@@ -150,16 +147,6 @@ export default function StudentsPage() {
       fetchStudents();
     } catch (error) {
       toast.error("Erro ao atualizar status.");
-    }
-  };
-
-  const handleTogglePrivateNews = async (studentId: string, currentVal: boolean) => {
-    try {
-      await api.patch(`/students/teacher/${user?.id}/${studentId}/toggle-private`);
-      toast.success("Configuração de mensagem privada atualizada!");
-      fetchStudents();
-    } catch (error) {
-      toast.error("Erro ao atualizar configuração.");
     }
   };
 
@@ -214,7 +201,7 @@ export default function StudentsPage() {
     }
   };
 
-  const handleSaveEdits = async (studentId: string, originalNumber: string, originalLevel: string, originalPrivate: boolean) => {
+  const handleSaveEdits = async (studentId: string, originalNumber: string, originalLevel: string) => {
     if (!editingData) return;
     
     let hasChanges = false;
@@ -232,11 +219,6 @@ export default function StudentsPage() {
 
     if (editingData.level !== originalLevel) {
       await handleLevelChange(studentId, editingData.level);
-      hasChanges = true;
-    }
-
-    if (editingData.receivePrivateNews !== originalPrivate) {
-      await handleTogglePrivateNews(studentId, editingData.receivePrivateNews);
       hasChanges = true;
     }
 
@@ -551,7 +533,6 @@ export default function StudentsPage() {
                   setFullName("");
                   setWhatsappNumber("");
                   setEnglishLevel("LEVEL_1");
-                  setReceivePrivateNews(false);
                 }
                 setIsDialogOpen(open);
               }}
@@ -596,16 +577,6 @@ export default function StudentsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-2 pt-2">
-                  <input 
-                    type="checkbox" 
-                    id="private-news"
-                    checked={receivePrivateNews}
-                    onChange={(e) => setReceivePrivateNews(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <Label htmlFor="private-news" className="cursor-pointer">Receber Notícias no Privado?</Label>
-                </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
                   {submitting ? "Salvando..." : "Salvar"}
                 </Button>
@@ -632,7 +603,6 @@ export default function StudentsPage() {
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Nível</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Privado?</TableHead>
                     <TableHead>Recebeu hoje?</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -688,27 +658,6 @@ export default function StudentsPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        {editingLevelId === student.id ? (
-                          <Tooltip>
-                            <TooltipTrigger render={
-                              <button 
-                                onClick={() => setEditingData(prev => ({ ...prev!, receivePrivateNews: !prev!.receivePrivateNews }))}
-                                className={`px-2 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${editingData?.receivePrivateNews ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                              >
-                                {editingData?.receivePrivateNews ? "Sim" : "Não"}
-                              </button>
-                            } />
-                            <TooltipContent>
-                              <p>Clique para alterar</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${student.receive_private_news ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                            {student.receive_private_news ? "Sim" : "Não"}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium ${
                             student.received_news_today ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
@@ -740,7 +689,7 @@ export default function StudentsPage() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon-sm"
-                                  onClick={() => handleSaveEdits(student.id, student.whatsapp_number, student.english_level, student.receive_private_news)}
+                                  onClick={() => handleSaveEdits(student.id, student.whatsapp_number, student.english_level)}
                                   className="text-green-600 hover:text-green-700"
                                 >
                                   <Check className="h-4 w-4" />
@@ -761,8 +710,7 @@ export default function StudentsPage() {
                                   setEditingLevelId(student.id);
                                   setEditingData({ 
                                     whatsappNumber: formatWhatsApp(student.whatsapp_number), 
-                                    level: student.english_level, 
-                                    receivePrivateNews: student.receive_private_news 
+                                    level: student.english_level
                                   });
                                 }}
                               >

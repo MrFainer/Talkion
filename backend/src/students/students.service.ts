@@ -102,7 +102,10 @@ export class StudentsService {
     }));
   }
 
-  async create(teacherId: string, data: { fullName: string; whatsappNumber: string; englishLevel?: any; receivePrivateNews?: boolean }) {
+  async create(
+    teacherId: string,
+    data: { fullName: string; whatsappNumber: string; englishLevel?: any },
+  ) {
     const normalizedName = this.normalizeFullName(data.fullName || '');
     if (!normalizedName) {
       throw new BadRequestException('Informe o nome completo do aluno.');
@@ -131,7 +134,6 @@ export class StudentsService {
         whatsapp_number: rawNumber,
         whatsapp_valid: isValid,
         english_level: data.englishLevel || 'LEVEL_1',
-        receive_private_news: data.receivePrivateNews || false,
       },
     });
   }
@@ -157,18 +159,6 @@ export class StudentsService {
     return this.prisma.student.update({
       where: { id: studentId },
       data: { english_level: level },
-    });
-  }
-
-  async togglePrivateNews(teacherId: string, studentId: string) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.teacher_id !== teacherId) {
-      throw new NotFoundException('Aluno não encontrado.');
-    }
-
-    return this.prisma.student.update({
-      where: { id: studentId },
-      data: { receive_private_news: !student.receive_private_news },
     });
   }
 
