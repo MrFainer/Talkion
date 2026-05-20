@@ -116,20 +116,40 @@ export class AiService {
   async generateFallbackNews(
     level: string,
     tracking?: UsageTrackingContext,
+    options?: {
+      avoidTitle?: string;
+      avoidContent?: string;
+    },
   ): Promise<{ title: string; content: string }> {
     this.logger.log(`Gerando notícia via IA para o nível: ${level}`);
 
+    const levelNumber = level.split('_')[1] || '1';
+    const avoidTitle = String(options?.avoidTitle || '').trim();
+    const avoidContent = String(options?.avoidContent || '').trim();
+    const avoidBlock =
+      avoidTitle || avoidContent
+        ? `\nEvite repetir a notícia abaixo (não reutilize o mesmo título nem o mesmo texto):\n- title: ${avoidTitle || '(vazio)'}\n- content: ${avoidContent ? `${avoidContent.slice(0, 500)}...` : '(vazio)'}\n`
+        : '';
+
     const prompt = `Você é um criador de conteúdo educacional para estudantes de inglês.
 
-Gere uma notícia curta em inglês:
+Gere uma notícia curta em inglês no MESMO padrão do site "News in Levels".
 
 Regras:
 - Nível: ${level} (LEVEL_1 = básico, LEVEL_2 = intermediário, LEVEL_3 = avançado)
-- Tema atual e interessante
-- Linguagem natural
-- Fácil compreensão
-- Aproximadamente 250 palavras
-- Formato de saída: JSON com as chaves "title" e "content"`;
+- A notícia deve parecer uma notícia real e atual (sem mencionar que foi gerada por IA)
+- A saída deve estar no formato JSON com as chaves "title" e "content"
+- "title" deve terminar exatamente com "– level ${levelNumber}" (com esse travessão) e ser curto
+- "content" deve ser em inglês e conter:
+  - 2 a 5 parágrafos curtos, texto contínuo
+  - no final, uma linha "Difficult words:" com 6 a 10 itens separados por vírgula, no formato: word (meaning)
+  - todas as difficult words precisam aparecer no texto e devem estar destacadas com **negrito** (markdown), por exemplo: **economy**
+- Tamanho aproximado:
+  - LEVEL_1: 120–170 palavras
+  - LEVEL_2: 170–230 palavras
+  - LEVEL_3: 220–320 palavras
+${avoidBlock}
+Retorne SOMENTE o JSON.`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -165,6 +185,97 @@ Regras:
       this.logger.error('Erro ao gerar notícia via IA', error);
       throw error;
     }
+  }
+
+  async generateFallbackNewsBundle(
+    tracking?: UsageTrackingContext,
+    optionsByLevel?: Partial<
+      Record<
+        'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3',
+        { avoidTitle?: string; avoidContent?: string }
+      >
+    >,
+  ): Promise<
+    Record<'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3', { title: string; content: string }>
+  > {
+    this.logger.log('Gerando notícia via IA (bundle LEVEL_1/2/3 com um único tema)');
+
+    const buildAvoid = (level: 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3') => {
+      const avoidTitle = String(optionsByLevel?.[level]?.avoidTitle || '').trim();
+      const avoidContent = String(optionsByLevel?.[level]?.avoidContent || '').trim();
+      if (!avoidTitle && !avoidContent) return '';
+      const contentPreview = avoidContent ? `${avoidContent.slice(0, 500)}...` : '(vazio)';
+      return `\n- ${level}: title="${avoidTitle || '(vazio)'}" | content="${contentPreview}"`;
+    };
+
+    const avoidBlock = [
+      buildAvoid('LEVEL_1'),
+      buildAvoid('LEVEL_2'),
+      buildAvoid('LEVEL_3'),
+    ]
+      .filter(Boolean)
+      .join('');
+
+    const prompt = `Você é um criador de conteúdo educacional para estudantes de inglês.
+
+Gere UMA única notícia (um único tema) e produza 3 versões dela, adaptadas por nível, no MESMO padrão do site "News in Levels".
+
+Regras gerais:
+- A notícia deve parecer uma notícia real e atual (sem mencionar que foi gerada por IA)
+- As 3 versões devem falar do MESMO acontecimento/fatos, com dificuldade adaptada
+- Formato de saída: JSON com as chaves "LEVEL_1", "LEVEL_2", "LEVEL_3". Cada uma deve ter "title" e "content"
+- "title" deve terminar exatamente com:
+  - LEVEL_1: "– level 1"
+  - LEVEL_2: "– level 2"
+  - LEVEL_3: "– level 3"
+- "content" deve ser em inglês e conter:
+  - 2 a 5 parágrafos curtos, texto contínuo
+  - no final, uma linha "Difficult words:" com 6 a 10 itens separados por vírgula, no formato: word (meaning)
+  - todas as difficult words precisam aparecer no texto e devem estar destacadas com **negrito** (markdown), por exemplo: **economy**
+- Tamanho aproximado:
+  - LEVEL_1: 120–170 palavras
+  - LEVEL_2: 170–230 palavras
+  - LEVEL_3: 220–320 palavras
+${avoidBlock ? `\nEvite repetir as notícias abaixo (não reutilize os mesmos títulos nem os mesmos textos):${avoidBlock}\n` : ''}
+Retorne SOMENTE o JSON.`;
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'system', content: prompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.NEWS_FALLBACK_GENERATION,
+      modelName: 'gpt-4o-mini',
+      response,
+      tracking: {
+        ...tracking,
+        referenceType: tracking?.referenceType || 'news_fallback',
+        referenceId: tracking?.referenceId || 'bundle',
+      },
+      metadata: {
+        mode: 'bundle',
+        levels: ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'],
+      },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}') as any;
+    const level1 = parsed?.LEVEL_1;
+    const level2 = parsed?.LEVEL_2;
+    const level3 = parsed?.LEVEL_3;
+    const isValidItem = (item: any) =>
+      item && typeof item.title === 'string' && typeof item.content === 'string' && item.title.trim() && item.content.trim();
+
+    if (!isValidItem(level1) || !isValidItem(level2) || !isValidItem(level3)) {
+      throw new Error('A IA não retornou o formato esperado para o bundle de notícias.');
+    }
+
+    return {
+      LEVEL_1: { title: level1.title, content: level1.content },
+      LEVEL_2: { title: level2.title, content: level2.content },
+      LEVEL_3: { title: level3.title, content: level3.content },
+    };
   }
 
   /**

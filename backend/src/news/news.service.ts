@@ -19,6 +19,9 @@ type NewsProcessingResult = {
   title?: string;
   newsId?: string;
   reason?: string;
+  incomingTitle?: string;
+  incomingContent?: string;
+  incomingSourceUrl?: string;
 };
 
 type QuizProcessingResult = {
@@ -117,6 +120,33 @@ export class NewsService {
         await this.extractNewsDetails(firstNewsLink, 'LEVEL_2', tracking),
         await this.extractNewsDetails(firstNewsLink, 'LEVEL_3', tracking),
       );
+
+      const allSameNews =
+        results.length === 3 &&
+        results.every((item) => item.status === 'skipped_same_news');
+      if (allSameNews) {
+        this.logger.warn(
+          'NewsInLevels parece não ter atualizado a notícia (mesma do banco). Gerando alternativa via IA para LEVEL_1/2/3.',
+        );
+        return this.generateFallbackNewsForAllLevels(tracking, {
+          referenceType: 'news_duplicate_fallback',
+          referenceId: new Date().toISOString().slice(0, 10),
+          avoidByLevel: {
+            LEVEL_1: {
+              avoidTitle: results[0]?.incomingTitle,
+              avoidContent: results[0]?.incomingContent,
+            },
+            LEVEL_2: {
+              avoidTitle: results[1]?.incomingTitle,
+              avoidContent: results[1]?.incomingContent,
+            },
+            LEVEL_3: {
+              avoidTitle: results[2]?.incomingTitle,
+              avoidContent: results[2]?.incomingContent,
+            },
+          },
+        });
+      }
     } catch (error) {
       this.logger.error(
         'Erro ao buscar notícias do NewsInLevels, acionando fallback IA...',
@@ -130,29 +160,54 @@ export class NewsService {
 
   private async generateFallbackNewsForAllLevels(
     tracking?: UsageTrackingContext,
+    options?: {
+      referenceType?: string;
+      referenceId?: string;
+      avoidByLevel?: Partial<
+        Record<
+          'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3',
+          { avoidTitle?: string; avoidContent?: string }
+        >
+      >;
+    },
   ): Promise<NewsProcessingResult[]> {
-    const levels = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'];
+    const levels = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'] as const;
     const results: NewsProcessingResult[] = [];
-    for (const level of levels) {
-      try {
-        const { title, content } =
-          await this.aiService.generateFallbackNews(level, {
-            ...tracking,
-            referenceType: tracking?.referenceType || 'news_fallback',
-            referenceId: tracking?.referenceId || level,
-          });
-        const result = await this.saveNewsIfAllowed({
-          title,
-          content,
-          level,
-          sourceType: SourceType.AI_GENERATED,
-        }, tracking);
+    try {
+      const bundle = await this.aiService.generateFallbackNewsBundle(
+        {
+          ...tracking,
+          referenceType:
+            options?.referenceType || tracking?.referenceType || 'news_fallback',
+          referenceId:
+            options?.referenceId || tracking?.referenceId || 'bundle',
+          metadata: {
+            ...(tracking?.metadata || {}),
+            trigger: options?.referenceType === 'news_duplicate_fallback' ? 'duplicate_fallback' : 'fallback',
+          },
+        },
+        options?.avoidByLevel,
+      );
+
+      for (const level of levels) {
+        const item = bundle[level];
+        const result = await this.saveNewsIfAllowed(
+          {
+            title: item.title,
+            content: item.content,
+            level,
+            sourceType: SourceType.AI_GENERATED,
+          },
+          tracking,
+        );
         results.push(result);
         if (result.status === 'created') {
-          this.logger.log(`Notícia Fallback salva via IA: [${level}] ${title}`);
+          this.logger.log(`Notícia Fallback salva via IA: [${level}] ${item.title}`);
         }
-      } catch (err) {
-        this.logger.error(`Falha ao gerar notícia fallback para ${level}`, err);
+      }
+    } catch (err) {
+      this.logger.error('Falha ao gerar notícia fallback via IA (bundle)', err);
+      for (const level of levels) {
         results.push({
           level,
           status: 'error',
@@ -204,10 +259,16 @@ export class NewsService {
         sourceType: SourceType.SCRAPED,
         sourceUrl: url,
       }, tracking);
+
       if (result.status === 'created') {
         this.logger.log(`Nova notícia salva: [${level}] ${title}`);
       }
-      return result;
+      return {
+        ...result,
+        incomingTitle: title,
+        incomingContent: content,
+        incomingSourceUrl: url,
+      };
     } catch (error) {
       this.logger.error(
         `Erro ao extrair nível ${level}`,
