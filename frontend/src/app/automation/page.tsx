@@ -373,16 +373,16 @@ export default function AutomationPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto p-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Automação</h1>
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 space-y-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl sm:text-3xl font-bold">Automação</h1>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Gerar Notícia e Quiz</CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center justify-between gap-3">
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">Busca a notícia do dia e valida/cria os quizzes de cada nível.</p>
             <Button onClick={handleRunDailyNews} disabled={runningDailyNews} className="h-9">
               {runningDailyNews ? "Processando..." : "Gerar"}
@@ -394,7 +394,7 @@ export default function AutomationPage() {
           <CardHeader>
             <CardTitle>Disparar Notícia</CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center justify-between gap-3">
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               Inicia o envio no privado, no grupo, ou nos dois (processa em segundo plano).
             </p>
@@ -494,7 +494,7 @@ export default function AutomationPage() {
                       />
                     </div>
 
-                    <div className="max-h-80 overflow-y-auto rounded-md border">
+                    <div className="rounded-md border max-h-[50vh] overflow-y-auto overscroll-contain md:max-h-80">
                       {availableGroupsFiltered.length === 0 ? (
                         <p className="p-4 text-sm text-muted-foreground">Nenhum grupo encontrado para este filtro.</p>
                       ) : (
@@ -502,7 +502,7 @@ export default function AutomationPage() {
                           {availableGroupsFiltered.map((group) => {
                             const selected = isGroupSelected(group.id);
                             return (
-                              <div key={group.id} className="flex items-center justify-between gap-3 p-3">
+                              <div key={group.id} className="grid grid-cols-[1fr_auto] items-center gap-3 p-3">
                                 <div className="min-w-0">
                                   <p className="truncate text-sm font-medium">{group.subject}</p>
                                 </div>
@@ -511,6 +511,8 @@ export default function AutomationPage() {
                                   variant={selected ? "outline" : "default"}
                                   onClick={() => addAutoGroupTarget(group.id)}
                                   disabled={selected || scheduleLoading || scheduleSaving || groupOptionsLoading}
+                                  size="sm"
+                                  className="shrink-0"
                                 >
                                   <Plus className="h-4 w-4 mr-2" />
                                   Adicionar
@@ -535,6 +537,8 @@ export default function AutomationPage() {
                           variant="outline"
                           onClick={() => setAutoGroupTargets([])}
                           disabled={scheduleLoading || scheduleSaving}
+                          size="sm"
+                          className="shrink-0"
                         >
                           Limpar
                         </Button>
@@ -549,17 +553,17 @@ export default function AutomationPage() {
                         </AlertDescription>
                       </Alert>
                     ) : (
-                      <div className="max-h-80 overflow-y-auto rounded-md border">
+                      <div className="rounded-md border max-h-[40vh] overflow-y-auto overscroll-contain md:max-h-80">
                         <div className="divide-y">
                           {autoGroupTargets.map((target) => {
                             const groupName = availableGroups.find((g) => g.id === target.groupId)?.subject || target.groupId;
                             return (
-                              <div key={target.groupId} className="flex items-center justify-between gap-3 p-3">
+                              <div key={target.groupId} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 p-3">
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-medium">{groupName}</p>
                                 </div>
 
-                                <div className="w-36">
+                                <div className="w-32 shrink-0">
                                   <Select
                                     value={target.groupLevel}
                                     onValueChange={(value) =>
@@ -590,6 +594,9 @@ export default function AutomationPage() {
                                   variant="outline"
                                   onClick={() => removeAutoGroupTarget(target.groupId)}
                                   disabled={scheduleLoading || scheduleSaving}
+                                  size="icon-sm"
+                                  className="shrink-0"
+                                  aria-label="Remover"
                                 >
                                   <X className="h-4 w-4" />
                                 </Button>

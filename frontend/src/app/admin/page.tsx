@@ -130,7 +130,7 @@ export default function AdminPage() {
     return (
       <>
         <Sidebar />
-        <main className="flex-1 min-w-0 overflow-y-auto p-8 flex items-center justify-center">
+        <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p>Carregando administração...</p>
         </main>
       </>
@@ -140,14 +140,14 @@ export default function AdminPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto p-8">
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Administração</h1>
             <p className="text-muted-foreground mt-1">Gerencie os professores da plataforma</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={handleExportExcel} variant="outline" className="gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button onClick={handleExportExcel} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
               <Download className="w-4 h-4" />
               Exportar Excel
             </Button>
@@ -155,7 +155,7 @@ export default function AdminPage() {
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="w-36"
+              className="w-full sm:w-36"
               aria-label="De"
             />
             <span className="text-muted-foreground">até</span>
@@ -163,10 +163,10 @@ export default function AdminPage() {
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="w-36"
+              className="w-full sm:w-36"
               aria-label="Até"
             />
-            <Button onClick={handleFilter} variant="secondary">
+            <Button onClick={handleFilter} variant="secondary" className="w-full sm:w-auto">
               Filtrar
             </Button>
           </div>
@@ -183,7 +183,7 @@ export default function AdminPage() {
             {teachers.length === 0 ? (
               <p className="text-muted-foreground">Nenhum professor encontrado.</p>
             ) : (
-              <Table>
+              <Table className="min-w-[960px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>

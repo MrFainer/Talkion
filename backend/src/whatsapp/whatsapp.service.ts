@@ -100,6 +100,7 @@ export class WhatsappService {
   private readonly qrCodeCache = new Map<string, QrCodeCacheEntry>();
   private readonly qrCodeTtlMs = 30_000;
   private readonly syncStateByTeacher = new Map<string, WhatsappSyncState>();
+  private readonly teacherNameCache = new Map<string, { name: string | null; updatedAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -107,6 +108,22 @@ export class WhatsappService {
     private readonly quizService: QuizService,
     private readonly newsService: NewsService,
   ) {}
+
+  private async getTeacherName(teacherId: string) {
+    const cached = this.teacherNameCache.get(teacherId);
+    const now = Date.now();
+    if (cached && now - cached.updatedAt < 5 * 60 * 1000) {
+      return cached.name;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { name: true },
+    });
+    const name = user?.name ? String(user.name).trim() : null;
+    this.teacherNameCache.set(teacherId, { name, updatedAt: now });
+    return name;
+  }
 
   async resolveInstanceName(teacherId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -1321,6 +1338,7 @@ export class WhatsappService {
 
     const variables = {
       nome: student?.full_name || null,
+      teacherName: await this.getTeacherName(teacherId),
       telefone: student?.whatsapp_number || null,
       data: new Date().toLocaleDateString('pt-BR'),
       hora: new Date().toLocaleTimeString('pt-BR', {
@@ -1334,6 +1352,9 @@ export class WhatsappService {
       if (!text) return '';
       return text
         .replace(/{{nome}}/g, variables.nome || '')
+        .replace(/{{teacherName}}/g, variables.teacherName || '')
+        .replace(/{{teacher}}/g, variables.teacherName || '')
+        .replace(/{{professor}}/g, variables.teacherName || '')
         .replace(/{{telefone}}/g, variables.telefone || '')
         .replace(/{{data}}/g, variables.data || '')
         .replace(/{{hora}}/g, variables.hora || '')

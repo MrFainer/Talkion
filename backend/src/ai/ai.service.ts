@@ -46,6 +46,7 @@ type WhatsappOutboundGenerationInput = {
   };
   variables: {
     nome?: string | null;
+    teacherName?: string | null;
     telefone?: string | null;
     data?: string | null;
     hora?: string | null;
@@ -369,6 +370,28 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
           news_intro: defaultIdea,
         };
 
+    const extractTeacherPhrases = (text: string) => {
+      const matches = [...text.matchAll(/\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g)];
+      const unique = new Set(matches.map((m) => m[0].trim()).filter(Boolean));
+      return [...unique];
+    };
+
+    const requiredPhrasesByKind: Record<string, string[]> = {};
+    const challengeSources = [
+      String(effectiveIdeas.challenge || ''),
+      input.mode === 'PRIVATE'
+        ? String((input.templates as any)?.speakingIntro || '')
+        : String((input.templates as any)?.quizHeader || ''),
+    ]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join('\n');
+    const teacherPhrases = extractTeacherPhrases(challengeSources);
+    if (teacherPhrases.length > 0) {
+      requiredPhrasesByKind[input.mode === 'PRIVATE' ? 'SPEAKING_INTRO' : 'QUIZ_HEADER'] =
+        teacherPhrases;
+    }
+
     const systemPrompt = `${input.systemPrompt || 'Você é um professor de inglês e assistente do Talkion.'}
 
 Tarefa:
@@ -377,6 +400,9 @@ Tarefa:
 
 Importante:
 - Use as templates fornecidas como referência forte de tom e estrutura.
+- Seja fiel ao estilo e à estrutura do TEMPLATE (não precisa ser idêntico, mas deve parecer muito parecido).
+- Se houver um nome do professor em VARIABLES.teacherName, considere esse nome na redação quando fizer sentido (ex: assinatura, referência ao professor, tom do template/ideia). Não invente nomes.
+- Se CONSTRAINTS.requiredPhrasesByKind tiver valores para um kind, inclua essas frases literalmente (sem alterar/remover), principalmente nomes próprios (ex: "Teacher Juliano").
 - Use as "IDEIAS" por bloco para personalizar e adaptar cada mensagem:
   - greeting -> (GROUP_GREETING ou PRIVATE_GREETING)
   - previous_quiz_header -> (ANSWER_KEY_HEADER, apenas se existir previousAnswerKey no CONTEÚDO e modo = GROUP)
@@ -400,6 +426,9 @@ ${JSON.stringify(input.variables)}
 
 TEMPLATES:
 ${JSON.stringify(input.templates)}
+
+CONSTRAINTS:
+${JSON.stringify({ requiredPhrasesByKind: requiredPhrasesByKind })}
 
 CONTEÚDO:
 ${JSON.stringify(input.content)}`;

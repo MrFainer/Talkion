@@ -341,11 +341,11 @@ export default function StudentsPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">Alunos</h1>
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold">Alunos</h1>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <input 
               type="file" 
               accept=".xlsx, .xls, .csv" 
@@ -355,7 +355,7 @@ export default function StudentsPage() {
             />
             <Button 
               variant="outline" 
-              className="flex items-center gap-2" 
+              className="flex items-center justify-center gap-2" 
               onClick={() => fileInputRef.current?.click()} 
               disabled={uploading}
             >
@@ -596,7 +596,7 @@ export default function StudentsPage() {
             ) : students.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">Nenhum aluno cadastrado ainda.</p>
             ) : (
-              <Table>
+              <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
