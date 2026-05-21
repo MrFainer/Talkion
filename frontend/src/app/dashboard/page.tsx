@@ -108,7 +108,7 @@ export default function DashboardPage() {
     return (
       <>
         <Sidebar />
-        <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p>Carregando dados de faturamento...</p>
         </main>
       </>
@@ -141,7 +141,7 @@ export default function DashboardPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
+      <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <div className="grid w-full gap-3 sm:w-auto sm:flex sm:items-center">

@@ -127,4 +127,11 @@
   html {
     @apply font-sans;
   }
+
+  input[type="date"],
+  input[type="time"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
 }
