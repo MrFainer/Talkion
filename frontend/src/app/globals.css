@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -157,6 +157,8 @@
     input[type="time"],
     input[data-slot="input"][type="date"],
     input[data-slot="input"][type="time"] {
+      -webkit-appearance: none;
+      appearance: none;
       min-width: 0 !important;
       width: 100% !important;
       max-width: 100% !important;
