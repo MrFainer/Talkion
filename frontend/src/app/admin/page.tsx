@@ -146,26 +146,31 @@ export default function AdminPage() {
             <h1 className="text-3xl font-bold">Administração</h1>
             <p className="text-muted-foreground mt-1">Gerencie os professores da plataforma</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="grid w-full gap-3 sm:w-auto sm:flex sm:items-center">
             <Button onClick={handleExportExcel} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
               <Download className="w-4 h-4" />
               Exportar Excel
             </Button>
-            <Input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full sm:w-36"
-              aria-label="De"
-            />
-            <span className="text-muted-foreground">até</span>
-            <Input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full sm:w-36"
-              aria-label="Até"
-            />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_auto_auto] sm:items-center">
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full sm:w-36"
+                aria-label="De"
+              />
+              <span className="hidden text-muted-foreground sm:inline">até</span>
+              <div className="grid gap-1">
+                <span className="text-xs text-muted-foreground sm:hidden">Até</span>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="w-full sm:w-36"
+                  aria-label="Até"
+                />
+              </div>
+            </div>
             <Button onClick={handleFilter} variant="secondary" className="w-full sm:w-auto">
               Filtrar
             </Button>
@@ -183,7 +188,7 @@ export default function AdminPage() {
             {teachers.length === 0 ? (
               <p className="text-muted-foreground">Nenhum professor encontrado.</p>
             ) : (
-              <Table className="min-w-[960px]">
+              <Table className="min-w-[820px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
@@ -202,7 +207,7 @@ export default function AdminPage() {
                   {teachers.map((teacher) => (
                     <TableRow key={teacher.id}>
                       <TableCell className="font-medium">{teacher.name}</TableCell>
-                      <TableCell>{teacher.email}</TableCell>
+                      <TableCell className="max-w-[240px] whitespace-normal break-words">{teacher.email}</TableCell>
                       <TableCell>{formatDate(teacher.created_at)}</TableCell>
                       <TableCell>{teacher.totalTokens?.toLocaleString("pt-BR") || 0}</TableCell>
                       <TableCell>{teacher.inputTokens?.toLocaleString("pt-BR") || 0}</TableCell>

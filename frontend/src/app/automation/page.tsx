@@ -414,7 +414,7 @@ export default function AutomationPage() {
               no privado → enviar no grupo.
             </p>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="news-capture-time">Capturar notícia</Label>
                 <Input
@@ -480,7 +480,7 @@ export default function AutomationPage() {
                 </Alert>
               ) : null}
 
-              {availableGroups.length > 0 ? (
+              {groupConnectionReady !== false && availableGroups.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-3">
                     <div className="space-y-2">
