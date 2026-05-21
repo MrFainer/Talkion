@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -144,24 +144,23 @@ export default function DashboardPage() {
       <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <div className="grid w-full gap-3 sm:w-auto sm:flex sm:items-center">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_auto_auto] sm:items-center">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 min-w-0 overflow-hidden">
               <Input
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="w-full h-9 sm:w-auto"
+                className="h-9 w-full min-w-0 sm:w-40"
+                aria-label="Data inicial"
               />
-              <span className="hidden text-sm text-muted-foreground sm:inline">até</span>
-              <div className="grid gap-1">
-                <span className="text-xs text-muted-foreground sm:hidden">Até</span>
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-full h-9 sm:w-auto"
-                />
-              </div>
+              <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">até</span>
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-9 w-full min-w-0 sm:w-40"
+                aria-label="Data final"
+              />
             </div>
             <Button
               variant="outline"

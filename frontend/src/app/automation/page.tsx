@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -423,6 +423,7 @@ export default function AutomationPage() {
                   value={newsCaptureTime}
                   onChange={(e) => setNewsCaptureTime(e.target.value)}
                   disabled={scheduleLoading || scheduleSaving}
+                  className="h-9 w-full min-w-0 sm:w-32"
                 />
               </div>
               <div className="space-y-2">
@@ -433,6 +434,7 @@ export default function AutomationPage() {
                   value={privateSendTime}
                   onChange={(e) => setPrivateSendTime(e.target.value)}
                   disabled={scheduleLoading || scheduleSaving}
+                  className="h-9 w-full min-w-0 sm:w-32"
                 />
               </div>
               <div className="space-y-2">
@@ -443,6 +445,7 @@ export default function AutomationPage() {
                   value={groupSendTime}
                   onChange={(e) => setGroupSendTime(e.target.value)}
                   disabled={scheduleLoading || scheduleSaving || !hasAutoGroupsSelected}
+                  className="h-9 w-full min-w-0 sm:w-32"
                 />
                 {!hasAutoGroupsSelected ? (
                   <p className="text-xs text-muted-foreground">

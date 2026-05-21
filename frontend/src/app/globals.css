@@ -140,11 +140,26 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    touch-action: manipulation;
+    box-sizing: border-box;
   }
 
   input[type="date"]::-webkit-date-and-time-value,
   input[type="time"]::-webkit-date-and-time-value {
     min-width: 0;
+    max-width: 100%;
+    width: 100%;
     text-align: left;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="time"],
+    input[data-slot="input"][type="date"],
+    input[data-slot="input"][type="time"] {
+      min-width: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
   }
 }
