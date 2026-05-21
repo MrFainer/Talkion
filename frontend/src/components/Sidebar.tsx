@@ -366,7 +366,7 @@ export function Sidebar() {
         </div>
       ) : null}
 
-      <div className="sticky top-0 hidden h-full w-64 shrink-0 flex-col border-r bg-muted/30 md:flex">
+      <div className="sticky top-0 hidden h-[100dvh] w-64 shrink-0 flex-col border-r bg-muted/30 overflow-hidden md:flex">
         <SidebarNav />
       </div>
     </>

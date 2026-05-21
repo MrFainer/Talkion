@@ -414,7 +414,7 @@ export default function AutomationPage() {
               no privado → enviar no grupo.
             </p>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="news-capture-time">Capturar notícia</Label>
                 <Input
@@ -563,7 +563,7 @@ export default function AutomationPage() {
                                   <p className="truncate text-sm font-medium">{groupName}</p>
                                 </div>
 
-                                <div className="w-32 shrink-0">
+                                <div className="min-w-0 shrink md:w-32">
                                   <Select
                                     value={target.groupLevel}
                                     onValueChange={(value) =>
