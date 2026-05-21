@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { SourceType } from '@prisma/client';
@@ -79,6 +79,20 @@ export class NewsService {
   }
 
   async runDailyNewsAndQuiz(tracking?: UsageTrackingContext) {
+    const teacherId = tracking?.teacherId;
+    if (!teacherId) {
+      throw new BadRequestException('teacherId é obrigatório para gerar notícia e quiz.');
+    }
+
+    const teacher = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { role: true, active: true },
+    });
+
+    if (!teacher || !teacher.active || teacher.role !== 'TEACHER') {
+      throw new BadRequestException('Apenas professores ativos podem gerar notícia e quiz.');
+    }
+
     const newsResults = await this.scrapeLatestNews(tracking);
     const quizResults = await this.generateQuizzesForResults(newsResults, tracking);
 

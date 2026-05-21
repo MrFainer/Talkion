@@ -2212,6 +2212,9 @@ export class WhatsappService {
 
   private async findLatestNewsForTarget(level?: string, tracking?: any) {
     const teacherId = tracking?.teacherId;
+    if (!teacherId) {
+      return null;
+    }
     const now = new Date();
     const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
