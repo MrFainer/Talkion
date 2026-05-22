@@ -497,6 +497,63 @@ ${JSON.stringify(input.content)}`;
 
     const keys = input.alunos.map((a) => ({ nome: a.nome, whatsapp: a.whatsapp }));
 
+    const extractTeacherPhrases = (text: string) => {
+      const matches = [
+        ...text.matchAll(/\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g),
+      ];
+      const unique = new Set(matches.map((m) => m[0].trim()).filter(Boolean));
+      return [...unique];
+    };
+
+    const extractEmojiSamples = (text: string) => {
+      const matches = [...text.matchAll(/\p{Extended_Pictographic}/gu)];
+      const unique = new Set(matches.map((m) => m[0]).filter(Boolean));
+      return [...unique];
+    };
+
+    const extractSignatureLine = (text: string) => {
+      const lines = String(text || '')
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const candidate = [...lines].reverse().find((l: string) => /\bTeacher\s+/i.test(l));
+      return candidate || null;
+    };
+
+    const modelosRaw = JSON.stringify(input.modelosDeMensagens || {});
+    const requiredPhrasesByTipo: Record<string, string[]> = {};
+    const requiredEmojisByTipo: Record<string, string[]> = {};
+
+    const teacherPhrases = extractTeacherPhrases(modelosRaw);
+    if (teacherPhrases.length > 0) {
+      requiredPhrasesByTipo.SPEAKING_INTRO = teacherPhrases;
+    }
+
+    const speakingEmojis = extractEmojiSamples(
+      String((input.modelosDeMensagens as any)?.challenge || ''),
+    );
+    if (speakingEmojis.length > 0) {
+      requiredEmojisByTipo.SPEAKING_INTRO = speakingEmojis;
+    }
+
+    const greetingEmojis = extractEmojiSamples(
+      String((input.modelosDeMensagens as any)?.greeting || ''),
+    );
+    if (greetingEmojis.length > 0) {
+      requiredEmojisByTipo.GREETING = greetingEmojis;
+    }
+
+    const newsIntroEmojis = extractEmojiSamples(
+      String((input.modelosDeMensagens as any)?.news_intro || ''),
+    );
+    if (newsIntroEmojis.length > 0) {
+      requiredEmojisByTipo.NEWS_INTRO = newsIntroEmojis;
+    }
+
+    const speakingSignatureLine = extractSignatureLine(
+      String((input.modelosDeMensagens as any)?.challenge || ''),
+    );
+
     const systemPrompt = `${input.systemPrompt || 'Você é um assistente do Talkion.'}
 
 Objetivo:
@@ -538,6 +595,9 @@ Regras obrigatórias da resposta:
 Conteúdo:
 - Use WhatsApp formatting quando fizer sentido (*negrito*, _itálico_, etc).
 - Cada bloco deve seguir os MODELOS e ser coerente com o contexto fornecido neles.
+- Seja fiel ao estilo e à estrutura do MODELO (não precisa ser idêntico, mas deve parecer muito parecido).
+- Se o MODELO trouxer emojis, mantenha emojis na mensagem (não transforme em texto “seco”).
+- Se CONSTRAINTS.requiredPhrasesByTipo tiver valores para um tipo, inclua essas frases literalmente (sem alterar/remover), principalmente nomes próprios (ex: "Teacher Juliano").
 - Não inclua placeholders tipo {{nome}}; use os valores reais quando existirem em MODELOS/ALUNOS.`;
 
     const variationRules = `
@@ -551,6 +611,9 @@ Personalização (IMPORTANTE):
 
     const userPrompt = `MODELOS:
 ${JSON.stringify(input.modelosDeMensagens)}
+
+CONSTRAINTS:
+${JSON.stringify({ requiredPhrasesByTipo, requiredEmojisByTipo })}
 
 TOTAL:
 ${input.totalAlunos}
@@ -608,6 +671,35 @@ ${JSON.stringify(keys)}${variationRules}`;
               }))
           : [],
       }))
+      .map((item: any) => {
+        const patched = item.mensagens.map((m: any) => {
+          const tipo = String(m.tipo || '');
+          let mensagem = String(m.mensagem ?? '').trim();
+          if (!mensagem) return { ...m, mensagem };
+
+          const requiredPhrases = requiredPhrasesByTipo[tipo] || [];
+          if (requiredPhrases.length > 0) {
+            const missing = requiredPhrases.filter((p) => !mensagem.includes(p));
+            if (missing.length > 0 && tipo === 'SPEAKING_INTRO' && speakingSignatureLine) {
+              if (!mensagem.includes(speakingSignatureLine)) {
+                mensagem = `${mensagem}\n\n${speakingSignatureLine}`;
+              }
+            }
+          }
+
+          const requiredEmojis = requiredEmojisByTipo[tipo] || [];
+          if (requiredEmojis.length > 0) {
+            const hasAnyRequiredEmoji = requiredEmojis.some((e) => mensagem.includes(e));
+            if (!hasAnyRequiredEmoji) {
+              mensagem = `${mensagem} ${requiredEmojis[0]}`.trim();
+            }
+          }
+
+          return { ...m, mensagem };
+        });
+
+        return { ...item, mensagens: patched };
+      })
       .filter((item: any) => item.nome && item.whatsapp && item.mensagens.length > 0);
   }
 

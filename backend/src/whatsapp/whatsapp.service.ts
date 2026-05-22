@@ -666,7 +666,7 @@ export class WhatsappService {
       where: {
         direction: 'OUTGOING',
         remote_jid: this.normalizeRemoteJid(resolvedGroup.id),
-        content_kind: 'NEWS',
+        content_kind: 'QUIZ',
         created_at: { gte: startOfDay, lte: endOfDay },
       },
       select: { id: true },
@@ -676,7 +676,7 @@ export class WhatsappService {
       return {
         success: true,
         skipped: true,
-        message: 'Este grupo já recebeu a notícia hoje. Envio ignorado para evitar duplicidade.',
+        message: 'Este grupo já recebeu o quiz hoje. Envio ignorado para evitar duplicidade.',
         configuredTitle: target.configuredTitle,
         group: resolvedGroup,
         matchedExactly: Boolean(target.exactMatch),
@@ -877,7 +877,7 @@ export class WhatsappService {
                 where: {
                   direction: 'OUTGOING',
                   remote_jid: remoteJid,
-                  content_kind: 'NEWS',
+                  content_kind: 'QUIZ',
                   created_at: { gte: startOfDay, lte: endOfDay },
                 },
                 select: { id: true },
@@ -885,7 +885,7 @@ export class WhatsappService {
               });
               if (alreadySent) {
                 this.logger.log(
-                  `[AUTO][${jobId}] Grupo ${remoteJid} já recebeu a notícia hoje. Ignorando para evitar duplicidade.`,
+                  `[AUTO][${jobId}] Grupo ${remoteJid} já recebeu o quiz hoje. Ignorando para evitar duplicidade.`,
                 );
                 continue;
               }
@@ -1446,13 +1446,8 @@ export class WhatsappService {
       let answerKeyMessage: string | null = null;
       let shouldSendAnswerKey = false;
       if (previousQuiz?.id) {
-        const answerCount = await this.prisma.quizAnswer.count({
-          where: { quiz_id: previousQuiz.id },
-        });
-        if (answerCount > 0) {
-          answerKeyMessage = this.formatAnswerKeyForWhatsapp(previousQuiz);
-          shouldSendAnswerKey = Boolean(answerKeyMessage?.trim());
-        }
+        answerKeyMessage = this.formatAnswerKeyForWhatsapp(previousQuiz);
+        shouldSendAnswerKey = Boolean(answerKeyMessage?.trim());
       }
       let aiMessages: Array<{ kind: string; text: string }> = [];
       try {
@@ -1499,57 +1494,97 @@ export class WhatsappService {
       quizId = quizResult.quiz.id;
       previousQuizId = shouldSendAnswerKey ? previousQuiz?.id || null : null;
 
-      await this.sendMessage(teacherId, targetNumber, greetingMessage, {
-        studentId: student?.id || null,
-        relatedNewsId: latestNews.id,
-        relatedQuizId: quizResult.quiz.id,
-        contentKind: 'GROUP_GREETING',
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      const remoteJid = this.normalizeRemoteJid(targetNumber);
+      const sentKindsRows = await this.prisma.whatsappMessage.findMany({
+        where: {
+          direction: 'OUTGOING',
+          remote_jid: remoteJid,
+          created_at: { gte: startOfDay, lte: endOfDay },
+        },
+        select: { content_kind: true },
       });
+      const sentKinds = new Set(
+        sentKindsRows.map((r) => r.content_kind).filter(Boolean) as string[],
+      );
 
-      if (shouldSendAnswerKey && answerKeyMessage) {
-        await this.sendMessage(teacherId, targetNumber, answerKeyHeaderMessage, {
+      if (!sentKinds.has('GROUP_GREETING')) {
+        await this.sendMessage(teacherId, targetNumber, greetingMessage, {
           studentId: student?.id || null,
-          relatedNewsId: previousQuiz?.news_id || null,
-          relatedQuizId: previousQuiz?.id || null,
-          contentKind: 'ANSWER_KEY_HEADER',
+          relatedNewsId: latestNews.id,
+          relatedQuizId: quizResult.quiz.id,
+          contentKind: 'GROUP_GREETING',
         });
-        await this.sendMessage(teacherId, targetNumber, answerKeyMessage, {
-          studentId: student?.id || null,
-          relatedNewsId: previousQuiz?.news_id || null,
-          relatedQuizId: previousQuiz?.id || null,
-          contentKind: 'ANSWER_KEY',
-        });
+        sentKinds.add('GROUP_GREETING');
       }
 
-      await this.sendMessage(teacherId, targetNumber, newsIntroMessage, {
-        studentId: student?.id || null,
-        relatedNewsId: latestNews.id,
-        contentKind: 'NEWS_INTRO',
-      });
-      await this.sendMessage(teacherId, targetNumber, newsMessage, {
-        studentId: student?.id || null,
-        relatedNewsId: latestNews.id,
-        contentKind: 'NEWS',
-      });
-      await this.sendMessage(teacherId, targetNumber, quizHeaderMessage, {
-        studentId: student?.id || null,
-        relatedNewsId: latestNews.id,
-        relatedQuizId: quizResult.quiz.id,
-        contentKind: 'QUIZ_HEADER',
-      });
-      await this.sendMessage(teacherId, targetNumber, quizMessage, {
-        studentId: student?.id || null,
-        relatedNewsId: latestNews.id,
-        relatedQuizId: quizResult.quiz.id,
-        contentKind: 'QUIZ',
-      });
-      if (quizFooterMessage?.trim()) {
+      if (shouldSendAnswerKey && answerKeyMessage) {
+        if (!sentKinds.has('ANSWER_KEY_HEADER')) {
+          await this.sendMessage(teacherId, targetNumber, answerKeyHeaderMessage, {
+            studentId: student?.id || null,
+            relatedNewsId: previousQuiz?.news_id || null,
+            relatedQuizId: previousQuiz?.id || null,
+            contentKind: 'ANSWER_KEY_HEADER',
+          });
+          sentKinds.add('ANSWER_KEY_HEADER');
+        }
+        if (!sentKinds.has('ANSWER_KEY')) {
+          await this.sendMessage(teacherId, targetNumber, answerKeyMessage, {
+            studentId: student?.id || null,
+            relatedNewsId: previousQuiz?.news_id || null,
+            relatedQuizId: previousQuiz?.id || null,
+            contentKind: 'ANSWER_KEY',
+          });
+          sentKinds.add('ANSWER_KEY');
+        }
+      }
+
+      if (!sentKinds.has('NEWS_INTRO')) {
+        await this.sendMessage(teacherId, targetNumber, newsIntroMessage, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          contentKind: 'NEWS_INTRO',
+        });
+        sentKinds.add('NEWS_INTRO');
+      }
+      if (!sentKinds.has('NEWS')) {
+        await this.sendMessage(teacherId, targetNumber, newsMessage, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          contentKind: 'NEWS',
+        });
+        sentKinds.add('NEWS');
+      }
+      if (!sentKinds.has('QUIZ_HEADER')) {
+        await this.sendMessage(teacherId, targetNumber, quizHeaderMessage, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          relatedQuizId: quizResult.quiz.id,
+          contentKind: 'QUIZ_HEADER',
+        });
+        sentKinds.add('QUIZ_HEADER');
+      }
+      if (!sentKinds.has('QUIZ')) {
+        await this.sendMessage(teacherId, targetNumber, quizMessage, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          relatedQuizId: quizResult.quiz.id,
+          contentKind: 'QUIZ',
+        });
+        sentKinds.add('QUIZ');
+      }
+      if (quizFooterMessage?.trim() && !sentKinds.has('QUIZ_FOOTER')) {
         await this.sendMessage(teacherId, targetNumber, quizFooterMessage, {
           studentId: student?.id || null,
           relatedNewsId: latestNews.id,
           relatedQuizId: quizResult.quiz.id,
           contentKind: 'QUIZ_FOOTER',
         });
+        sentKinds.add('QUIZ_FOOTER');
       }
     } else {
       let aiMessages: Array<{ kind: string; text: string }> = [];
