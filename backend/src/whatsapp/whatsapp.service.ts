@@ -1441,19 +1441,57 @@ export class WhatsappService {
     };
 
     if (isGroupTarget) {
-      const quizResult = await this.quizService.generateQuizForNews(latestNews.id, baseTracking);
-      const previousQuiz = await this.findPreviousQuizForAnswerKey(latestNews.id);
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      let quizResult: { quiz: any; created: boolean } | null = null;
+      let lastQuizError: unknown = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          quizResult = await this.quizService.generateQuizForNews(
+            latestNews.id,
+            baseTracking,
+          );
+          break;
+        } catch (error) {
+          lastQuizError = error;
+          if (attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          }
+        }
+      }
+
+      const quizQuestions = Array.isArray(quizResult?.quiz?.questions)
+        ? (quizResult?.quiz?.questions as QuizQuestion[])
+        : [];
+      if (!quizResult?.quiz?.id || quizQuestions.length === 0) {
+        throw new Error(
+          `Quiz do dia não disponível para envio (newsId=${latestNews.id}). ${lastQuizError instanceof Error ? lastQuizError.message : ''}`.trim(),
+        );
+      }
+
+      const answerKeyLevel = providedGroupLevel || latestNews.level || undefined;
+      const previousQuiz = await this.findPreviousQuizForAnswerKey({
+        teacherId,
+        level: answerKeyLevel,
+        startOfToday: startOfDay,
+        endOfToday: endOfDay,
+      });
       let answerKeyMessage: string | null = null;
       let shouldSendAnswerKey = false;
       if (previousQuiz?.id) {
         answerKeyMessage = this.formatAnswerKeyForWhatsapp(previousQuiz);
         shouldSendAnswerKey = Boolean(answerKeyMessage?.trim());
       }
+
       let aiMessages: Array<{ kind: string; text: string }> = [];
       try {
         aiMessages = await getAiMessages({
           mode: 'GROUP',
-          quizQuestions: quizResult.quiz.questions,
+          quizQuestions,
           previousAnswerKey: shouldSendAnswerKey ? answerKeyMessage : null,
         });
       } catch (error) {
@@ -1485,20 +1523,11 @@ export class WhatsappService {
       const quizFooterMessage =
         byKind.get('QUIZ_FOOTER') || renderVars(settings.group_quiz_footer_message);
       const quizMessage =
-        byKind.get('QUIZ') ||
-        this.formatQuizBodyForWhatsapp(
-          quizResult.quiz.questions as QuizQuestion[],
-          '',
-        );
+        byKind.get('QUIZ') || this.formatQuizBodyForWhatsapp(quizQuestions, '');
 
       quizId = quizResult.quiz.id;
       previousQuizId = shouldSendAnswerKey ? previousQuiz?.id || null : null;
 
-      const now = new Date();
-      const startOfDay = new Date(now);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(now);
-      endOfDay.setHours(23, 59, 59, 999);
       const remoteJid = this.normalizeRemoteJid(targetNumber);
       const sentKindsRows = await this.prisma.whatsappMessage.findMany({
         where: {
@@ -1577,7 +1606,10 @@ export class WhatsappService {
         });
         sentKinds.add('QUIZ');
       }
-      if (quizFooterMessage?.trim() && !sentKinds.has('QUIZ_FOOTER')) {
+      if (
+        quizFooterMessage?.trim() &&
+        !sentKinds.has('QUIZ_FOOTER')
+      ) {
         await this.sendMessage(teacherId, targetNumber, quizFooterMessage, {
           studentId: student?.id || null,
           relatedNewsId: latestNews.id,
@@ -2353,12 +2385,17 @@ export class WhatsappService {
       return null;
     }
 
+    const stripLevelSuffix = (title: string) =>
+      title.replace(/\s*[-–—]\s*level\s*\d+\s*$/i, '').trim();
+
     const answerLines = questions.map((question, index) => {
       const answer = question.correct_answer?.trim() || 'Sem resposta cadastrada';
       return `${index + 1}. ${answer}`;
     });
 
-    const titleLine = quiz.news?.title ? `*Quiz anterior:* ${quiz.news.title}` : '*Respostas do quiz de ontem*';
+    const titleLine = quiz.news?.title
+      ? `*Quiz anterior:* ${stripLevelSuffix(quiz.news.title)}`
+      : '*Respostas do quiz de ontem*';
 
     return [titleLine, '', ...answerLines].join('\n');
   }
@@ -2375,17 +2412,38 @@ export class WhatsappService {
     }));
   }
 
-  private async findPreviousQuizForAnswerKey(currentNewsId: string) {
+  private async findPreviousQuizForAnswerKey(input: {
+    teacherId: string;
+    level?: string;
+    startOfToday: Date;
+    endOfToday: Date;
+  }) {
+    const prevStart = new Date(input.startOfToday);
+    prevStart.setDate(prevStart.getDate() - 1);
+    const prevEnd = new Date(input.endOfToday);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+
     return this.prisma.quiz.findFirst({
       where: {
-        news_id: {
-          not: currentNewsId,
+        teacher_id: input.teacherId,
+        created_at: {
+          gte: prevStart,
+          lte: prevEnd,
         },
+        ...(input.level
+          ? {
+              news: {
+                level: input.level,
+              },
+            }
+          : {}),
       },
       include: {
         news: {
           select: {
             title: true,
+            level: true,
+            created_at: true,
           },
         },
       },
