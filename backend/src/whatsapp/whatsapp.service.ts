@@ -2173,10 +2173,34 @@ export class WhatsappService {
       }
 
       const referencedMessage = await this.resolveReferencedMessage(quotedMessageId);
-      const latestNews = await this.resolveNewsForIncomingMessage(
-        student,
-        referencedMessage?.related_news_id || null,
-      );
+      const referencedNewsId = referencedMessage?.related_news_id || null;
+      const referencedCreatedAt = referencedMessage?.created_at || null;
+
+      let latestNews = referencedNewsId
+        ? await this.prisma.news.findUnique({ where: { id: referencedNewsId } })
+        : null;
+
+      if (!latestNews && referencedCreatedAt && student.teacher_id) {
+        const startOfDay = new Date(referencedCreatedAt);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(referencedCreatedAt);
+        endOfDay.setHours(23, 59, 59, 999);
+        latestNews = await this.prisma.news.findFirst({
+          where: {
+            teacher_id: student.teacher_id,
+            created_at: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+            level: student.english_level ? student.english_level : undefined,
+          },
+          orderBy: { created_at: 'desc' },
+        });
+      }
+
+      if (!latestNews) {
+        latestNews = await this.resolveNewsForIncomingMessage(student, null);
+      }
 
       if (!latestNews) {
         this.logger.warn(
@@ -2185,26 +2209,55 @@ export class WhatsappService {
         return;
       }
 
-      const existingSubmissionForNews = await this.prisma.audioSubmission.findFirst({
-        where: {
-          student_id: student.id,
-          news_id: latestNews.id,
-        },
-        orderBy: {
-          created_at: 'desc',
-        },
-        select: {
-          id: true,
-          created_at: true,
-        },
-      });
+      if (quotedMessageId) {
+        const existingAudioForQuotedMessage =
+          await this.prisma.whatsappMessage.findFirst({
+            where: {
+              student_id: student.id,
+              direction: 'INCOMING',
+              content_kind: 'SPEAKING_AUDIO',
+              quoted_message_id: quotedMessageId,
+            },
+            select: { id: true, created_at: true },
+            orderBy: { created_at: 'desc' },
+          });
 
-      if (existingSubmissionForNews) {
-        this.logger.log(
-          `[AUDIO][IGNORADO] Novo audio ignorado para ${this.formatStudentLog(student)} | ja existe envio para o desafio atual (${existingSubmissionForNews.id})`,
-        );
-        return;
+        if (existingAudioForQuotedMessage) {
+          this.logger.log(
+            `[AUDIO][IGNORADO] Novo audio ignorado para ${this.formatStudentLog(student)} | ja existe audio para a mensagem respondida (${quotedMessageId})`,
+          );
+          return;
+        }
+      } else {
+        const existingSubmissionForNews = await this.prisma.audioSubmission.findFirst({
+          where: {
+            student_id: student.id,
+            news_id: latestNews.id,
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          select: {
+            id: true,
+            created_at: true,
+          },
+        });
+
+        if (existingSubmissionForNews) {
+          this.logger.log(
+            `[AUDIO][IGNORADO] Novo audio ignorado para ${this.formatStudentLog(student)} | ja existe envio para o desafio atual (${existingSubmissionForNews.id})`,
+          );
+          return;
+        }
       }
+
+      await this.saveMessageToDb(student.id, false, '[Áudio recebido]', null, {
+        remoteJid,
+        externalMessageId: incomingMessageId || null,
+        quotedMessageId: quotedMessageId || null,
+        relatedNewsId: latestNews.id,
+        contentKind: 'SPEAKING_AUDIO',
+      });
 
       const feedback = await this.aiService.evaluateSpeaking(
         latestNews.content,
