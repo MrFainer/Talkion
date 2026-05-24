@@ -6,6 +6,7 @@ import { AiService } from '../ai/ai.service';
 import { QuizService } from '../quiz/quiz.service';
 import { NewsService } from '../news/news.service';
 import { randomUUID } from 'crypto';
+import { cpus } from 'os';
 
 type QuizQuestion = {
   question: string;
@@ -101,6 +102,22 @@ export class WhatsappService {
   private readonly qrCodeTtlMs = 30_000;
   private readonly syncStateByTeacher = new Map<string, WhatsappSyncState>();
   private readonly teacherNameCache = new Map<string, { name: string | null; updatedAt: number }>();
+  private readonly automationInFlightByTeacher = new Map<
+    string,
+    { startedAt: number; hhmm: string; jobId: string }
+  >();
+  private readonly automationParallelBase = (() => {
+    const cpuCount = Math.max(1, cpus()?.length || 1);
+    const defaultParallel = Math.min(50, Math.max(8, cpuCount * 4));
+    const parsed = Number(process.env.WHATSAPP_AUTOMATION_MAX_PARALLEL || '');
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : defaultParallel;
+  })();
+  private readonly groupSendParallelBase = (() => {
+    const cpuCount = Math.max(1, cpus()?.length || 1);
+    const defaultParallel = Math.min(10, Math.max(2, cpuCount * 2));
+    const parsed = Number(process.env.WHATSAPP_GROUP_SEND_MAX_PARALLEL || '');
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : defaultParallel;
+  })();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,6 +125,23 @@ export class WhatsappService {
     private readonly quizService: QuizService,
     private readonly newsService: NewsService,
   ) {}
+
+  private async runWithConcurrencyLimit<T>(
+    items: T[],
+    limit: number,
+    worker: (item: T) => Promise<void>,
+  ) {
+    const queue = [...items];
+    const concurrency = Math.max(1, Math.min(limit, queue.length));
+    const runners = Array.from({ length: concurrency }).map(async () => {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (!item) return;
+        await worker(item);
+      }
+    });
+    await Promise.all(runners);
+  }
 
   private async getTeacherName(teacherId: string) {
     const cached = this.teacherNameCache.get(teacherId);
@@ -817,13 +851,22 @@ export class WhatsappService {
       throw error;
     }
 
+    const dueJobs: Array<{
+      teacherId: string;
+      hhmm: string;
+      captureDue: boolean;
+      privateDue: boolean;
+      groupDue: boolean;
+      targets: Array<{ groupId: string; groupLevel?: string }>;
+    }> = [];
+
     for (const teacher of teachers) {
       const settings = teacher.messageSettings;
       if (!settings) continue;
 
       const targetsRaw = settings.auto_group_targets;
       const targets = Array.isArray(targetsRaw) ? targetsRaw : [];
-      const normalizedTargets = targets
+      const normalizedTargets: Array<{ groupId: string; groupLevel?: string }> = targets
         .map((item: any) => ({
           groupId: String(item?.groupId || item?.id || '').trim(),
           groupLevel: item?.groupLevel ? String(item.groupLevel).trim() : undefined,
@@ -842,36 +885,145 @@ export class WhatsappService {
 
       if (!captureDue && !privateDue && !groupDue) continue;
 
+      dueJobs.push({
+        teacherId: teacher.id,
+        hhmm,
+        captureDue: Boolean(captureDue),
+        privateDue: Boolean(privateDue),
+        groupDue: Boolean(groupDue),
+        targets: normalizedTargets,
+      });
+    }
+
+    const captureJobs = dueJobs.filter((job) => job.captureDue);
+    const sendJobs = dueJobs.filter((job) => job.privateDue || job.groupDue);
+    const captureParallel = Math.min(this.automationParallelBase, captureJobs.length || 1);
+    const sendParallel = Math.min(this.automationParallelBase, sendJobs.length || 1);
+
+    const tryAcquireTeacherLock = (teacherId: string, hhmm: string) => {
+      const nowMs = Date.now();
+      const existing = this.automationInFlightByTeacher.get(teacherId);
+      if (existing && nowMs - existing.startedAt < 20 * 60 * 1000) {
+        return null as string | null;
+      }
+      if (existing) {
+        this.automationInFlightByTeacher.delete(teacherId);
+      }
       const jobId = randomUUID();
-      void (async () => {
-        this.logger.log(
-          `[AUTO][${jobId}] Tick ${hhmm} | teacherId=${teacher.id} | capture=${Boolean(
-            captureDue,
-          )} private=${Boolean(privateDue)} group=${Boolean(groupDue)}`,
+      this.automationInFlightByTeacher.set(teacherId, {
+        startedAt: nowMs,
+        hhmm,
+        jobId,
+      });
+      return jobId;
+    };
+
+    const getTeacherJobId = (teacherId: string) =>
+      this.automationInFlightByTeacher.get(teacherId)?.jobId || null;
+
+    await this.runWithConcurrencyLimit(captureJobs, captureParallel, async (job) => {
+      const existing = this.automationInFlightByTeacher.get(job.teacherId);
+      if (existing && Date.now() - existing.startedAt < 20 * 60 * 1000) {
+        this.logger.warn(
+          `[AUTO][${existing.jobId}] Ignorando captura (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução (hhmm=${existing.hhmm}).`,
         );
+        return;
+      }
 
-        try {
-          if (captureDue) {
-            await this.newsService.runDailyNewsAndQuiz({
-              teacherId: teacher.id,
-              referenceType: 'news_automation_capture',
-              referenceId: `${new Date().toISOString()}:${jobId}`,
-              metadata: { trigger: 'automation' },
-            });
+      const jobId = tryAcquireTeacherLock(job.teacherId, job.hhmm);
+      if (!jobId) {
+        const current = getTeacherJobId(job.teacherId);
+        if (current) {
+          this.logger.warn(
+            `[AUTO][${current}] Ignorando captura (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução.`,
+          );
+        }
+        return;
+      }
+
+      this.logger.log(
+        `[AUTO][${jobId}] Captura ${job.hhmm} | teacherId=${job.teacherId}`,
+      );
+
+      try {
+        await this.newsService.runDailyNewsAndQuiz({
+          teacherId: job.teacherId,
+          referenceType: 'news_automation_capture',
+          referenceId: `${new Date().toISOString()}:${jobId}`,
+          metadata: { trigger: 'automation' },
+        });
+      } catch (error) {
+        this.logger.error(
+          `[AUTO][${jobId}] Falha captura teacherId=${job.teacherId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      } finally {
+        if (!(job.privateDue || job.groupDue)) {
+          const current = this.automationInFlightByTeacher.get(job.teacherId);
+          if (current?.jobId === jobId) {
+            this.automationInFlightByTeacher.delete(job.teacherId);
           }
+        }
+      }
+    });
 
-          if (privateDue) {
-            await this.broadcastPrivate(teacher.id);
-          }
+    await this.runWithConcurrencyLimit(sendJobs, sendParallel, async (job) => {
+      const existing = this.automationInFlightByTeacher.get(job.teacherId);
+      let jobId = existing?.jobId || null;
 
-          if (groupDue) {
+      if (!jobId) {
+        jobId = tryAcquireTeacherLock(job.teacherId, job.hhmm);
+      } else if (Date.now() - (existing?.startedAt || 0) >= 20 * 60 * 1000) {
+        this.automationInFlightByTeacher.delete(job.teacherId);
+        jobId = tryAcquireTeacherLock(job.teacherId, job.hhmm);
+      }
+
+      if (!jobId) {
+        const current = getTeacherJobId(job.teacherId);
+        if (current) {
+          this.logger.warn(
+            `[AUTO][${current}] Ignorando envio (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução.`,
+          );
+        }
+        return;
+      }
+
+      this.logger.log(
+        `[AUTO][${jobId}] Envios ${job.hhmm} | teacherId=${job.teacherId} | private=${Boolean(
+          job.privateDue,
+        )} group=${Boolean(job.groupDue)}`,
+      );
+
+      const tasks: Promise<unknown>[] = [];
+
+      if (job.privateDue) {
+        tasks.push(
+          this.broadcastPrivate(job.teacherId).catch((error) => {
+            this.logger.error(
+              `[AUTO][${jobId}] Falha envio privado teacherId=${job.teacherId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }),
+        );
+      }
+
+      if (job.groupDue) {
+        tasks.push(
+          (async () => {
             const now = new Date();
             const startOfDay = new Date(now);
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(now);
             endOfDay.setHours(23, 59, 59, 999);
 
-            for (const target of normalizedTargets) {
+            const groupParallel = Math.min(
+              this.groupSendParallelBase,
+              job.targets.length || 1,
+            );
+
+            await this.runWithConcurrencyLimit(job.targets, groupParallel, async (target) => {
               const remoteJid = this.normalizeRemoteJid(target.groupId);
               const alreadySent = await this.prisma.whatsappMessage.findFirst({
                 where: {
@@ -883,29 +1035,38 @@ export class WhatsappService {
                 select: { id: true },
                 orderBy: { created_at: 'desc' },
               });
+
               if (alreadySent) {
                 this.logger.log(
                   `[AUTO][${jobId}] Grupo ${remoteJid} já recebeu o quiz hoje. Ignorando para evitar duplicidade.`,
                 );
-                continue;
+                return;
               }
+
               await this.sendLatestNewsAndQuiz(
                 target.groupId,
                 'GROUP',
-                teacher.id,
+                job.teacherId,
                 target.groupLevel,
               );
-            }
-          }
-        } catch (error) {
-          this.logger.error(
-            `[AUTO][${jobId}] Falha teacherId=${teacher.id}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        }
-      })();
-    }
+            });
+          })().catch((error) => {
+            this.logger.error(
+              `[AUTO][${jobId}] Falha envio grupo teacherId=${job.teacherId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }),
+        );
+      }
+
+      await Promise.allSettled(tasks);
+
+      const current = this.automationInFlightByTeacher.get(job.teacherId);
+      if (current?.jobId === jobId) {
+        this.automationInFlightByTeacher.delete(job.teacherId);
+      }
+    });
   }
 
   async broadcastPrivate(teacherId: string) {
