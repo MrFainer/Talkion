@@ -2172,30 +2172,69 @@ export class WhatsappService {
         throw new Error('Não foi possível obter o áudio em base64');
       }
 
-      const referencedMessage = await this.resolveReferencedMessage(quotedMessageId);
-      const referencedNewsId = referencedMessage?.related_news_id || null;
-      const referencedCreatedAt = referencedMessage?.created_at || null;
+      let latestNews = null as any;
 
-      let latestNews = referencedNewsId
-        ? await this.prisma.news.findUnique({ where: { id: referencedNewsId } })
-        : null;
+      if (quotedMessageId) {
+        const referencedMessage = await this.resolveReferencedMessage(quotedMessageId);
+        const referencedNewsId = referencedMessage?.related_news_id || null;
+        const referencedCreatedAt = referencedMessage?.created_at || null;
 
-      if (!latestNews && referencedCreatedAt && student.teacher_id) {
-        const startOfDay = new Date(referencedCreatedAt);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(referencedCreatedAt);
-        endOfDay.setHours(23, 59, 59, 999);
-        latestNews = await this.prisma.news.findFirst({
-          where: {
-            teacher_id: student.teacher_id,
-            created_at: {
-              gte: startOfDay,
-              lte: endOfDay,
+        latestNews = referencedNewsId
+          ? await this.prisma.news.findUnique({ where: { id: referencedNewsId } })
+          : null;
+
+        if (!latestNews && referencedCreatedAt && student.teacher_id) {
+          const startOfDay = new Date(referencedCreatedAt);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(referencedCreatedAt);
+          endOfDay.setHours(23, 59, 59, 999);
+          latestNews = await this.prisma.news.findFirst({
+            where: {
+              teacher_id: student.teacher_id,
+              created_at: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
+              level: student.english_level ? student.english_level : undefined,
             },
-            level: student.english_level ? student.english_level : undefined,
+            orderBy: { created_at: 'desc' },
+          });
+        }
+      } else {
+        const lastSentNewsMessage = await this.prisma.whatsappMessage.findFirst({
+          where: {
+            student_id: student.id,
+            direction: 'OUTGOING',
+            content_kind: 'NEWS',
+          },
+          select: {
+            related_news_id: true,
+            created_at: true,
           },
           orderBy: { created_at: 'desc' },
         });
+
+        if (lastSentNewsMessage?.related_news_id) {
+          latestNews = await this.prisma.news.findUnique({
+            where: { id: lastSentNewsMessage.related_news_id },
+          });
+        } else if (lastSentNewsMessage?.created_at && student.teacher_id) {
+          const startOfDay = new Date(lastSentNewsMessage.created_at);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(lastSentNewsMessage.created_at);
+          endOfDay.setHours(23, 59, 59, 999);
+          latestNews = await this.prisma.news.findFirst({
+            where: {
+              teacher_id: student.teacher_id,
+              created_at: {
+                gte: startOfDay,
+                lte: endOfDay,
+              },
+              level: student.english_level ? student.english_level : undefined,
+            },
+            orderBy: { created_at: 'desc' },
+          });
+        }
       }
 
       if (!latestNews) {
@@ -2211,16 +2250,19 @@ export class WhatsappService {
 
       if (quotedMessageId) {
         const existingAudioForQuotedMessage =
-          await this.prisma.whatsappMessage.findFirst({
-            where: {
-              student_id: student.id,
-              direction: 'INCOMING',
-              content_kind: 'SPEAKING_AUDIO',
-              quoted_message_id: quotedMessageId,
-            },
-            select: { id: true, created_at: true },
-            orderBy: { created_at: 'desc' },
-          });
+          incomingMessageId
+            ? await this.prisma.whatsappMessage.findFirst({
+                where: {
+                  student_id: student.id,
+                  direction: 'INCOMING',
+                  quoted_message_id: quotedMessageId,
+                  content_kind: { in: ['AUDIO', 'SPEAKING_AUDIO'] },
+                  external_message_id: { not: incomingMessageId },
+                },
+                select: { id: true, created_at: true },
+                orderBy: { created_at: 'desc' },
+              })
+            : null;
 
         if (existingAudioForQuotedMessage) {
           this.logger.log(
@@ -2250,14 +2292,6 @@ export class WhatsappService {
           return;
         }
       }
-
-      await this.saveMessageToDb(student.id, false, '[Áudio recebido]', null, {
-        remoteJid,
-        externalMessageId: incomingMessageId || null,
-        quotedMessageId: quotedMessageId || null,
-        relatedNewsId: latestNews.id,
-        contentKind: 'SPEAKING_AUDIO',
-      });
 
       const feedback = await this.aiService.evaluateSpeaking(
         latestNews.content,
@@ -2290,6 +2324,17 @@ export class WhatsappService {
           transcription: feedback.transcription,
         }
       });
+
+      if (incomingMessageId) {
+        await this.prisma.whatsappMessage.updateMany({
+          where: { external_message_id: incomingMessageId },
+          data: {
+            related_news_id: latestNews.id,
+            content_kind: 'SPEAKING_AUDIO',
+            quoted_message_id: quotedMessageId || null,
+          },
+        });
+      }
 
       await this.prisma.speakingFeedback.create({
         data: {
