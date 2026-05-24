@@ -111,6 +111,120 @@ export class AiService {
     }
   }
 
+  private normalizeFallbackNewsTitle(title: string, levelNumber: string) {
+    const base = String(title || '')
+      .replace(/\s*[-–—]\s*level\s*\d+\s*$/i, '')
+      .trim();
+    return `${base} – level ${levelNumber}`.trim();
+  }
+
+  private normalizeFallbackNewsContent(content: string) {
+    const normalized = String(content || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\*\*/g, '')
+      .trim();
+
+    const markerMatch = normalized.match(/\bDifficult\s+words\s*:/i);
+    if (!markerMatch) {
+      return normalized;
+    }
+
+    const idx = markerMatch.index ?? -1;
+    if (idx < 0) {
+      return normalized;
+    }
+
+    const before = normalized.slice(0, idx).trimEnd();
+    const after = normalized.slice(idx).trimStart();
+    const afterFixed = after.replace(/\bDifficult\s+words\s*:/i, 'Difficult words:');
+    return `${before}\n\n${afterFixed}`.trim();
+  }
+
+  private parseFallbackDifficultWords(rawText: string) {
+    const normalized = String(rawText || '').trim();
+    if (!normalized) return [] as Array<{ term: string; definition: string }>;
+
+    const parenMatches = [...normalized.matchAll(/([^,]+?)\s*\(([^()]*)\)/g)];
+    if (parenMatches.length > 0) {
+      return parenMatches
+        .map((match) => ({
+          term: match[1].trim().replace(/^[\-\u2022]\s*/, ''),
+          definition: match[2].trim(),
+        }))
+        .filter((item) => item.term && item.definition);
+    }
+
+    const lineMatches = normalized
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^[\-\u2022]\s*/, ''))
+      .map((line) => {
+        const idx = line.indexOf(':');
+        if (idx <= 0) return null;
+        const term = line.slice(0, idx).trim();
+        const definition = line.slice(idx + 1).trim();
+        if (!term || !definition) return null;
+        return { term, definition };
+      })
+      .filter(Boolean) as Array<{ term: string; definition: string }>;
+
+    return lineMatches;
+  }
+
+  private validateFallbackNewsOutput(input: {
+    levelNumber: string;
+    title: string;
+    content: string;
+  }) {
+    const violations: string[] = [];
+    const title = String(input.title || '').trim();
+    const content = String(input.content || '').trim();
+    const levelNumber = String(input.levelNumber || '').trim();
+
+    if (!new RegExp(`–\\s*level\\s*${levelNumber}\\s*$`, 'i').test(title)) {
+      violations.push('title_suffix');
+    }
+
+    const diffMatch = content.match(/\bDifficult\s+words\s*:\s*([\s\S]*)$/i);
+    if (!diffMatch) {
+      violations.push('missing_difficult_words_section');
+      return violations;
+    }
+
+    if (!/\n\s*\n\s*\bDifficult\s+words\s*:/i.test(content)) {
+      violations.push('missing_blank_line_before_difficult_words');
+    }
+
+    const body = content.replace(/\bDifficult\s+words\s*:\s*[\s\S]*$/i, '').trim();
+    const difficultWordsRaw = diffMatch[1]?.trim() || '';
+    const words = this.parseFallbackDifficultWords(difficultWordsRaw);
+    if (words.length < 3) {
+      violations.push('too_few_difficult_words');
+      return violations;
+    }
+
+    for (const entry of words) {
+      const wordCount = entry.definition.trim().split(/\s+/).filter(Boolean).length;
+      if (wordCount < 6 || wordCount > 14) {
+        violations.push('meaning_length_out_of_range');
+        break;
+      }
+    }
+
+    for (const entry of words) {
+      const term = entry.term.trim();
+      if (!term) continue;
+      if (!new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(body)) {
+        violations.push('difficult_word_not_in_body');
+        break;
+      }
+    }
+
+    return violations;
+  }
+
   /**
    * Gera uma notícia de fallback caso o scraper falhe.
    */
@@ -143,8 +257,12 @@ Regras:
 - "title" deve terminar exatamente com "– level ${levelNumber}" (com esse travessão) e ser curto
 - "content" deve ser em inglês e conter:
   - 2 a 5 parágrafos curtos, texto contínuo
-  - no final, uma linha "Difficult words:" com 6 a 10 itens separados por vírgula, no formato: word (meaning)
-  - todas as difficult words precisam aparecer no texto e devem estar destacadas com **negrito** (markdown), por exemplo: **economy**
+  - no final, depois de uma linha em branco, uma seção exatamente assim:
+    (linha em branco)
+    Difficult words: word (meaning), word (meaning), ...
+  - "meaning" deve ser uma explicação curta em inglês simples (6 a 14 palavras), mais informativa do que um sinônimo de 1 palavra
+  - todas as difficult words precisam aparecer no texto (mesma grafia, pode variar maiúsculas/minúsculas)
+  - NÃO use markdown **negrito** no conteúdo; deixe o texto “limpo” (o WhatsApp vai formatar depois)
 - Tamanho aproximado:
   - LEVEL_1: 120–170 palavras
   - LEVEL_2: 170–230 palavras
@@ -178,9 +296,55 @@ Retorne SOMENTE o JSON.`;
         throw new Error('A IA não retornou o formato esperado.');
       }
 
+      let title = this.normalizeFallbackNewsTitle(result.title, levelNumber);
+      let content = this.normalizeFallbackNewsContent(result.content);
+      const violations = this.validateFallbackNewsOutput({
+        levelNumber,
+        title,
+        content,
+      });
+
+      if (violations.length > 0) {
+        const repairPrompt = `${prompt}
+
+Corrija o JSON para ficar exatamente no padrão "News in Levels".
+Problemas encontrados: ${violations.join(', ')}
+Mantenha o MESMO tema e não invente campos novos.
+
+JSON anterior:
+${JSON.stringify({ title, content })}`;
+
+        const repairResponse = await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'system', content: repairPrompt }],
+          response_format: { type: 'json_object' },
+        });
+
+        await this.usageCostService.recordChatCompletion({
+          action: CostAction.NEWS_FALLBACK_GENERATION,
+          modelName: 'gpt-4o-mini',
+          response: repairResponse,
+          tracking: {
+            ...tracking,
+            referenceType: tracking?.referenceType || 'news_fallback',
+            referenceId: `${tracking?.referenceId || level}:repair`,
+          },
+          metadata: { level, repair: true, violations },
+        });
+
+        const repaired = JSON.parse(
+          repairResponse.choices[0].message.content || '{}',
+        ) as { title?: string; content?: string };
+
+        if (repaired.title && repaired.content) {
+          title = this.normalizeFallbackNewsTitle(repaired.title, levelNumber);
+          content = this.normalizeFallbackNewsContent(repaired.content);
+        }
+      }
+
       return {
-        title: result.title,
-        content: result.content,
+        title,
+        content,
       };
     } catch (error) {
       this.logger.error('Erro ao gerar notícia via IA', error);
@@ -231,8 +395,12 @@ Regras gerais:
   - LEVEL_3: "– level 3"
 - "content" deve ser em inglês e conter:
   - 2 a 5 parágrafos curtos, texto contínuo
-  - no final, uma linha "Difficult words:" com 6 a 10 itens separados por vírgula, no formato: word (meaning)
-  - todas as difficult words precisam aparecer no texto e devem estar destacadas com **negrito** (markdown), por exemplo: **economy**
+  - no final, depois de uma linha em branco, uma seção exatamente assim:
+    (linha em branco)
+    Difficult words: word (meaning), word (meaning), ...
+  - "meaning" deve ser uma explicação curta em inglês simples (6 a 14 palavras), mais informativa do que um sinônimo de 1 palavra
+  - todas as difficult words precisam aparecer no texto (mesma grafia, pode variar maiúsculas/minúsculas)
+  - NÃO use markdown **negrito** no conteúdo; deixe o texto “limpo” (o WhatsApp vai formatar depois)
 - Tamanho aproximado:
   - LEVEL_1: 120–170 palavras
   - LEVEL_2: 170–230 palavras
@@ -262,14 +430,89 @@ Retorne SOMENTE o JSON.`;
     });
 
     const parsed = JSON.parse(response.choices[0].message.content || '{}') as any;
-    const level1 = parsed?.LEVEL_1;
-    const level2 = parsed?.LEVEL_2;
-    const level3 = parsed?.LEVEL_3;
+    let level1 = parsed?.LEVEL_1;
+    let level2 = parsed?.LEVEL_2;
+    let level3 = parsed?.LEVEL_3;
     const isValidItem = (item: any) =>
       item && typeof item.title === 'string' && typeof item.content === 'string' && item.title.trim() && item.content.trim();
 
     if (!isValidItem(level1) || !isValidItem(level2) || !isValidItem(level3)) {
       throw new Error('A IA não retornou o formato esperado para o bundle de notícias.');
+    }
+
+    const normalizeItem = (item: any, levelNumber: string) => ({
+      title: this.normalizeFallbackNewsTitle(item.title, levelNumber),
+      content: this.normalizeFallbackNewsContent(item.content),
+    });
+
+    level1 = normalizeItem(level1, '1');
+    level2 = normalizeItem(level2, '2');
+    level3 = normalizeItem(level3, '3');
+
+    const violationsByLevel = {
+      LEVEL_1: this.validateFallbackNewsOutput({
+        levelNumber: '1',
+        title: level1.title,
+        content: level1.content,
+      }),
+      LEVEL_2: this.validateFallbackNewsOutput({
+        levelNumber: '2',
+        title: level2.title,
+        content: level2.content,
+      }),
+      LEVEL_3: this.validateFallbackNewsOutput({
+        levelNumber: '3',
+        title: level3.title,
+        content: level3.content,
+      }),
+    };
+
+    const needsRepair = Object.values(violationsByLevel).some(
+      (violations) => violations.length > 0,
+    );
+
+    if (needsRepair) {
+      const repairPrompt = `${prompt}
+
+Corrija o JSON para ficar exatamente no padrão "News in Levels".
+Problemas encontrados:
+- LEVEL_1: ${violationsByLevel.LEVEL_1.join(', ') || 'ok'}
+- LEVEL_2: ${violationsByLevel.LEVEL_2.join(', ') || 'ok'}
+- LEVEL_3: ${violationsByLevel.LEVEL_3.join(', ') || 'ok'}
+Mantenha o MESMO tema e não invente campos novos.
+
+JSON anterior:
+${JSON.stringify({ LEVEL_1: level1, LEVEL_2: level2, LEVEL_3: level3 })}`;
+
+      const repairResponse = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: repairPrompt }],
+        response_format: { type: 'json_object' },
+      });
+
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.NEWS_FALLBACK_GENERATION,
+        modelName: 'gpt-4o-mini',
+        response: repairResponse,
+        tracking: {
+          ...tracking,
+          referenceType: tracking?.referenceType || 'news_fallback',
+          referenceId: `${tracking?.referenceId || 'bundle'}:repair`,
+        },
+        metadata: { mode: 'bundle', repair: true, violationsByLevel },
+      });
+
+      const repaired = JSON.parse(
+        repairResponse.choices[0].message.content || '{}',
+      ) as any;
+      const r1 = repaired?.LEVEL_1;
+      const r2 = repaired?.LEVEL_2;
+      const r3 = repaired?.LEVEL_3;
+      if (isValidItem(r1) && isValidItem(r2) && isValidItem(r3)) {
+        level1 = normalizeItem(r1, '1');
+        level2 = normalizeItem(r2, '2');
+        level3 = normalizeItem(r3, '3');
+      }
     }
 
     return {

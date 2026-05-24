@@ -2245,24 +2245,32 @@ export class WhatsappService {
   // private formatTodayNewsIntroForWhatsapp()
 
   private formatNewsBodyForWhatsapp(title: string, content: string) {
-    const cleanTitle = title.replace(/\s*[–-]\s*level\s*\d+\s*$/i, '').trim();
-    const difficultWordsMatch = content.match(/\n\nDifficult words:\s*([\s\S]*)$/i);
-    const difficultWordsRaw = difficultWordsMatch?.[1]?.trim() || '';
-    const newsBody = content.replace(/\n\nDifficult words:\s*[\s\S]*$/i, '').trim();
+    const cleanTitle = title.replace(/\s*[-–—]\s*level\s*\d+\s*$/i, '').trim();
+    const markerMatches = [
+      ...String(content || '').matchAll(/\bDifficult\s+words\s*:/gi),
+    ];
+    const markerMatch =
+      markerMatches.length > 0 ? markerMatches[markerMatches.length - 1] : null;
+    const markerIdx = typeof markerMatch?.index === 'number' ? markerMatch.index : -1;
+    const markerLen = markerMatch?.[0]?.length || 0;
+
+    const difficultWordsRaw =
+      markerIdx >= 0 ? String(content).slice(markerIdx + markerLen).trim() : '';
+    const newsBody =
+      markerIdx >= 0
+        ? String(content).slice(0, markerIdx).trim()
+        : String(content || '').trim();
     const parsedWords = this.parseDifficultWords(difficultWordsRaw);
     const highlightedNewsBody = this.boldDifficultWordsInText(newsBody, parsedWords);
     const difficultWordsSection = parsedWords.length
       ? [
           '*Difficult Words:*',
-          ...parsedWords.map(
-            (entry) => `- *${entry.term}*: ${entry.definition}`,
-          ),
+          '',
+          ...parsedWords.map((entry) => `- *${entry.term}*: ${entry.definition}`),
         ].join('\n')
       : '*Difficult Words:*';
 
-    return [`📰 *${cleanTitle}*`, '', highlightedNewsBody, '', difficultWordsSection].join(
-      '\n',
-    );
+    return [`📰 ${cleanTitle}`, '', highlightedNewsBody, '', difficultWordsSection].join('\n');
   }
 
   // private formatQuizHeaderForWhatsapp()
@@ -2405,11 +2413,34 @@ export class WhatsappService {
       return [] as Array<{ term: string; definition: string }>;
     }
 
-    const matches = [...rawText.matchAll(/([^,]+?)\s*\(([^()]*)\)/g)];
-    return matches.map((match) => ({
-      term: match[1].trim(),
-      definition: match[2].trim(),
-    }));
+    const normalized = String(rawText).trim();
+
+    const parenMatches = [...normalized.matchAll(/([^,]+?)\s*\(([^()]*)\)/g)];
+    if (parenMatches.length > 0) {
+      return parenMatches
+        .map((match) => ({
+          term: match[1].trim().replace(/^[\-\u2022]\s*/, ''),
+          definition: match[2].trim(),
+        }))
+        .filter((item) => item.term && item.definition);
+    }
+
+    const lineMatches = normalized
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^[\-\u2022]\s*/, ''))
+      .map((line) => {
+        const idx = line.indexOf(':');
+        if (idx <= 0) return null;
+        const term = line.slice(0, idx).trim();
+        const definition = line.slice(idx + 1).trim();
+        if (!term || !definition) return null;
+        return { term, definition };
+      })
+      .filter(Boolean) as Array<{ term: string; definition: string }>;
+
+    return lineMatches;
   }
 
   private async findPreviousQuizForAnswerKey(input: {
@@ -2470,7 +2501,7 @@ export class WhatsappService {
 
       return formattedText.replace(
         regex,
-        (_, prefix: string, match: string) => `${prefix}*\`${match}\`*`,
+        (_, prefix: string, match: string) => `${prefix}\`${match}\``,
       );
     }, text);
   }
