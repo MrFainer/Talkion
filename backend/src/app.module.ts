@@ -12,6 +12,7 @@ import { AdminModule } from './admin/admin.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { StudentsModule } from './students/students.module';
 import { SettingsModule } from './settings/settings.module';
+import { LessonsModule } from './lessons/lessons.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SettingsModule } from './settings/settings.module';
     AdminModule,
     StudentsModule,
     SettingsModule,
+    LessonsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

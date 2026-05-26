@@ -1,4 +1,4 @@
-﻿﻿"use client";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, X, Power, PowerOff, AlertTriangle } from "lucide-react";
 
 type DailyRunResponse = {
   message?: string;
@@ -53,6 +54,8 @@ type MessageSettingsPayload = {
   news_capture_time?: string;
   private_news_send_time?: string;
   group_news_send_time?: string;
+  lessons_confirmation_time?: string;
+  lessons_confirmation_enabled?: boolean;
   auto_group_targets?: any;
 };
 
@@ -84,6 +87,9 @@ export default function AutomationPage() {
   const [newsCaptureTime, setNewsCaptureTime] = useState("08:00");
   const [privateSendTime, setPrivateSendTime] = useState("08:00");
   const [groupSendTime, setGroupSendTime] = useState("08:00");
+  const [lessonsConfirmationTime, setLessonsConfirmationTime] = useState("08:00");
+  const [lessonsConfirmationEnabled, setLessonsConfirmationEnabled] = useState(true);
+  const [lessonsConfirmationSaving, setLessonsConfirmationSaving] = useState(false);
   const [autoGroupTargets, setAutoGroupTargets] = useState<
     Array<{ groupId: string; groupLevel: "LEVEL_1" | "LEVEL_2" | "LEVEL_3" }>
   >([]);
@@ -288,6 +294,8 @@ export default function AutomationPage() {
       setNewsCaptureTime(payload.news_capture_time || "08:00");
       setPrivateSendTime(payload.private_news_send_time || "08:00");
       setGroupSendTime(payload.group_news_send_time || "08:00");
+      setLessonsConfirmationTime(payload.lessons_confirmation_time || "08:00");
+      setLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
       const rawTargets = payload.auto_group_targets;
       const parsedTargets = Array.isArray(rawTargets)
         ? rawTargets
@@ -332,6 +340,8 @@ export default function AutomationPage() {
         news_capture_time: newsCaptureTime || "08:00",
         private_news_send_time: privateSendTime || "08:00",
         group_news_send_time: groupSendTime || "08:00",
+        lessons_confirmation_time: lessonsConfirmationTime || "08:00",
+        lessons_confirmation_enabled: lessonsConfirmationEnabled,
         auto_group_targets: autoGroupTargets,
       });
       toast.success("Horários salvos com sucesso.", { id: toastId });
@@ -339,6 +349,35 @@ export default function AutomationPage() {
       toast.error(error.response?.data?.message || "Erro ao salvar horários.", { id: toastId });
     } finally {
       setScheduleSaving(false);
+    }
+  };
+
+  const handleToggleLessonsConfirmationEnabled = async () => {
+    if (!user?.id) return;
+    if (scheduleLoading || scheduleSaving || lessonsConfirmationSaving) return;
+
+    const nextValue = !lessonsConfirmationEnabled;
+    const previousValue = lessonsConfirmationEnabled;
+
+    setLessonsConfirmationEnabled(nextValue);
+    setLessonsConfirmationSaving(true);
+
+    try {
+      await api.put(`/message-settings/${user.id}`, {
+        lessons_confirmation_enabled: nextValue,
+      });
+      if (nextValue) {
+        toast.success("Função de Envio de Confirmação de Aula Ativada.");
+      } else {
+        toast("Função de Envio de Confirmação de Aula Desativada.", {
+          icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        });
+      }
+    } catch (error: any) {
+      setLessonsConfirmationEnabled(previousValue);
+      toast.error(error.response?.data?.message || "Erro ao atualizar confirmação de aula.");
+    } finally {
+      setLessonsConfirmationSaving(false);
     }
   };
 
@@ -410,11 +449,10 @@ export default function AutomationPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Configure os horários. Quando os 3 horários forem iguais, o sistema executa em sequência: capturar notícia → enviar
-              no privado → enviar no grupo.
+              Configure os horários de captura e envios automáticos.
             </p>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <Label htmlFor="news-capture-time">Capturar notícia</Label>
                 <Input
@@ -452,6 +490,45 @@ export default function AutomationPage() {
                     Selecione pelo menos 1 grupo abaixo para habilitar o envio automático em grupos.
                   </p>
                 ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lessons-confirm-time">Confirmação de aula</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="lessons-confirm-time"
+                    type="time"
+                    value={lessonsConfirmationTime}
+                    onChange={(e) => setLessonsConfirmationTime(e.target.value)}
+                    disabled={scheduleLoading || scheduleSaving || !lessonsConfirmationEnabled}
+                    className="h-9 w-full min-w-0 sm:w-32"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleToggleLessonsConfirmationEnabled}
+                          disabled={scheduleLoading || scheduleSaving || lessonsConfirmationSaving}
+                          className={lessonsConfirmationEnabled ? "text-red-500" : "text-green-500"}
+                          aria-label={
+                            lessonsConfirmationEnabled ? "Desativar confirmação de aula" : "Ativar confirmação de aula"
+                          }
+                        >
+                          {lessonsConfirmationEnabled ? (
+                            <PowerOff className="h-4 w-4" />
+                          ) : (
+                            <Power className="h-4 w-4" />
+                          )}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>
+                      <p>{lessonsConfirmationEnabled ? "Desativar Confirmação" : "Ativar Confirmação"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
             </div>
 

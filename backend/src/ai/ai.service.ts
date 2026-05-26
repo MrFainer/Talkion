@@ -222,6 +222,27 @@ export class AiService {
       }
     }
 
+    const normalizedTerms = words
+      .map((w) => String(w.term || '').trim().toLowerCase())
+      .filter(Boolean);
+    if (new Set(normalizedTerms).size !== normalizedTerms.length) {
+      violations.push('duplicate_difficult_words');
+    }
+
+    for (const entry of words) {
+      const term = String(entry.term || '').trim();
+      if (!term) continue;
+      const escaped = term
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\s+/g, '\\s+');
+      const regex = new RegExp(`(^|[^A-Za-z])(${escaped})(?=$|[^A-Za-z])`, 'gi');
+      const occurrences = (body.match(regex) || []).length;
+      if (occurrences > 1) {
+        violations.push('difficult_word_repeated_in_body');
+        break;
+      }
+    }
+
     return violations;
   }
 
@@ -262,6 +283,8 @@ Regras:
     Difficult words: word (meaning), word (meaning), ...
   - "meaning" deve ser uma explicação curta em inglês simples (6 a 14 palavras), mais informativa do que um sinônimo de 1 palavra
   - todas as difficult words precisam aparecer no texto (mesma grafia, pode variar maiúsculas/minúsculas)
+  - use 4 a 6 difficult words e não repita palavras na lista
+  - cada difficult word deve aparecer apenas 1 vez no texto (não precisa repetir)
   - NÃO use markdown **negrito** no conteúdo; deixe o texto “limpo” (o WhatsApp vai formatar depois)
 - Tamanho aproximado:
   - LEVEL_1: 120–170 palavras
@@ -400,6 +423,8 @@ Regras gerais:
     Difficult words: word (meaning), word (meaning), ...
   - "meaning" deve ser uma explicação curta em inglês simples (6 a 14 palavras), mais informativa do que um sinônimo de 1 palavra
   - todas as difficult words precisam aparecer no texto (mesma grafia, pode variar maiúsculas/minúsculas)
+  - use 4 a 6 difficult words e não repita palavras na lista
+  - cada difficult word deve aparecer apenas 1 vez no texto (não precisa repetir)
   - NÃO use markdown **negrito** no conteúdo; deixe o texto “limpo” (o WhatsApp vai formatar depois)
 - Tamanho aproximado:
   - LEVEL_1: 120–170 palavras
@@ -578,6 +603,121 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
     }
   }
 
+  async classifyYesNo(
+    text: string,
+    tracking?: UsageTrackingContext,
+  ): Promise<'YES' | 'NO' | 'UNKNOWN'> {
+    const cleaned = String(text || '').trim();
+    if (!cleaned) return 'UNKNOWN';
+
+    const heuristic = cleaned.toLowerCase();
+    if (/^(yes|yep|yeah|y|sim|confirmo|confirmar|ok|okay)\b/i.test(heuristic)) {
+      return 'YES';
+    }
+    if (/^(no|nope|n|nao|não|recuso|cancelar|cancelo)\b/i.test(heuristic)) {
+      return 'NO';
+    }
+
+    const prompt = `Você é um classificador de respostas curtas.
+
+Tarefa:
+- Dado um texto, classifique como confirmação (YES), recusa (NO) ou incerto (UNKNOWN).
+
+Regras:
+- Respostas como "yes", "sim", "ok", "confirmo" => YES
+- Respostas como "no", "não", "recuso", "cancelo" => NO
+- Qualquer outra coisa => UNKNOWN
+
+Retorne SOMENTE JSON no formato: {"decision":"YES"|"NO"|"UNKNOWN"}
+
+Texto:
+${cleaned}`;
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'system', content: prompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.WHATSAPP_MESSAGE_GENERATION,
+      modelName: 'gpt-4o-mini',
+      response,
+      tracking: {
+        ...tracking,
+        referenceType: tracking?.referenceType || 'yes_no_classification',
+        referenceId: tracking?.referenceId || null,
+      },
+      metadata: { kind: 'yes_no_classification' },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
+      decision?: string;
+    };
+    const decision = String(parsed.decision || '').toUpperCase();
+    if (decision === 'YES' || decision === 'NO') return decision as any;
+    return 'UNKNOWN';
+  }
+
+  async generateLessonConfirmationMessage(input: {
+    idea: string;
+    variables: Record<string, string>;
+    tracking?: UsageTrackingContext;
+    model?: string;
+    temperature?: number;
+  }) {
+    const idea = String(input.idea || '').trim();
+    const variables = input.variables || {};
+    const model = String(input.model || 'gpt-4o-mini');
+    const temperature =
+      typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+        ? input.temperature
+        : 0.7;
+
+    const prompt = `Você escreve mensagens de WhatsApp para confirmação de aula.
+
+Use esta "ideia" como referência de estilo (não copie literalmente se não fizer sentido, mas mantenha o tom e emojis):
+${idea}
+
+Dados reais para usar:
+${Object.entries(variables)
+  .map(([k, v]) => `- ${k}: ${v}`)
+  .join('\n')}
+
+Regras:
+- Retorne uma mensagem curta, clara e amigável.
+- A mensagem deve pedir confirmação da aula de hoje usando o dia e horário informados.
+- Não use placeholders do tipo {{variavel}} no texto final.
+- Não inclua JSON no texto final.
+
+Retorne SOMENTE JSON no formato: {"message":"..."};`;
+
+    const response = await this.openai.chat.completions.create({
+      model,
+      temperature,
+      messages: [{ role: 'system', content: prompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.WHATSAPP_MESSAGE_GENERATION,
+      modelName: model,
+      response,
+      tracking: {
+        ...input.tracking,
+        referenceType: input.tracking?.referenceType || 'lesson_confirmation_message',
+        referenceId: input.tracking?.referenceId || null,
+      },
+      metadata: { kind: 'lesson_confirmation_message' },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
+      message?: string;
+    };
+
+    return String(parsed.message || '').trim();
+  }
+
   async generateWhatsappOutboundMessages(
     input: WhatsappOutboundGenerationInput,
   ): Promise<WhatsappOutboundMessage[]> {
@@ -619,6 +759,12 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
       return [...unique];
     };
 
+    const extractEmojiSamples = (text: string) => {
+      const matches = [...String(text || '').matchAll(/\p{Extended_Pictographic}/gu)];
+      const unique = new Set(matches.map((m) => m[0]).filter(Boolean));
+      return [...unique];
+    };
+
     const requiredPhrasesByKind: Record<string, string[]> = {};
     const challengeSources = [
       String(effectiveIdeas.challenge || ''),
@@ -633,6 +779,54 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
     if (teacherPhrases.length > 0) {
       requiredPhrasesByKind[input.mode === 'PRIVATE' ? 'SPEAKING_INTRO' : 'QUIZ_HEADER'] =
         teacherPhrases;
+    }
+
+    const requiredEmojisByKind: Record<string, string[]> = {};
+    const addRequiredEmojis = (kind: string, sources: string[]) => {
+      const emojis = sources
+        .map((s) => extractEmojiSamples(s))
+        .flat()
+        .filter(Boolean);
+      const unique = [...new Set(emojis)];
+      if (unique.length > 0) {
+        requiredEmojisByKind[kind] = unique;
+      }
+    };
+
+    if (input.mode === 'PRIVATE') {
+      addRequiredEmojis('PRIVATE_GREETING', [
+        String(effectiveIdeas.greeting || ''),
+        String((input.templates as any)?.greeting || ''),
+      ]);
+      addRequiredEmojis('SPEAKING_INTRO', [
+        String(effectiveIdeas.challenge || ''),
+        String((input.templates as any)?.speakingIntro || ''),
+      ]);
+      addRequiredEmojis('NEWS_INTRO', [
+        String(effectiveIdeas.news_intro || ''),
+        String((input.templates as any)?.newsIntro || ''),
+      ]);
+    } else {
+      addRequiredEmojis('GROUP_GREETING', [
+        String(effectiveIdeas.greeting || ''),
+        String((input.templates as any)?.greeting || ''),
+      ]);
+      addRequiredEmojis('ANSWER_KEY_HEADER', [
+        String(effectiveIdeas.previous_quiz_header || ''),
+        String((input.templates as any)?.previousQuizHeader || ''),
+      ]);
+      addRequiredEmojis('NEWS_INTRO', [
+        String(effectiveIdeas.news_intro || ''),
+        String((input.templates as any)?.newsIntro || ''),
+      ]);
+      addRequiredEmojis('QUIZ_HEADER', [
+        String(effectiveIdeas.challenge || ''),
+        String((input.templates as any)?.quizHeader || ''),
+      ]);
+      addRequiredEmojis('QUIZ_FOOTER', [
+        String(effectiveIdeas.quiz_footer || ''),
+        String((input.templates as any)?.quizFooter || ''),
+      ]);
     }
 
     const systemPrompt = `${input.systemPrompt || 'Você é um professor de inglês e assistente do Talkion.'}
@@ -671,7 +865,7 @@ TEMPLATES:
 ${JSON.stringify(input.templates)}
 
 CONSTRAINTS:
-${JSON.stringify({ requiredPhrasesByKind: requiredPhrasesByKind })}
+${JSON.stringify({ requiredPhrasesByKind: requiredPhrasesByKind, requiredEmojisByKind })}
 
 CONTEÚDO:
 ${JSON.stringify(input.content)}`;
@@ -720,13 +914,21 @@ ${JSON.stringify(input.content)}`;
       'QUIZ',
     ]);
 
-    return parsed.messages
+    const messages = parsed.messages
       .filter((m: any) => m && typeof m === 'object')
       .map((m: any) => ({
         kind: m.kind,
         text: String(m.text || '').trim(),
       }))
       .filter((m: any) => allowedKinds.has(m.kind) && m.text.length > 0);
+
+    return messages.map((msg) => {
+      const requiredEmojis = requiredEmojisByKind[msg.kind] || [];
+      if (requiredEmojis.length === 0) return msg;
+      const hasAnyRequiredEmoji = requiredEmojis.some((e) => msg.text.includes(e));
+      if (hasAnyRequiredEmoji) return msg;
+      return { ...msg, text: `${msg.text} ${requiredEmojis[0]}`.trim() };
+    });
   }
 
   async generatePrivateBroadcastMessages(

@@ -4,6 +4,7 @@ export class UpdateSettingsDto {
   private_greeting_idea?: string;
   private_speaking_intro_idea?: string;
   private_news_intro_idea?: string;
+  private_lesson_confirmation_idea?: string;
   speaking_intro_message?: string;
   news_intro_message?: string;
 
@@ -30,6 +31,8 @@ export class UpdateSettingsDto {
   news_capture_time?: string;
   private_news_send_time?: string;
   group_news_send_time?: string;
+  lessons_confirmation_time?: string;
+  lessons_confirmation_enabled?: boolean;
   auto_group_targets?: any;
 
   ignored_groups?: any;

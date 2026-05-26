@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { PlusCircle, Power, PowerOff, Pencil, X, Upload, Check, RefreshCw, Trash2 } from "lucide-react";
+import { PlusCircle, Power, PowerOff, Pencil, X, Upload, Check, RefreshCw, Trash2, CalendarDays } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 
@@ -34,6 +35,39 @@ type ImportResult = {
   failedRows: ImportFailure[];
 };
 
+type StudentLesson = {
+  id: string;
+  kind: "RECURRING" | "EXTRA";
+  weekday: number | null;
+  date: string | null;
+  time: string;
+  recurring: boolean;
+};
+
+type LessonDraft =
+  | { kind: "RECURRING"; weekday: number; time: string; recurring: boolean }
+  | { kind: "EXTRA"; date: string; time: string };
+
+const weekdayLabels: Record<number, string> = {
+  0: "Domingo",
+  1: "Segunda",
+  2: "Terça",
+  3: "Quarta",
+  4: "Quinta",
+  5: "Sexta",
+  6: "Sábado",
+};
+
+const formatLessonDate = (value: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    const raw = String(value);
+    return raw.includes("T") ? raw.split("T")[0] : raw;
+  }
+  return date.toLocaleDateString("pt-BR");
+};
+
 export default function StudentsPage() {
   const router = useRouter();
   const { user, isHydrated, hydrate } = useAuthStore();
@@ -50,6 +84,7 @@ export default function StudentsPage() {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [englishLevel, setEnglishLevel] = useState("LEVEL_1");
   const [submitting, setSubmitting] = useState(false);
+  const [newStudentLessons, setNewStudentLessons] = useState<LessonDraft[]>([]);
   
   // Ref para upload de arquivo
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +94,16 @@ export default function StudentsPage() {
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [deletingStudentId, setDeletingStudentId] = useState<string | null>(null);
+
+  const [lessonsDialogOpen, setLessonsDialogOpen] = useState(false);
+  const [lessonsStudent, setLessonsStudent] = useState<any | null>(null);
+  const [studentLessons, setStudentLessons] = useState<StudentLesson[]>([]);
+  const [lessonsLoading, setLessonsLoading] = useState(false);
+  const [recWeekday, setRecWeekday] = useState("1");
+  const [recTime, setRecTime] = useState("08:00");
+  const [recRecurring, setRecRecurring] = useState(true);
+  const [extraDate, setExtraDate] = useState<string>("");
+  const [extraTime, setExtraTime] = useState("08:00");
 
   useEffect(() => {
     document.title = "Talkion - Alunos";
@@ -122,16 +167,25 @@ export default function StudentsPage() {
     const normalizedFullName = normalizeFullName(fullName);
     
     try {
-      await api.post(`/students/teacher/${user?.id}`, {
+      const res = await api.post(`/students/teacher/${user?.id}`, {
         fullName: normalizedFullName,
         whatsappNumber: rawWhatsappNumber,
         englishLevel,
       });
+      const createdStudentId = String(res.data?.id || "").trim();
+      if (createdStudentId && newStudentLessons.length > 0) {
+        await Promise.allSettled(
+          newStudentLessons.map((lesson) =>
+            api.post(`/lessons/student/${createdStudentId}`, lesson),
+          ),
+        );
+      }
       toast.success("Aluno cadastrado com sucesso!");
       setIsDialogOpen(false);
       setFullName("");
       setWhatsappNumber("");
       setEnglishLevel("LEVEL_1");
+      setNewStudentLessons([]);
       fetchStudents();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro ao cadastrar aluno.");
@@ -198,6 +252,77 @@ export default function StudentsPage() {
       toast.error(error.response?.data?.message || "Erro ao excluir aluno.");
     } finally {
       setDeletingStudentId(null);
+    }
+  };
+
+  const fetchLessonsForStudent = useCallback(
+    async (studentId: string) => {
+      setLessonsLoading(true);
+      try {
+        const res = await api.get(`/lessons/student/${studentId}`);
+        setStudentLessons((res.data || []) as StudentLesson[]);
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Erro ao carregar aulas do aluno.");
+      } finally {
+        setLessonsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const openLessonsForStudent = async (student: any) => {
+    setLessonsStudent(student);
+    setLessonsDialogOpen(true);
+    await fetchLessonsForStudent(student.id);
+  };
+
+  const handleAddRecurringLessonForStudent = async () => {
+    if (!lessonsStudent?.id) return;
+    const weekday = Number(recWeekday);
+    const time = recTime;
+    try {
+      await api.post(`/lessons/student/${lessonsStudent.id}`, {
+        kind: "RECURRING",
+        weekday,
+        time,
+        recurring: recRecurring,
+      });
+      toast.success("Aula recorrente adicionada.");
+      await fetchLessonsForStudent(lessonsStudent.id);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao adicionar aula recorrente.");
+    }
+  };
+
+  const handleAddExtraLessonForStudent = async () => {
+    if (!lessonsStudent?.id) return;
+    if (!extraDate) {
+      toast.error("Selecione uma data para a aula extra.");
+      return;
+    }
+    try {
+      await api.post(`/lessons/student/${lessonsStudent.id}`, {
+        kind: "EXTRA",
+        date: extraDate,
+        time: extraTime,
+      });
+      toast.success("Aula extra adicionada.");
+      await fetchLessonsForStudent(lessonsStudent.id);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao adicionar aula extra.");
+    }
+  };
+
+  const handleDeleteLesson = async (lessonId: string) => {
+    if (!lessonId) return;
+    try {
+      await api.delete(`/lessons/${lessonId}`);
+      toast.success("Aula removida.");
+      if (lessonsStudent?.id) {
+        await fetchLessonsForStudent(lessonsStudent.id);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao remover aula.");
     }
   };
 
@@ -533,6 +658,7 @@ export default function StudentsPage() {
                   setFullName("");
                   setWhatsappNumber("");
                   setEnglishLevel("LEVEL_1");
+                  setNewStudentLessons([]);
                 }
                 setIsDialogOpen(open);
               }}
@@ -577,11 +703,218 @@ export default function StudentsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-3 rounded-lg border p-3">
+                  <p className="text-sm font-medium">Aulas (opcional)</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Dia da semana</Label>
+                      <Select value={recWeekday} onValueChange={(val) => setRecWeekday(val || "1")}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Selecione o dia">
+                            {weekdayLabels[Number(recWeekday)] || "Selecione o dia"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(weekdayLabels).map(([key, label]) => (
+                            <SelectItem key={key} value={key}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Horário</Label>
+                      <Input type="time" value={recTime} onChange={(e) => setRecTime(e.target.value)} className="h-9" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={recRecurring} onCheckedChange={(v) => setRecRecurring(Boolean(v))} />
+                      <span className="text-sm text-muted-foreground">Recorrente</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => {
+                        const weekday = Number(recWeekday);
+                        if (!Number.isFinite(weekday)) return;
+                        setNewStudentLessons((current) => [
+                          ...current,
+                          { kind: "RECURRING", weekday, time: recTime, recurring: recRecurring },
+                        ]);
+                      }}
+                    >
+                      Adicionar recorrente
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Data (aula extra)</Label>
+                      <Input type="date" value={extraDate} onChange={(e) => setExtraDate(e.target.value)} className="h-9" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Horário</Label>
+                      <Input type="time" value={extraTime} onChange={(e) => setExtraTime(e.target.value)} className="h-9" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => {
+                        if (!extraDate) return;
+                        setNewStudentLessons((current) => [
+                          ...current,
+                          { kind: "EXTRA", date: extraDate, time: extraTime },
+                        ]);
+                      }}
+                    >
+                      Adicionar extra
+                    </Button>
+                  </div>
+
+                  {newStudentLessons.length > 0 ? (
+                    <div className="space-y-2">
+                      {newStudentLessons.map((lesson, idx) => (
+                        <div
+                          key={`${lesson.kind}-${idx}`}
+                          className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2"
+                        >
+                          <div className="text-sm">
+                            {lesson.kind === "RECURRING"
+                              ? `Recorrente: ${weekdayLabels[(lesson as any).weekday]} às ${(lesson as any).time}`
+                              : `Extra: ${(lesson as any).date} às ${(lesson as any).time}`}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() =>
+                              setNewStudentLessons((current) => current.filter((_, i) => i !== idx))
+                            }
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
                   {submitting ? "Salvando..." : "Salvar"}
                 </Button>
               </form>
             </DialogContent>
+            </Dialog>
+
+            <Dialog
+              open={lessonsDialogOpen}
+              onOpenChange={(open) => {
+                setLessonsDialogOpen(open);
+                if (!open) {
+                  setLessonsStudent(null);
+                  setStudentLessons([]);
+                }
+              }}
+            >
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>
+                    {lessonsStudent?.full_name ? `Aulas - ${lessonsStudent.full_name}` : "Aulas"}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <p className="text-sm font-medium">Adicionar recorrente</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Dia da semana</Label>
+                        <Select value={recWeekday} onValueChange={(val) => setRecWeekday(val || "1")}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Selecione o dia">
+                              {weekdayLabels[Number(recWeekday)] || "Selecione o dia"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(weekdayLabels).map(([key, label]) => (
+                              <SelectItem key={key} value={key}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Horário</Label>
+                        <Input type="time" value={recTime} onChange={(e) => setRecTime(e.target.value)} className="h-9" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Switch checked={recRecurring} onCheckedChange={(v) => setRecRecurring(Boolean(v))} />
+                        <span className="text-sm text-muted-foreground">Recorrente</span>
+                      </div>
+                      <Button type="button" onClick={handleAddRecurringLessonForStudent} className="h-9">
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <p className="text-sm font-medium">Adicionar extra (data específica)</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Data</Label>
+                        <Input type="date" value={extraDate} onChange={(e) => setExtraDate(e.target.value)} className="h-9" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Horário</Label>
+                        <Input type="time" value={extraTime} onChange={(e) => setExtraTime(e.target.value)} className="h-9" />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="button" onClick={handleAddExtraLessonForStudent} className="h-9">
+                        Adicionar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Aulas cadastradas</p>
+                    {lessonsLoading ? (
+                      <p className="text-sm text-muted-foreground">Carregando...</p>
+                    ) : studentLessons.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhuma aula cadastrada.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {studentLessons.map((lesson) => (
+                          <div key={lesson.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                            <div className="text-sm">
+                              {lesson.kind === "EXTRA"
+                                ? `Extra: ${formatLessonDate(lesson.date)} às ${lesson.time}`
+                                : `Recorrente: ${weekdayLabels[lesson.weekday ?? 0]} às ${lesson.time}`}
+                              {!lesson.recurring && lesson.kind === "RECURRING" ? " (desativada)" : ""}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleDeleteLesson(lesson.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </DialogContent>
             </Dialog>
           </div>
         </div>
@@ -667,6 +1000,22 @@ export default function StudentsPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right flex items-center justify-end gap-2">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => openLessonsForStudent(student)}
+                              >
+                                <CalendarDays className="h-4 w-4" />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>
+                            <p>Aulas</p>
+                          </TooltipContent>
+                        </Tooltip>
                         {editingLevelId === student.id ? (
                           <>
                             <Tooltip>

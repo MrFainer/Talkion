@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -126,7 +126,7 @@ export default function SettingsPage() {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const savedSnapshotRef = useRef<string>("");
+  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
 
   useEffect(() => {
     hydrate();
@@ -141,7 +141,7 @@ export default function SettingsPage() {
     try {
       const res = await api.get(`/message-settings/${user.id}`);
       setSettings(res.data);
-      savedSnapshotRef.current = stableStringify(res.data);
+      setSavedSnapshot(stableStringify(res.data));
     } catch (error) {
       toast.error("Erro ao carregar configurações.");
     } finally {
@@ -159,7 +159,7 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       await api.put(`/message-settings/${user.id}`, settings);
-      savedSnapshotRef.current = stableStringify(settings);
+      setSavedSnapshot(stableStringify(settings));
       toast.success("Configurações salvas com sucesso!");
       return true;
     } catch (error) {
@@ -177,7 +177,7 @@ export default function SettingsPage() {
     try {
       const res = await api.post(`/message-settings/${user.id}/reset`);
       setSettings(res.data);
-      savedSnapshotRef.current = stableStringify(res.data);
+      setSavedSnapshot(stableStringify(res.data));
       toast.success("Configurações restauradas para o padrão.");
     } catch (error) {
       toast.error("Erro ao restaurar configurações.");
@@ -204,7 +204,7 @@ export default function SettingsPage() {
   }, [settings]);
 
   const hasUnsavedChanges = Boolean(
-    settings && savedSnapshotRef.current && currentSnapshot !== savedSnapshotRef.current,
+    settings && savedSnapshot && currentSnapshot !== savedSnapshot,
   );
 
   useEffect(() => {
@@ -380,7 +380,7 @@ export default function SettingsPage() {
                 <WhatsappFormatGuide />
 
                 <div className="space-y-6">
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <TextEditor
                       label="Saudação"
                       field="private_greeting_idea"
@@ -401,6 +401,14 @@ export default function SettingsPage() {
                       label="Cabeçalho da Notícia"
                       field="private_news_intro_idea"
                       value={settings?.private_news_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Confirmação de Aula"
+                      field="private_lesson_confirmation_idea"
+                      value={settings?.private_lesson_confirmation_idea || ""}
                       onChange={updateSetting}
                       onInsertEmoji={insertTextAtCursor}
                       minHeight="min-h-[120px]"
@@ -560,8 +568,9 @@ export default function SettingsPage() {
                     { tag: "{{telefone}}", desc: "Número do WhatsApp" },
                     { tag: "{{grupo}}", desc: "Nome do grupo (se houver)" },
                     { tag: "{{data}}", desc: "Data atual (ex: 18/05/2026)" },
-                    { tag: "{{hora}}", desc: "Hora atual (ex: 14:30)" },
+                    { tag: "{{hora_en}}", desc: "Hora da aula (ex: 8am / 8:30pm)" },
                     { tag: "{{period}}", desc: "Período do dia: morning / afternoon / evening" },
+                    { tag: "{{diasemana}}", desc: "Dia da semana (ex: Monday)" },
                   ].map((v) => (
                     <div key={v.tag} className="border p-4 rounded-lg bg-muted/20 flex flex-col justify-between items-start h-full">
                       <div>
@@ -584,9 +593,9 @@ export default function SettingsPage() {
                 </div>
                 <div className="mt-8 p-4 border rounded-lg bg-primary/5">
                   <h4 className="font-medium mb-2">Exemplo Prático:</h4>
-                  <p className="font-mono text-sm">Good {"{{period}}"}, {"{{nome}}"}! Hoje é {"{{data}}"} às {"{{hora}}"}.</p>
+                  <p className="font-mono text-sm">I would like to confirm our English Mentoring this {"{{diasemana}}"} at {"{{hora_en}}"}.</p>
                   <p className="text-sm mt-2 text-muted-foreground">Como será enviado:</p>
-                  <p className="font-mono text-sm bg-background p-2 rounded border mt-1">Good morning, João! Hoje é 19/05/2026 às 08:30.</p>
+                  <p className="font-mono text-sm bg-background p-2 rounded border mt-1">I would like to confirm our English Mentoring this Tuesday at 8am.</p>
                 </div>
               </CardContent>
             </Card>

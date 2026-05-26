@@ -45,6 +45,17 @@ enum CostAction {
   WHATSAPP_MESSAGE_GENERATION
 }
 
+enum LessonStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
+enum LessonKind {
+  RECURRING
+  EXTRA
+}
+
 model User {
   id                 String   @id @default(uuid())
   name               String
@@ -88,6 +99,7 @@ model Student {
   whatsappMessages WhatsappMessage[]
   audioSubmissions AudioSubmission[]
   usageCostEvents  UsageCostEvent[]
+  lessons          Lesson[]
 }
 
 model WhatsappGroup {
@@ -184,6 +196,43 @@ model SpeakingFeedback {
   audioSubmission AudioSubmission @relation(fields: [audio_submission_id], references: [id], onDelete: Cascade)
 }
 
+model Lesson {
+  id         String     @id @default(uuid())
+  student_id String
+  kind       LessonKind @default(RECURRING)
+  weekday    Int?
+  date       DateTime?
+  time       String     @db.VarChar(5)
+  recurring  Boolean    @default(true)
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+
+  student       Student             @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  confirmations LessonConfirmation[]
+
+  @@index([student_id])
+  @@index([weekday, time])
+  @@index([date, time])
+}
+
+model LessonConfirmation {
+  id                  String       @id @default(uuid())
+  lesson_id           String
+  occurrence_date     DateTime
+  status              LessonStatus @default(PENDING)
+  request_message_id  String?
+  response_message_id String?
+  responded_at        DateTime?
+  created_at          DateTime     @default(now())
+  updated_at          DateTime     @updatedAt
+
+  lesson Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@unique([lesson_id, occurrence_date])
+  @@index([occurrence_date, status])
+  @@index([request_message_id])
+}
+
 model UsageCostEvent {
   id                  String       @id @default(uuid())
   teacher_id          String?
@@ -226,6 +275,7 @@ model MessageSettings {
   private_greeting_idea       String?  @db.Text
   private_speaking_intro_idea String?  @db.Text
   private_news_intro_idea     String?  @db.Text
+  private_lesson_confirmation_idea String? @db.Text
   speaking_intro_message      String   @db.Text @default("*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*")
   news_intro_message          String   @db.Text @default("📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*")
 
@@ -255,6 +305,8 @@ model MessageSettings {
   news_capture_time           String   @db.VarChar(5) @default("08:00")
   private_news_send_time      String   @db.VarChar(5) @default("08:00")
   group_news_send_time        String   @db.VarChar(5) @default("08:00")
+  lessons_confirmation_time   String   @db.VarChar(5) @default("08:00")
+  lessons_confirmation_enabled Boolean @default(false)
 
   auto_group_targets          Json     @default("[]")
   
