@@ -115,6 +115,20 @@ export class NewsService {
   }
 
   async scrapeLatestNews(tracking?: UsageTrackingContext): Promise<NewsProcessingResult[]> {
+    const scrapingEnabled = process.env.NEWS_SCRAPING_ENABLED === 'true';
+    if (!scrapingEnabled) {
+      return this.generateFallbackNewsForAllLevels(tracking, {
+        referenceType: 'news_ai_only',
+        referenceId: new Date().toISOString().slice(0, 10),
+      });
+    }
+
+    return this.scrapeLatestNewsFromSite(tracking);
+  }
+
+  private async scrapeLatestNewsFromSite(
+    tracking?: UsageTrackingContext,
+  ): Promise<NewsProcessingResult[]> {
     const results: NewsProcessingResult[] = [];
 
     try {
