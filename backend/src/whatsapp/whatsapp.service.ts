@@ -1437,13 +1437,14 @@ export class WhatsappService {
         orderBy: { created_at: 'desc' },
       });
 
-      const byLevel = new Map<string, { title: string; content: string; level: string }>();
+      const byLevel = new Map<string, { title: string; content: string; level: string; sourceUrl?: string }>();
       for (const item of records) {
         if (!byLevel.has(item.level)) {
           byLevel.set(item.level, {
             title: item.title,
             content: item.content,
             level: item.level,
+            sourceUrl: item.source_url || undefined,
           });
         }
       }
@@ -1471,6 +1472,7 @@ export class WhatsappService {
               title: item.title,
               content: item.content,
               level: item.level,
+              sourceUrl: item.source_url || undefined,
             });
           }
         }
@@ -1573,7 +1575,7 @@ export class WhatsappService {
         "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
       const newsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
       const newsBody = selectedNews
-        ? this.formatNewsBodyForWhatsapp(selectedNews.title, selectedNews.content)
+        ? this.formatNewsBodyForWhatsapp(selectedNews.title, selectedNews.content, selectedNews.sourceUrl)
         : '';
 
       return [
@@ -1936,6 +1938,7 @@ export class WhatsappService {
       const newsMessage = this.formatNewsBodyForWhatsapp(
         latestNews.title,
         latestNews.content,
+        latestNews.source_url,
       );
       const quizHeaderMessage =
         byKind.get('QUIZ_HEADER') || renderVars(settings.group_quiz_header_message);
@@ -2065,6 +2068,7 @@ export class WhatsappService {
       const newsMessage = this.formatNewsBodyForWhatsapp(
         latestNews.title,
         latestNews.content,
+        latestNews.source_url,
       );
 
       await this.sendMessage(teacherId, targetNumber, greetingMessage, {
@@ -2898,7 +2902,7 @@ export class WhatsappService {
   // private formatPrivateSpeakingIntroForWhatsapp()
   // private formatTodayNewsIntroForWhatsapp()
 
-  private formatNewsBodyForWhatsapp(title: string, content: string) {
+  private formatNewsBodyForWhatsapp(title: string, content: string, sourceUrl?: string | null) {
     const cleanTitle = title.replace(/\s*[-–—]\s*level\s*\d+\s*$/i, '').trim();
     const markerMatches = [
       ...String(content || '').matchAll(/\bDifficult\s+words\s*:/gi),
@@ -2943,7 +2947,13 @@ export class WhatsappService {
         ].join('\n')
       : '*Difficult Words:*';
 
-    return [`📰 ${cleanTitle}`, '', highlightedNewsBody, '', difficultWordsSection].join('\n');
+    const parts = [`📰 ${cleanTitle}`, '', highlightedNewsBody, '', difficultWordsSection];
+
+    if (sourceUrl) {
+      parts.push('', `🔗 ${sourceUrl}`);
+    }
+
+    return parts.join('\n');
   }
 
   // private formatQuizHeaderForWhatsapp()

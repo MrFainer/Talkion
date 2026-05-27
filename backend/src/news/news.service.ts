@@ -115,14 +115,6 @@ export class NewsService {
   }
 
   async scrapeLatestNews(tracking?: UsageTrackingContext): Promise<NewsProcessingResult[]> {
-    const scrapingEnabled = process.env.NEWS_SCRAPING_ENABLED === 'true';
-    if (!scrapingEnabled) {
-      return this.generateFallbackNewsForAllLevels(tracking, {
-        referenceType: 'news_ai_only',
-        referenceId: new Date().toISOString().slice(0, 10),
-      });
-    }
-
     return this.scrapeLatestNewsFromSite(tracking);
   }
 
@@ -181,6 +173,27 @@ export class NewsService {
         error,
       );
       results.push(...(await this.generateFallbackNewsForAllLevels(tracking)));
+      return results;
+    }
+
+    // Fall back to AI for any individual level that failed, keeping successful ones
+    if (results.some((item) => item.status === 'error')) {
+      this.logger.warn(
+        'Alguns níveis falharam no scraping. Gerando fallback via IA para complementar...',
+      );
+      const fallbackResults = await this.generateFallbackNewsForAllLevels(tracking, {
+        referenceType: 'news_scrape_error_fallback',
+        referenceId: new Date().toISOString().slice(0, 10),
+      });
+
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status === 'error') {
+          const fallbackItem = fallbackResults.find((fr) => fr.level === results[i].level);
+          if (fallbackItem) {
+            results[i] = fallbackItem;
+          }
+        }
+      }
     }
 
     return results;
