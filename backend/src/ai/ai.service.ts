@@ -94,6 +94,29 @@ type PrivateBroadcastGenerationInput = {
   tracking?: UsageTrackingContext;
 };
 
+function extractTeacherPhrases(text: string): string[] {
+  const matches = [
+    ...String(text || '').matchAll(/\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g),
+  ];
+  const unique = new Set(matches.map((m) => m[0].trim()).filter(Boolean));
+  return [...unique];
+}
+
+function extractEmojiSamples(text: string): string[] {
+  const matches = [...String(text || '').matchAll(/\p{Extended_Pictographic}/gu)];
+  const unique = new Set(matches.map((m) => m[0]).filter(Boolean));
+  return [...unique];
+}
+
+function extractSignatureLine(text: string): string | null {
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const candidate = [...lines].reverse().find((l: string) => /\bTeacher\s+/i.test(l));
+  return candidate || null;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -753,32 +776,74 @@ Retorne SOMENTE JSON no formato: {"message":"..."};`;
           news_intro: defaultIdea,
         };
 
-    const extractTeacherPhrases = (text: string) => {
-      const matches = [...text.matchAll(/\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g)];
-      const unique = new Set(matches.map((m) => m[0].trim()).filter(Boolean));
-      return [...unique];
-    };
-
-    const extractEmojiSamples = (text: string) => {
-      const matches = [...String(text || '').matchAll(/\p{Extended_Pictographic}/gu)];
-      const unique = new Set(matches.map((m) => m[0]).filter(Boolean));
-      return [...unique];
-    };
-
     const requiredPhrasesByKind: Record<string, string[]> = {};
-    const challengeSources = [
-      String(effectiveIdeas.challenge || ''),
-      input.mode === 'PRIVATE'
-        ? String((input.templates as any)?.speakingIntro || '')
-        : String((input.templates as any)?.quizHeader || ''),
-    ]
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .join('\n');
-    const teacherPhrases = extractTeacherPhrases(challengeSources);
-    if (teacherPhrases.length > 0) {
-      requiredPhrasesByKind[input.mode === 'PRIVATE' ? 'SPEAKING_INTRO' : 'QUIZ_HEADER'] =
-        teacherPhrases;
+    const signatureLinesByKind: Record<string, string> = {};
+
+    const addRequiredPhrasesForKind = (kind: string, sources: string[]) => {
+      const combined = sources.map((s) => String(s || '').trim()).filter(Boolean).join('\n');
+      const phrases = extractTeacherPhrases(combined);
+      if (phrases.length > 0) {
+        if (!requiredPhrasesByKind[kind]) requiredPhrasesByKind[kind] = [];
+        requiredPhrasesByKind[kind].push(...phrases);
+      }
+    };
+
+    if (input.mode === 'PRIVATE') {
+      addRequiredPhrasesForKind('PRIVATE_GREETING', [
+        greetingIdea,
+        String((input.templates as any)?.greeting || ''),
+      ]);
+      addRequiredPhrasesForKind('SPEAKING_INTRO', [
+        challengeIdea,
+        String((input.templates as any)?.speakingIntro || ''),
+      ]);
+      addRequiredPhrasesForKind('NEWS_INTRO', [
+        newsIntroIdea,
+        String((input.templates as any)?.newsIntro || ''),
+      ]);
+
+      const greetingSig = extractSignatureLine(greetingIdea);
+      if (greetingSig) signatureLinesByKind.PRIVATE_GREETING = greetingSig;
+      const challengeSig = extractSignatureLine(challengeIdea);
+      if (challengeSig) signatureLinesByKind.SPEAKING_INTRO = challengeSig;
+      const newsIntroSig = extractSignatureLine(newsIntroIdea);
+      if (newsIntroSig) signatureLinesByKind.NEWS_INTRO = newsIntroSig;
+    } else {
+      addRequiredPhrasesForKind('GROUP_GREETING', [
+        greetingIdea,
+        String((input.templates as any)?.greeting || ''),
+      ]);
+      addRequiredPhrasesForKind('QUIZ_HEADER', [
+        challengeIdea,
+        String((input.templates as any)?.quizHeader || ''),
+      ]);
+      addRequiredPhrasesForKind('NEWS_INTRO', [
+        newsIntroIdea,
+        String((input.templates as any)?.newsIntro || ''),
+      ]);
+      if (input.content.previousAnswerKey) {
+        addRequiredPhrasesForKind('ANSWER_KEY_HEADER', [
+          previousQuizHeaderIdea,
+          String((input.templates as any)?.previousQuizHeader || ''),
+        ]);
+        addRequiredPhrasesForKind('QUIZ_FOOTER', [
+          quizFooterIdea,
+          String((input.templates as any)?.quizFooter || ''),
+        ]);
+      }
+
+      const greetingSig = extractSignatureLine(greetingIdea);
+      if (greetingSig) signatureLinesByKind.GROUP_GREETING = greetingSig;
+      const challengeSig = extractSignatureLine(challengeIdea);
+      if (challengeSig) signatureLinesByKind.QUIZ_HEADER = challengeSig;
+      const newsIntroSig = extractSignatureLine(newsIntroIdea);
+      if (newsIntroSig) signatureLinesByKind.NEWS_INTRO = newsIntroSig;
+      if (input.content.previousAnswerKey) {
+        const previousQuizSig = extractSignatureLine(previousQuizHeaderIdea);
+        if (previousQuizSig) signatureLinesByKind.ANSWER_KEY_HEADER = previousQuizSig;
+        const quizFooterSig = extractSignatureLine(quizFooterIdea);
+        if (quizFooterSig) signatureLinesByKind.QUIZ_FOOTER = quizFooterSig;
+      }
     }
 
     const requiredEmojisByKind: Record<string, string[]> = {};
@@ -923,11 +988,28 @@ ${JSON.stringify(input.content)}`;
       .filter((m: any) => allowedKinds.has(m.kind) && m.text.length > 0);
 
     return messages.map((msg) => {
+      let text = msg.text;
+
+      const requiredPhrases = requiredPhrasesByKind[msg.kind] || [];
+      if (requiredPhrases.length > 0) {
+        const missing = requiredPhrases.filter((p) => !text.includes(p));
+        if (missing.length > 0) {
+          const signatureLine = signatureLinesByKind[msg.kind];
+          if (signatureLine && !text.includes(signatureLine)) {
+            text = `${text}\n\n${signatureLine}`;
+          }
+        }
+      }
+
       const requiredEmojis = requiredEmojisByKind[msg.kind] || [];
-      if (requiredEmojis.length === 0) return msg;
-      const hasAnyRequiredEmoji = requiredEmojis.some((e) => msg.text.includes(e));
-      if (hasAnyRequiredEmoji) return msg;
-      return { ...msg, text: `${msg.text} ${requiredEmojis[0]}`.trim() };
+      if (requiredEmojis.length > 0) {
+        const hasAnyRequiredEmoji = requiredEmojis.some((e) => text.includes(e));
+        if (!hasAnyRequiredEmoji) {
+          text = `${text} ${requiredEmojis[0]}`.trim();
+        }
+      }
+
+      return { ...msg, text };
     });
   }
 
@@ -942,62 +1024,52 @@ ${JSON.stringify(input.content)}`;
 
     const keys = input.alunos.map((a) => ({ nome: a.nome, whatsapp: a.whatsapp }));
 
-    const extractTeacherPhrases = (text: string) => {
-      const matches = [
-        ...text.matchAll(/\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g),
-      ];
-      const unique = new Set(matches.map((m) => m[0].trim()).filter(Boolean));
-      return [...unique];
-    };
-
-    const extractEmojiSamples = (text: string) => {
-      const matches = [...text.matchAll(/\p{Extended_Pictographic}/gu)];
-      const unique = new Set(matches.map((m) => m[0]).filter(Boolean));
-      return [...unique];
-    };
-
-    const extractSignatureLine = (text: string) => {
-      const lines = String(text || '')
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const candidate = [...lines].reverse().find((l: string) => /\bTeacher\s+/i.test(l));
-      return candidate || null;
-    };
-
-    const modelosRaw = JSON.stringify(input.modelosDeMensagens || {});
     const requiredPhrasesByTipo: Record<string, string[]> = {};
     const requiredEmojisByTipo: Record<string, string[]> = {};
+    const signatureLinesByTipo: Record<string, string> = {};
 
-    const teacherPhrases = extractTeacherPhrases(modelosRaw);
-    if (teacherPhrases.length > 0) {
-      requiredPhrasesByTipo.SPEAKING_INTRO = teacherPhrases;
+    const greetingModel = String((input.modelosDeMensagens as any)?.greeting || '');
+    const challengeModel = String((input.modelosDeMensagens as any)?.challenge || '');
+    const newsIntroModel = String((input.modelosDeMensagens as any)?.news_intro || '');
+
+    const greetingPhrases = extractTeacherPhrases(greetingModel);
+    if (greetingPhrases.length > 0) {
+      requiredPhrasesByTipo.GREETING = greetingPhrases;
     }
 
-    const speakingEmojis = extractEmojiSamples(
-      String((input.modelosDeMensagens as any)?.challenge || ''),
-    );
+    const challengePhrases = extractTeacherPhrases(challengeModel);
+    if (challengePhrases.length > 0) {
+      requiredPhrasesByTipo.SPEAKING_INTRO = challengePhrases;
+    }
+
+    const newsIntroPhrases = extractTeacherPhrases(newsIntroModel);
+    if (newsIntroPhrases.length > 0) {
+      requiredPhrasesByTipo.NEWS_INTRO = newsIntroPhrases;
+    }
+
+    const greetingSignature = extractSignatureLine(greetingModel);
+    if (greetingSignature) signatureLinesByTipo.GREETING = greetingSignature;
+
+    const challengeSignature = extractSignatureLine(challengeModel);
+    if (challengeSignature) signatureLinesByTipo.SPEAKING_INTRO = challengeSignature;
+
+    const newsIntroSignature = extractSignatureLine(newsIntroModel);
+    if (newsIntroSignature) signatureLinesByTipo.NEWS_INTRO = newsIntroSignature;
+
+    const speakingEmojis = extractEmojiSamples(challengeModel);
     if (speakingEmojis.length > 0) {
       requiredEmojisByTipo.SPEAKING_INTRO = speakingEmojis;
     }
 
-    const greetingEmojis = extractEmojiSamples(
-      String((input.modelosDeMensagens as any)?.greeting || ''),
-    );
-    if (greetingEmojis.length > 0) {
-      requiredEmojisByTipo.GREETING = greetingEmojis;
+    const greetingEmojiSamples = extractEmojiSamples(greetingModel);
+    if (greetingEmojiSamples.length > 0) {
+      requiredEmojisByTipo.GREETING = greetingEmojiSamples;
     }
 
-    const newsIntroEmojis = extractEmojiSamples(
-      String((input.modelosDeMensagens as any)?.news_intro || ''),
-    );
-    if (newsIntroEmojis.length > 0) {
-      requiredEmojisByTipo.NEWS_INTRO = newsIntroEmojis;
+    const newsIntroEmojiSamples = extractEmojiSamples(newsIntroModel);
+    if (newsIntroEmojiSamples.length > 0) {
+      requiredEmojisByTipo.NEWS_INTRO = newsIntroEmojiSamples;
     }
-
-    const speakingSignatureLine = extractSignatureLine(
-      String((input.modelosDeMensagens as any)?.challenge || ''),
-    );
 
     const systemPrompt = `${input.systemPrompt || 'Você é um assistente do Talkion.'}
 
@@ -1125,9 +1197,10 @@ ${JSON.stringify(keys)}${variationRules}`;
           const requiredPhrases = requiredPhrasesByTipo[tipo] || [];
           if (requiredPhrases.length > 0) {
             const missing = requiredPhrases.filter((p) => !mensagem.includes(p));
-            if (missing.length > 0 && tipo === 'SPEAKING_INTRO' && speakingSignatureLine) {
-              if (!mensagem.includes(speakingSignatureLine)) {
-                mensagem = `${mensagem}\n\n${speakingSignatureLine}`;
+            if (missing.length > 0) {
+              const signatureLine = signatureLinesByTipo[tipo];
+              if (signatureLine && !mensagem.includes(signatureLine)) {
+                mensagem = `${mensagem}\n\n${signatureLine}`;
               }
             }
           }
