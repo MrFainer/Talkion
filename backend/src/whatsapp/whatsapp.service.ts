@@ -580,12 +580,18 @@ export class WhatsappService {
   }
 
   private async sendTodayLessonConfirmations(teacherId: string) {
+    const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
     const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
-    const weekday = now.getDay();
+    const weekdayName = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      timeZone,
+    }).format(now);
+    const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const weekday = weekdayNames.indexOf(weekdayName.toLowerCase());
 
     const settings = await this.prisma.messageSettings.findUnique({
       where: { teacher_id: teacherId },
@@ -2976,16 +2982,11 @@ export class WhatsappService {
   }
 
   private getMorningGreeting(emojis: string) {
-    const weekdays = [
-      'Sunday',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-    ];
-    const weekday = weekdays[new Date().getDay()];
+    const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+    const weekday = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      timeZone,
+    }).format(new Date());
     return `Good morning ${weekday} ${emojis}`;
   }
 
