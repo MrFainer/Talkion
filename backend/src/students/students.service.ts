@@ -33,7 +33,11 @@ export class StudentsService {
   }
 
   private normalizeWhatsappNumber(value: string) {
-    return String(value || '').replace(/\D/g, '');
+    let number = String(value || '').replace(/\D/g, '');
+    if (number.startsWith('55') && number.length === 12) {
+      number = number.slice(0, 4) + '9' + number.slice(4);
+    }
+    return number;
   }
 
   private isWhatsappNumberLengthValid(number: string) {

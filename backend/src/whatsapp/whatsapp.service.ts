@@ -705,18 +705,22 @@ export class WhatsappService {
         return true;
       }
 
-      // Usando o endpoint /chat/whatsappNumbers/{instance} que é comum em Evolution API V2
-      const response = await this.http.post(
-        `/chat/whatsappNumbers/${instanceName}`,
-        {
-          numbers: [number],
-        },
-        { timeout: 30000 },
-      );
+      const numberVariants = this.getWhatsappNumberVariants(inputDigits);
 
-      // A API retorna um array de resultados
-      if (Array.isArray(response.data) && response.data.length > 0) {
-        return response.data[0].exists === true;
+      for (const variant of numberVariants) {
+        try {
+          const response = await this.http.post(
+            `/chat/whatsappNumbers/${instanceName}`,
+            { numbers: [variant] },
+            { timeout: 30000 },
+          );
+
+          if (Array.isArray(response.data) && response.data.length > 0) {
+            if (response.data[0].exists === true) return true;
+          }
+        } catch {
+          continue;
+        }
       }
 
       return false;
@@ -2198,9 +2202,15 @@ export class WhatsappService {
     }
 
     const whatsappNumber = senderJid.split('@')[0];
-    const student = await this.prisma.student.findUnique({
-      where: { whatsapp_number: whatsappNumber },
-    });
+    const numberVariants = this.getWhatsappNumberVariants(whatsappNumber);
+
+    let student = null;
+    for (const variant of numberVariants) {
+      student = await this.prisma.student.findUnique({
+        where: { whatsapp_number: variant },
+      });
+      if (student) break;
+    }
 
     if (!student) {
       this.logger.warn(
@@ -3601,6 +3611,18 @@ export class WhatsappService {
     }
 
     return `${numberOrGroupId}@s.whatsapp.net`;
+  }
+
+  private getWhatsappNumberVariants(number: string): string[] {
+    const variants: string[] = [number];
+    if (number.startsWith('55')) {
+      if (number.length === 12) {
+        variants.push(number.slice(0, 4) + '9' + number.slice(4));
+      } else if (number.length === 13) {
+        variants.push(number.slice(0, 4) + number.slice(5));
+      }
+    }
+    return variants;
   }
 
   private async getTeacherNewsGroupTitle(teacherId: string) {
