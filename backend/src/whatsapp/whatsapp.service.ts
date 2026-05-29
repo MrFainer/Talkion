@@ -582,10 +582,14 @@ export class WhatsappService {
   private async sendTodayLessonConfirmations(teacherId: string) {
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
+    const timeStr = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false, timeZone,
+    }).format(now);
+    const [h, min, sec] = timeStr.split(':').map(Number);
+    const startOfDay = new Date(now.getTime() - h * 3600000 - min * 60000 - sec * 1000);
+    startOfDay.setMilliseconds(0);
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 3600000 - 1);
     const weekdayName = new Intl.DateTimeFormat('en-US', {
       weekday: 'long',
       timeZone,
