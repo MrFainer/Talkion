@@ -426,7 +426,7 @@ export default function DashboardPage() {
                 <>
                   <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height={256}>
-                      <LineChart data={chartData}>
+                      <BarChart data={chartData}>
                         <XAxis
                           dataKey="label"
                           tick={{ fontSize: 11 }}
@@ -446,15 +446,12 @@ export default function DashboardPage() {
                           ]}
                           labelFormatter={(label: any) => `Semana: ${label}`}
                         />
-                        <Line
-                          type="monotone"
+                        <Bar
                           dataKey="score"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2}
-                          dot={{ r: 3, fill: "hsl(var(--primary))" }}
-                          activeDot={{ r: 5 }}
+                          fill="hsl(var(--primary))"
+                          radius={[4, 4, 0, 0]}
                         />
-                      </LineChart>
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                   <div className="flex items-center justify-center gap-6 mt-3 text-xs text-muted-foreground">
