@@ -2,6 +2,8 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { SourceType } from '@prisma/client';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
 import type { UsageTrackingContext } from '../ai/usage-cost.service';
@@ -452,6 +454,29 @@ export class NewsService {
         source_url: input.sourceUrl,
       },
     });
+
+    if (input.sourceType === SourceType.AI_GENERATED) {
+      try {
+        const audioBuffer = await this.aiService.generateNewsAudio(
+          input.content,
+          { ...tracking, newsId: createdNews.id },
+        );
+        const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+        await mkdir(audioDir, { recursive: true });
+        const filePath = join(audioDir, `${createdNews.id}.mp3`);
+        await writeFile(filePath, audioBuffer);
+        const audioUrl = `/uploads/news-audio/${createdNews.id}.mp3`;
+        await this.prisma.news.update({
+          where: { id: createdNews.id },
+          data: { audio_url: audioUrl },
+        });
+        this.logger.log(`Áudio gerado para notícia IA: [${input.level}] ${input.title}`);
+      } catch (error) {
+        this.logger.warn(
+          `Falha ao gerar áudio para notícia [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     return {
       level: input.level,

@@ -1,4 +1,4 @@
-﻿﻿"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShieldCheck, Ban, CheckCircle2, Download } from "lucide-react";
+import { ShieldCheck, Ban, CheckCircle2, Download, Coins } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
 
@@ -19,6 +19,8 @@ export default function AdminPage() {
   const [teachers, setTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [editingCredits, setEditingCredits] = useState<string | null>(null);
+  const [creditValues, setCreditValues] = useState<Record<string, string>>({});
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -89,6 +91,8 @@ export default function AdminPage() {
       "Tokens Output": t.outputTokens || 0,
       "Tokens Cache": t.cachedTokens || 0,
       "Whisper (Segundos)": t.audioSeconds || 0,
+      "TTS (Caracteres)": t.ttsCharacters || 0,
+      "Créditos": t.creditBalance || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -116,6 +120,22 @@ export default function AdminPage() {
       toast.error(error.response?.data?.message || "Erro ao atualizar status");
     } finally {
       setToggling(null);
+    }
+  };
+
+  const handleSaveCredits = async (teacherId: string) => {
+    const value = parseFloat(creditValues[teacherId]);
+    if (isNaN(value) || value < 0) {
+      toast.error("Valor inválido para créditos.");
+      return;
+    }
+    try {
+      await api.patch(`/admin/teachers/${teacherId}/credits`, { credit_balance: value });
+      toast.success("Créditos atualizados com sucesso!");
+      setEditingCredits(null);
+      await fetchTeachers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao atualizar créditos");
     }
   };
 
@@ -196,6 +216,8 @@ export default function AdminPage() {
                     <TableHead>Output</TableHead>
                     <TableHead>Cache</TableHead>
                     <TableHead>Whisper (s)</TableHead>
+                    <TableHead>TTS (carac.)</TableHead>
+                    <TableHead>Créditos</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ação</TableHead>
                   </TableRow>
@@ -211,6 +233,59 @@ export default function AdminPage() {
                       <TableCell>{teacher.outputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
                       <TableCell>{teacher.cachedTokens?.toLocaleString("pt-BR") || 0}</TableCell>
                       <TableCell>{teacher.audioSeconds?.toLocaleString("pt-BR") || 0}</TableCell>
+                      <TableCell>{teacher.ttsCharacters?.toLocaleString("pt-BR") || 0}</TableCell>
+                      <TableCell>
+                        {editingCredits === teacher.id ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={creditValues[teacher.id] ?? teacher.creditBalance ?? 0}
+                              onChange={(e) =>
+                                setCreditValues((prev) => ({
+                                  ...prev,
+                                  [teacher.id]: e.target.value,
+                                }))
+                              }
+                              className="h-8 w-20 text-xs"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => handleSaveCredits(teacher.id)}
+                            >
+                              OK
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => setEditingCredits(null)}
+                            >
+                              X
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingCredits(teacher.id);
+                              setCreditValues((prev) => ({
+                                ...prev,
+                                [teacher.id]: String(teacher.creditBalance ?? 0),
+                              }));
+                            }}
+                            className="inline-flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors"
+                          >
+                            <Coins className="h-3.5 w-3.5" />
+                            {Number(teacher.creditBalance ?? 0).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </button>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {teacher.active ? (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">

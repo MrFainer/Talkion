@@ -13,6 +13,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { StudentsModule } from './students/students.module';
 import { SettingsModule } from './settings/settings.module';
 import { LessonsModule } from './lessons/lessons.module';
+import { TeacherDashboardModule } from './teacher-dashboard/teacher-dashboard.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { LessonsModule } from './lessons/lessons.module';
     StudentsModule,
     SettingsModule,
     LessonsModule,
+    TeacherDashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

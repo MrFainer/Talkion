@@ -8,7 +8,7 @@ import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
 import {
   Users,
-  LayoutDashboard,
+  Wallet,
   MessageCircle,
   Bot,
   Menu,
@@ -263,8 +263,11 @@ export function Sidebar() {
     };
   }, [user?.id]);
 
+  const isAdmin = user?.role === "ADMIN";
+  const dashboardHref = isAdmin ? "/billing" : "/dashboard";
+  const dashboardLabel = isAdmin ? "Faturamento" : "Dashboard";
   const links = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: dashboardHref, label: dashboardLabel, icon: Wallet },
     { href: "/students", label: "Alunos", icon: Users },
     { href: "/lessons", label: "Aulas", icon: CalendarDays },
     { href: "/automation", label: "Automação", icon: Bot },

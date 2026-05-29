@@ -30,6 +30,7 @@ export class AdminService {
         email: true,
         role: true,
         active: true,
+        credit_balance: true,
         created_at: true,
       },
       orderBy: { created_at: 'desc' },
@@ -54,12 +55,29 @@ export class AdminService {
       },
     });
 
+    const ttsCosts = await this.prisma.usageCostEvent.groupBy({
+      by: ['teacher_id'],
+      where: {
+        teacher_id: { in: teacherIds },
+        action: 'NEWS_TTS_GENERATION',
+        created_at: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      _sum: {
+        quantity: true,
+      },
+    });
+
     const costMap = new Map(costs.map((c: any) => [c.teacher_id, c._sum]));
+    const ttsMap = new Map(ttsCosts.map((c: any) => [c.teacher_id, c._sum]));
 
     return {
       period: { from: fromDate.toISOString(), to: toDate.toISOString() },
       data: teachers.map((teacher: any) => {
         const stats = costMap.get(teacher.id) || { total_tokens: 0, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0, audio_seconds: 0 };
+        const ttsStats = ttsMap.get(teacher.id) || { quantity: 0 };
         return {
           ...teacher,
           totalTokens: stats.total_tokens || 0,
@@ -67,6 +85,8 @@ export class AdminService {
           outputTokens: stats.output_tokens || 0,
           cachedTokens: stats.cached_input_tokens || 0,
           audioSeconds: stats.audio_seconds || 0,
+          ttsCharacters: ttsStats.quantity || 0,
+          creditBalance: teacher.credit_balance || 0,
         };
       })
     };
@@ -85,6 +105,26 @@ export class AdminService {
         id: true,
         name: true,
         active: true,
+      },
+    });
+
+    return updated;
+  }
+
+  async updateTeacherCredits(teacherId: string, creditBalance: number) {
+    const teacher = await this.prisma.user.findUnique({ where: { id: teacherId } });
+    if (!teacher) {
+      throw new NotFoundException('Professor não encontrado.');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: teacherId },
+      data: { credit_balance: creditBalance },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        credit_balance: true,
       },
     });
 

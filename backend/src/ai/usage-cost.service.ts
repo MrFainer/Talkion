@@ -53,6 +53,10 @@ export class UsageCostService {
     'OPENAI_WHISPER_PER_MINUTE_USD',
     0.006,
   );
+  private readonly ttsPer1MCharactersUsd = this.parseNumberEnv(
+    'OPENAI_TTS_PER_1M_CHARACTERS_USD',
+    15,
+  );
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -105,6 +109,26 @@ export class UsageCostService {
       audioSeconds,
       quantity: audioSeconds,
       unit: 'seconds',
+      estimatedCostUsd,
+      tracking: input.tracking,
+      metadata: input.metadata,
+    });
+  }
+
+  async recordTtsUsage(input: {
+    tracking?: UsageTrackingContext;
+    modelName?: string;
+    characters: number;
+    metadata?: Record<string, unknown>;
+  }) {
+    const estimatedCostUsd = (input.characters / 1_000_000) * this.ttsPer1MCharactersUsd;
+
+    return this.recordUsage({
+      provider: CostProvider.OPENAI,
+      action: CostAction.NEWS_TTS_GENERATION,
+      modelName: input.modelName || 'tts-1',
+      quantity: input.characters,
+      unit: 'characters',
       estimatedCostUsd,
       tracking: input.tracking,
       metadata: input.metadata,

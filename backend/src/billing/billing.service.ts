@@ -240,6 +240,7 @@ export class BillingService {
         totalOutputTokens: this.sumNumber(subset, 'output_tokens'),
         totalTokens: this.sumNumber(subset, 'total_tokens'),
         totalAudioSeconds: this.sumNumber(subset, 'audio_seconds'),
+        totalQuantity: this.sumNumber(subset, 'quantity'),
       };
     });
 

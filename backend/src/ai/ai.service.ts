@@ -626,6 +626,75 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
     }
   }
 
+  async interpretQuizAnswers(
+    rawText: string,
+    totalQuestions: number,
+    tracking?: UsageTrackingContext,
+  ): Promise<{ questionIndex: number; selectedAnswer: string }[] | null> {
+    this.logger.log('Interpretando respostas de quiz via IA...');
+
+    const prompt = `Você é um interpretador de respostas de quiz de alunos de inglês.
+
+O aluno respondeu a um quiz com ${totalQuestions} perguntas, cada uma com alternativas A, B ou C.
+
+O texto abaixo é a resposta do aluno. Pode vir em vários formatos, como:
+- "A, B, C" ou "A B C" ou "A,B,C"
+- "1A, 2B, 3C" ou "1-A, 2-B, 3-C" ou "1a 2b 3c"
+- "a, b, c" (lowercase)
+- "B, B, C" (respostas repetidas)
+- "1. A 2. B 3. C" ou "1 - A, 2 - B, 3 - C"
+- Qualquer outro formato que represente respostas
+
+Sua tarefa é extrair a resposta de CADA pergunta (da 1 à ${totalQuestions}) e retornar um array JSON.
+
+Regras:
+- Se o aluno não respondeu uma pergunta, coloque null para aquela posição
+- Normalize todas as respostas para letra maiúscula (A, B ou C)
+- Se houver ambiguidade, prefira a interpretação mais provável
+- Se o texto não parecer respostas de quiz, retorne null
+
+Texto do aluno:
+${rawText}
+
+Formato de saída: JSON EXATO no formato:
+{"answers": [{"questionIndex": 0, "selectedAnswer": "A"}, ...]}
+
+Use questionIndex 0-based (0 = pergunta 1, 1 = pergunta 2, etc.).
+Se não conseguir interpretar, retorne: {"answers": null}`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: prompt }],
+        response_format: { type: 'json_object' },
+      });
+
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.QUIZ_GENERATION,
+        modelName: 'gpt-4o-mini',
+        response,
+        tracking,
+      });
+
+      const result = JSON.parse(
+        response.choices[0].message.content || '{}',
+      ) as {
+        answers: { questionIndex: number; selectedAnswer: string }[] | null;
+      };
+
+      if (!result.answers || !Array.isArray(result.answers)) {
+        return null;
+      }
+
+      return result.answers.filter(
+        (a) => a.selectedAnswer && a.questionIndex >= 0,
+      );
+    } catch (error) {
+      this.logger.error('Erro ao interpretar respostas de quiz via IA', error);
+      return null;
+    }
+  }
+
   async classifyYesNo(
     text: string,
     tracking?: UsageTrackingContext,
@@ -1429,6 +1498,35 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
     }
 
     return 'ogg';
+  }
+
+  async generateNewsAudio(
+    newsContent: string,
+    tracking?: UsageTrackingContext,
+  ): Promise<Buffer> {
+    const body = this.extractNewsBody(newsContent);
+    const response = await this.openai.audio.speech.create({
+      model: 'tts-1',
+      voice: 'alloy',
+      input: body,
+    });
+
+    await this.usageCostService.recordTtsUsage({
+      tracking,
+      modelName: 'tts-1',
+      characters: body.length,
+      metadata: { totalContentLength: newsContent.length },
+    });
+
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  private extractNewsBody(content: string): string {
+    const markerMatch = String(content || '').match(/\bDifficult\s+words\s*:/i);
+    if (!markerMatch || typeof markerMatch.index !== 'number') {
+      return content.trim();
+    }
+    return content.slice(0, markerMatch.index).trim();
   }
 
   private normalizeFeedbackText(text: string | undefined) {

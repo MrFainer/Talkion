@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios, { AxiosError, AxiosInstance } from 'axios';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
 import { QuizService } from '../quiz/quiz.service';
@@ -445,6 +447,52 @@ export class WhatsappService {
         this.describeError(error),
       );
       throw error;
+    }
+  }
+
+  private async sendAudioMessage(
+    teacherId: string,
+    numberOrGroupId: string,
+    audioUrl: string,
+    tracking?: OutboundMessageTracking,
+  ) {
+    try {
+      const filePath = join(process.cwd(), audioUrl.replace(/^\//, ''));
+      const audioBuffer = await readFile(filePath);
+      const base64 = audioBuffer.toString('base64');
+
+      const instanceName = await this.resolveInstanceName(teacherId);
+      const response = await this.http.post(`/message/sendMedia/${instanceName}`, {
+        number: numberOrGroupId,
+        media: base64,
+        mediaType: 'audio',
+        mimetype: 'audio/mpeg',
+        fileName: 'audio.mp3',
+      });
+
+      await this.saveOutgoingMessageToDb({
+        studentId: tracking?.studentId || null,
+        remoteJid:
+          tracking?.remoteJid ||
+          response.data?.key?.remoteJid ||
+          this.normalizeRemoteJid(numberOrGroupId),
+        relatedNewsId: tracking?.relatedNewsId || null,
+        relatedQuizId: tracking?.relatedQuizId || null,
+        contentKind: tracking?.contentKind || 'AUDIO',
+        quotedMessageId: tracking?.quotedMessageId || null,
+        externalMessageId: response.data?.key?.id || null,
+        content: '',
+        mediaUrl: audioUrl,
+      });
+
+      this.logger.log(`[SAIDA] Áudio WhatsApp enviado para ${numberOrGroupId}`);
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `[SAIDA][ERRO] Falha ao enviar áudio para ${numberOrGroupId}`,
+        this.describeError(error),
+      );
+      return null;
     }
   }
 
@@ -1451,7 +1499,7 @@ export class WhatsappService {
         orderBy: { created_at: 'desc' },
       });
 
-      const byLevel = new Map<string, { title: string; content: string; level: string; sourceUrl?: string }>();
+      const byLevel = new Map<string, { title: string; content: string; level: string; sourceUrl?: string; audioUrl?: string }>();
       for (const item of records) {
         if (!byLevel.has(item.level)) {
           byLevel.set(item.level, {
@@ -1459,6 +1507,7 @@ export class WhatsappService {
             content: item.content,
             level: item.level,
             sourceUrl: item.source_url || undefined,
+            audioUrl: item.audio_url || undefined,
           });
         }
       }
@@ -1487,6 +1536,7 @@ export class WhatsappService {
               content: item.content,
               level: item.level,
               sourceUrl: item.source_url || undefined,
+              audioUrl: item.audio_url || undefined,
             });
           }
         }
@@ -1600,6 +1650,17 @@ export class WhatsappService {
       ];
     };
 
+    const getAudioUrlForStudent = (student: (typeof studentsToSend)[number]) => {
+      const selectedNews =
+        (student.english_level === 'LEVEL_1' ? newsByLevel.LEVEL_1 : null) ||
+        (student.english_level === 'LEVEL_2' ? newsByLevel.LEVEL_2 : null) ||
+        (student.english_level === 'LEVEL_3' ? newsByLevel.LEVEL_3 : null) ||
+        newsByLevel.LEVEL_1 ||
+        newsByLevel.LEVEL_2 ||
+        newsByLevel.LEVEL_3;
+      return selectedNews?.audioUrl || null;
+    };
+
     const requiredOrder = ['GREETING', 'SPEAKING_INTRO', 'NEWS_INTRO', 'NEWS'] as const;
 
     let count = 0;
@@ -1645,6 +1706,17 @@ export class WhatsappService {
           count++;
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
+
+        const audioUrl = getAudioUrlForStudent(student);
+        if (audioUrl) {
+          await this.sendAudioMessage(teacherId, student.whatsapp_number, audioUrl, {
+            studentId: student.id,
+            relatedNewsId: null,
+            contentKind: 'PRIVATE_BROADCAST_AUDIO',
+          });
+          count++;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       } catch (error) {
         this.logger.error(
           `[BROADCAST] Erro ao enviar para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
@@ -1667,6 +1739,17 @@ export class WhatsappService {
               studentId: student.id,
               relatedNewsId: null,
               contentKind: `PRIVATE_BROADCAST_FALLBACK_${block.tipo}`,
+            });
+            count++;
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+
+          const audioUrl = getAudioUrlForStudent(student);
+          if (audioUrl) {
+            await this.sendAudioMessage(teacherId, student.whatsapp_number, audioUrl, {
+              studentId: student.id,
+              relatedNewsId: null,
+              contentKind: 'PRIVATE_BROADCAST_FALLBACK_AUDIO',
             });
             count++;
             await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -2024,6 +2107,14 @@ export class WhatsappService {
         });
         sentKinds.add('NEWS');
       }
+      if (latestNews.audio_url && !sentKinds.has('AUDIO')) {
+        await this.sendAudioMessage(teacherId, targetNumber, latestNews.audio_url, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          contentKind: 'AUDIO',
+        });
+        sentKinds.add('AUDIO');
+      }
       if (!sentKinds.has('QUIZ_HEADER')) {
         await this.sendMessage(teacherId, targetNumber, quizHeaderMessage, {
           studentId: student?.id || null,
@@ -2105,6 +2196,13 @@ export class WhatsappService {
         relatedNewsId: latestNews.id,
         contentKind: 'NEWS',
       });
+      if (latestNews.audio_url) {
+        await this.sendAudioMessage(teacherId, targetNumber, latestNews.audio_url, {
+          studentId: student?.id || null,
+          relatedNewsId: latestNews.id,
+          contentKind: 'AUDIO',
+        });
+      }
     }
 
     return {
@@ -2230,10 +2328,10 @@ export class WhatsappService {
       return { processed: false, reason: 'Aluno inativo' };
     }
 
-    const parsedAnswers = textContent ? this.parseQuizAnswers(textContent) : [];
+    const isPossibleQuiz = textContent ? this.isPossibleQuizAnswer(textContent) : false;
     const identifiedType = hasAudio
       ? 'audio'
-      : parsedAnswers.length > 0
+      : isPossibleQuiz
         ? 'quiz'
         : 'texto';
 
@@ -2254,7 +2352,7 @@ export class WhatsappService {
         remoteJid,
         externalMessageId: incomingMessageId,
         quotedMessageId,
-        contentKind: hasAudio ? 'AUDIO' : parsedAnswers.length > 0 ? 'QUIZ' : 'TEXT',
+        contentKind: hasAudio ? 'AUDIO' : isPossibleQuiz ? 'QUIZ' : 'TEXT',
       },
     );
 
@@ -2286,13 +2384,52 @@ export class WhatsappService {
         student,
         remoteJid,
         textContent,
-        parsedAnswers,
+        undefined,
         quotedMessageId,
       );
       return { processed: true, event, type: 'text' };
     }
 
     return { processed: false, reason: 'Sem conteúdo útil' };
+  }
+
+  private isPossibleQuizAnswer(text: string): boolean {
+    const cleaned = text.trim().toUpperCase().replace(/\s+/g, ' ');
+    const parts = cleaned
+      .split(/[\s,;.]+/)
+      .map((p) => p.replace(/^(\d+)[-. )]*([A-E])$/, '$1$2'))
+      .filter(Boolean);
+
+    if (parts.length < 2 || parts.length > 6) return false;
+
+    return parts.every(
+      (p) => /^\d*[A-E]$/.test(p) || /^[A-E]$/.test(p),
+    );
+  }
+
+  private async isConfiguredGroup(
+    teacherId: string,
+    remoteJid: string,
+  ): Promise<boolean> {
+    const storedGroup = await this.prisma.whatsappGroup.findFirst({
+      where: { teacher_id: teacherId, group_identifier: remoteJid },
+    });
+    if (storedGroup) return true;
+
+    const settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+      select: { auto_group_targets: true },
+    });
+
+    if (!settings) return false;
+
+    const targets = Array.isArray(settings.auto_group_targets)
+      ? settings.auto_group_targets
+      : [];
+    return targets.some((t: any) => {
+      const gid = String(t?.groupId || t?.id || '').trim();
+      return gid === remoteJid;
+    });
   }
 
   private async handleTextMessage(
@@ -2302,10 +2439,49 @@ export class WhatsappService {
     preParsedAnswers?: ParsedQuizAnswer[],
     quotedMessageId?: string | null,
   ) {
-    const parsedAnswers = preParsedAnswers || this.parseQuizAnswers(text);
-    if (parsedAnswers.length === 0) {
-      return;
+    if (!this.isPossibleQuizAnswer(text)) return;
+
+    const isGroup = remoteJid.includes('@g.us');
+    if (isGroup && student.teacher_id) {
+      const configured = await this.isConfiguredGroup(student.teacher_id, remoteJid);
+      if (!configured) {
+        this.logger.log(
+          `[QUIZ][GRUPO] Resposta ignorada de ${this.formatStudentLog(student)} | grupo nao configurado para automacao.`,
+        );
+        return;
+      }
     }
+
+    let parsedAnswers = preParsedAnswers;
+
+    if (!parsedAnswers || parsedAnswers.length === 0) {
+      const fallbackQuiz = await this.prisma.quiz.findFirst({
+        where: { teacher_id: student.teacher_id },
+        orderBy: { created_at: 'desc' },
+      });
+
+      if (fallbackQuiz) {
+        const questionsArray = Array.isArray(fallbackQuiz.questions)
+          ? (fallbackQuiz.questions as QuizQuestion[])
+          : [];
+        const aiAnswers = await this.aiService.interpretQuizAnswers(
+          text,
+          questionsArray.length,
+          { teacherId: student.teacher_id, studentId: student.id },
+        );
+        if (aiAnswers && aiAnswers.length > 0) {
+          this.logger.log(
+            `[QUIZ][IA] Respostas interpretadas por IA para ${this.formatStudentLog(student)}: ${JSON.stringify(aiAnswers)}`,
+          );
+          parsedAnswers = aiAnswers.map((a) => ({
+            questionIndex: a.questionIndex,
+            selectedAnswer: a.selectedAnswer as ParsedQuizAnswer['selectedAnswer'],
+          }));
+        }
+      }
+    }
+
+    if (!parsedAnswers || parsedAnswers.length === 0) return;
 
     const referencedMessage = await this.resolveReferencedMessage(quotedMessageId);
     let quizResolutionSource = 'fallback';
@@ -2390,18 +2566,16 @@ export class WhatsappService {
       return correctLetter || '-';
     });
 
-    if (correctLetters.includes('-')) {
-      return;
-    }
+    if (correctLetters.includes('-')) return;
 
     const normalizedAnswers = new Array<string>(questionsArray.length).fill('-');
     const usedQuestionIndexes = new Set<number>();
 
-    for (const [answerPosition, parsedAnswer] of parsedAnswers.entries()) {
+    for (const parsedAnswer of parsedAnswers) {
       const questionIndex =
         parsedAnswer.questionIndex !== undefined
           ? parsedAnswer.questionIndex
-          : answerPosition;
+          : parsedAnswers.indexOf(parsedAnswer);
 
       if (questionIndex < 0 || questionIndex >= questionsArray.length) {
         this.logger.warn(
@@ -2881,6 +3055,7 @@ export class WhatsappService {
     quotedMessageId: string | null;
     externalMessageId: string | null;
     content: string;
+    mediaUrl?: string | null;
   }) {
     try {
       if (input.externalMessageId) {
@@ -2899,7 +3074,7 @@ export class WhatsappService {
           message_type: input.remoteJid?.includes('@g.us') ? 'GROUP' : 'PRIVATE',
           direction: 'OUTGOING',
           content: input.content,
-          media_url: null,
+          media_url: input.mediaUrl || null,
           remote_jid: input.remoteJid,
           external_message_id: input.externalMessageId,
           quoted_message_id: input.quotedMessageId,

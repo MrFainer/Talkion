@@ -39,6 +39,7 @@ enum CostProvider {
 
 enum CostAction {
   NEWS_FALLBACK_GENERATION
+  NEWS_TTS_GENERATION
   QUIZ_GENERATION
   SPEAKING_TRANSCRIPTION
   SPEAKING_EVALUATION
@@ -70,6 +71,7 @@ model User {
   news_group_title   String?
   whatsapp_instance_name String? @unique
   active             Boolean  @default(true)
+  credit_balance     Float    @default(0)
   created_at         DateTime @default(now())
 
   student         Student?
@@ -120,6 +122,7 @@ model News {
   level       String
   source_type SourceType @default(SCRAPED)
   source_url  String?
+  audio_url   String?
   created_at  DateTime   @default(now())
 
   teacher          User?             @relation("TeacherNews", fields: [teacher_id], references: [id])

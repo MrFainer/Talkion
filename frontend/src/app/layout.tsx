@@ -34,7 +34,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <TooltipProvider>
           <ProtectedRoute>
-            <div className="flex min-h-[100dvh] w-full overflow-x-hidden">
+            <div className="flex min-h-[100dvh] w-full [overflow-x:clip]">
               {children}
             </div>
           </ProtectedRoute>
