@@ -422,7 +422,7 @@ export default function DashboardPage() {
               )}
             </CardHeader>
             <CardContent>
-              {chartData.length > 1 ? (
+              {chartData.length > 0 ? (
                 <>
                   <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height={256}>

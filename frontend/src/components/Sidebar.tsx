@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import {
   Users,
   Wallet,
+  LayoutDashboard,
   MessageCircle,
   Bot,
   Menu,
@@ -267,7 +268,7 @@ export function Sidebar() {
   const dashboardHref = isAdmin ? "/billing" : "/dashboard";
   const dashboardLabel = isAdmin ? "Faturamento" : "Dashboard";
   const links = [
-    { href: dashboardHref, label: dashboardLabel, icon: Wallet },
+    { href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard },
     { href: "/students", label: "Alunos", icon: Users },
     { href: "/lessons", label: "Aulas", icon: CalendarDays },
     { href: "/automation", label: "Automação", icon: Bot },
