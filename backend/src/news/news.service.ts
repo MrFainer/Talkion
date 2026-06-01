@@ -82,7 +82,7 @@ export class NewsService {
     }
   }
 
-  async runDailyNewsAndQuiz(tracking?: UsageTrackingContext) {
+  async runDailyNewsAndQuiz(tracking?: UsageTrackingContext, generateQuiz: boolean = true) {
     const teacherId = tracking?.teacherId;
     if (!teacherId) {
       throw new BadRequestException('teacherId é obrigatório para gerar notícia e quiz.');
@@ -98,7 +98,9 @@ export class NewsService {
     }
 
     const newsResults = await this.scrapeLatestNews(tracking);
-    const quizResults = await this.generateQuizzesForResults(newsResults, tracking);
+    const quizResults = generateQuiz
+      ? await this.generateQuizzesForResults(newsResults, tracking)
+      : [];
 
     return {
       message: 'Processamento diário de notícias e quiz concluído.',

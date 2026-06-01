@@ -1119,6 +1119,8 @@ export class WhatsappService {
       timeZone,
     }).format(new Date());
 
+    const dayOfWeek = new Date(new Date().toLocaleString('en-US', { timeZone })).getDay();
+
     let teachers: Array<{
       id: string;
       messageSettings: {
@@ -1127,6 +1129,11 @@ export class WhatsappService {
         group_news_send_time: string;
         lessons_confirmation_time: string;
         lessons_confirmation_enabled: boolean;
+        news_capture_enabled: boolean;
+        quiz_generation_enabled: boolean;
+        auto_send_enabled: boolean;
+        group_send_enabled: boolean;
+        automation_days: unknown;
         auto_group_targets: unknown;
       } | null;
     }> = [];
@@ -1142,6 +1149,11 @@ export class WhatsappService {
               group_news_send_time: true,
               lessons_confirmation_time: true,
               lessons_confirmation_enabled: true,
+              news_capture_enabled: true,
+              quiz_generation_enabled: true,
+              auto_send_enabled: true,
+              group_send_enabled: true,
+              automation_days: true,
               auto_group_targets: true,
             },
           },
@@ -1164,12 +1176,16 @@ export class WhatsappService {
       privateDue: boolean;
       groupDue: boolean;
       lessonsDue: boolean;
+      generateQuiz: boolean;
       targets: Array<{ groupId: string; groupLevel?: string }>;
     }> = [];
 
     for (const teacher of teachers) {
       const settings = teacher.messageSettings;
       if (!settings) continue;
+
+      const days = Array.isArray(settings.automation_days) ? settings.automation_days : [0, 1, 2, 3, 4, 5, 6];
+      const isAutomationDay = days.includes(dayOfWeek);
 
       const targetsRaw = settings.auto_group_targets;
       const targets = Array.isArray(targetsRaw) ? targetsRaw : [];
@@ -1181,11 +1197,17 @@ export class WhatsappService {
         .filter((item: any) => Boolean(item.groupId));
 
       const captureDue =
+        isAutomationDay &&
+        settings.news_capture_enabled !== false &&
         settings.news_capture_time && settings.news_capture_time === hhmm;
       const privateDue =
+        isAutomationDay &&
+        settings.auto_send_enabled !== false &&
         settings.private_news_send_time &&
         settings.private_news_send_time === hhmm;
       const groupDue =
+        isAutomationDay &&
+        settings.group_send_enabled !== false &&
         settings.group_news_send_time &&
         settings.group_news_send_time === hhmm &&
         normalizedTargets.length > 0;
@@ -1203,6 +1225,7 @@ export class WhatsappService {
         privateDue: Boolean(privateDue),
         groupDue: Boolean(groupDue),
         lessonsDue: Boolean(lessonsDue),
+        generateQuiz: settings.quiz_generation_enabled !== false,
         targets: normalizedTargets,
       });
     }
@@ -1265,7 +1288,7 @@ export class WhatsappService {
           referenceType: 'news_automation_capture',
           referenceId: `${new Date().toISOString()}:${jobId}`,
           metadata: { trigger: 'automation' },
-        });
+        }, job.generateQuiz);
       } catch (error) {
         this.logger.error(
           `[AUTO][${jobId}] Falha captura teacherId=${job.teacherId}: ${
@@ -2222,8 +2245,8 @@ export class WhatsappService {
       }
     }
 
-    if (providedTeacherId) {
-      await this.creditsService.deductCredits(providedTeacherId, 'news_quiz_group_send', 'whatsapp', quizId || undefined);
+    if (teacherId) {
+      await this.creditsService.deductCredits(teacherId, 'news_quiz_group_send', 'whatsapp', quizId || undefined);
     }
 
     return {
@@ -2464,6 +2487,7 @@ export class WhatsappService {
 
     if (student.teacher_id) {
       await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_received');
+      await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_metrics');
     }
 
     const isGroup = remoteJid.includes('@g.us');
@@ -2641,6 +2665,10 @@ export class WhatsappService {
         is_correct: isCorrect,
       },
     });
+
+    if (student.teacher_id) {
+      await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_metrics', 'quiz', latestQuiz.id);
+    }
 
     this.logger.log(
       `[QUIZ] Resposta registrada para ${this.formatStudentLog(student)} | quiz ${latestQuiz.id} | respostas: ${normalizedAnswers.join(',')} | gabarito: ${correctLetters.join(',')} | acertou tudo: ${isCorrect ? 'sim' : 'nao'}`,

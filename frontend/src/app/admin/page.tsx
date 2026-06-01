@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Settings2 } from "lucide-react";
+import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Settings2, Power, PowerOff, ChevronDown, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import * as XLSX from "xlsx";
 
 export default function AdminPage() {
@@ -21,6 +22,10 @@ export default function AdminPage() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [editingCredits, setEditingCredits] = useState<string | null>(null);
   const [creditValues, setCreditValues] = useState<Record<string, string>>({});
+
+  const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
+  const [teacherSettings, setTeacherSettings] = useState<Record<string, any>>({});
+  const [settingsLoading, setSettingsLoading] = useState<Record<string, boolean>>({});
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -139,6 +144,42 @@ export default function AdminPage() {
     }
   };
 
+  const toggleExpandTeacher = useCallback(async (teacherId: string) => {
+    if (expandedTeacherId === teacherId) {
+      setExpandedTeacherId(null);
+      return;
+    }
+    setExpandedTeacherId(teacherId);
+    if (!teacherSettings[teacherId]) {
+      setSettingsLoading((prev) => ({ ...prev, [teacherId]: true }));
+      try {
+        const res = await api.get(`/message-settings/${teacherId}`);
+        setTeacherSettings((prev) => ({ ...prev, [teacherId]: res.data }));
+      } catch {
+        toast.error("Erro ao carregar configurações do professor.");
+      } finally {
+        setSettingsLoading((prev) => ({ ...prev, [teacherId]: false }));
+      }
+    }
+  }, [expandedTeacherId, teacherSettings]);
+
+  const handleAdminToggleSetting = async (teacherId: string, field: string, currentValue: boolean) => {
+    const nextValue = !currentValue;
+    setTeacherSettings((prev) => ({
+      ...prev,
+      [teacherId]: { ...prev[teacherId], [field]: nextValue },
+    }));
+    try {
+      await api.put(`/message-settings/${teacherId}`, { [field]: nextValue });
+    } catch {
+      setTeacherSettings((prev) => ({
+        ...prev,
+        [teacherId]: { ...prev[teacherId], [field]: currentValue },
+      }));
+      toast.error("Erro ao atualizar configuração.");
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat("pt-BR", {
       dateStyle: "short",
@@ -228,92 +269,260 @@ export default function AdminPage() {
                 </TableHeader>
                 <TableBody>
                   {teachers.map((teacher) => (
-                    <TableRow key={teacher.id}>
-                      <TableCell className="font-medium">{teacher.name}</TableCell>
-                      <TableCell className="max-w-[240px] whitespace-normal break-words">{teacher.email}</TableCell>
-                      <TableCell>{formatDate(teacher.created_at)}</TableCell>
-                      <TableCell>{teacher.totalTokens?.toLocaleString("pt-BR") || 0}</TableCell>
-                      <TableCell>{teacher.inputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
-                      <TableCell>{teacher.outputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
-                      <TableCell>{teacher.cachedTokens?.toLocaleString("pt-BR") || 0}</TableCell>
-                      <TableCell>{teacher.audioSeconds?.toLocaleString("pt-BR") || 0}</TableCell>
-                      <TableCell>{teacher.ttsCharacters?.toLocaleString("pt-BR") || 0}</TableCell>
-                      <TableCell>
-                        {editingCredits === teacher.id ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={creditValues[teacher.id] ?? teacher.creditBalance ?? 0}
-                              onChange={(e) =>
+                    <React.Fragment key={teacher.id}>
+                      <TableRow
+                        className="cursor-pointer"
+                        onClick={() => toggleExpandTeacher(teacher.id)}
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {expandedTeacherId === teacher.id ? (
+                              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            {teacher.name}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[240px] whitespace-normal break-words">{teacher.email}</TableCell>
+                        <TableCell>{formatDate(teacher.created_at)}</TableCell>
+                        <TableCell>{teacher.totalTokens?.toLocaleString("pt-BR") || 0}</TableCell>
+                        <TableCell>{teacher.inputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
+                        <TableCell>{teacher.outputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
+                        <TableCell>{teacher.cachedTokens?.toLocaleString("pt-BR") || 0}</TableCell>
+                        <TableCell>{teacher.audioSeconds?.toLocaleString("pt-BR") || 0}</TableCell>
+                        <TableCell>{teacher.ttsCharacters?.toLocaleString("pt-BR") || 0}</TableCell>
+                        <TableCell>
+                          {editingCredits === teacher.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={creditValues[teacher.id] ?? teacher.creditBalance ?? 0}
+                                onChange={(e) =>
+                                  setCreditValues((prev) => ({
+                                    ...prev,
+                                    [teacher.id]: e.target.value,
+                                  }))
+                                }
+                                className="h-8 w-20 text-xs"
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => handleSaveCredits(teacher.id)}
+                              >
+                                OK
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => setEditingCredits(null)}
+                              >
+                                X
+                              </Button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingCredits(teacher.id);
                                 setCreditValues((prev) => ({
                                   ...prev,
-                                  [teacher.id]: e.target.value,
-                                }))
-                              }
-                              className="h-8 w-20 text-xs"
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 px-2 text-xs"
-                              onClick={() => handleSaveCredits(teacher.id)}
+                                  [teacher.id]: String(teacher.creditBalance ?? 0),
+                                }));
+                              }}
+                              className="inline-flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors"
                             >
-                              OK
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 px-2 text-xs"
-                              onClick={() => setEditingCredits(null)}
-                            >
-                              X
-                            </Button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setEditingCredits(teacher.id);
-                              setCreditValues((prev) => ({
-                                ...prev,
-                                [teacher.id]: String(teacher.creditBalance ?? 0),
-                              }));
-                            }}
-                            className="inline-flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors"
+                              <Coins className="h-3.5 w-3.5" />
+                              {Number(teacher.creditBalance ?? 0).toLocaleString("pt-BR", {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0,
+                              })}
+                            </button>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {teacher.active ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Ativo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+                              <Ban className="h-3.5 w-3.5" />
+                              Bloqueado
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant={teacher.active ? "destructive" : "default"}
+                            size="sm"
+                            onClick={() => toggleStatus(teacher.id)}
+                            disabled={toggling === teacher.id}
                           >
-                            <Coins className="h-3.5 w-3.5" />
-                            {Number(teacher.creditBalance ?? 0).toLocaleString("pt-BR", {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0,
-                            })}
-                          </button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {teacher.active ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Ativo
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
-                            <Ban className="h-3.5 w-3.5" />
-                            Bloqueado
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant={teacher.active ? "destructive" : "default"}
-                          size="sm"
-                          onClick={() => toggleStatus(teacher.id)}
-                          disabled={toggling === teacher.id}
-                        >
-                          {toggling === teacher.id ? "Aguarde..." : teacher.active ? "Bloquear Acesso" : "Liberar Acesso"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                            {toggling === teacher.id ? "Aguarde..." : teacher.active ? "Bloquear Acesso" : "Liberar Acesso"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {expandedTeacherId === teacher.id && (
+                        <TableRow>
+                          <TableCell colSpan={12} className="bg-muted/30 p-4">
+                            {settingsLoading[teacher.id] ? (
+                              <p className="text-sm text-muted-foreground">Carregando configurações...</p>
+                            ) : teacherSettings[teacher.id] ? (
+                              <div className="flex flex-wrap items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Capturar notícia</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'news_capture_enabled', teacherSettings[teacher.id]?.news_capture_enabled !== false);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.news_capture_enabled !== false ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.news_capture_enabled !== false ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.news_capture_enabled !== false ? "Desativar Captura" : "Ativar Captura"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Gerar quiz</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'quiz_generation_enabled', teacherSettings[teacher.id]?.quiz_generation_enabled !== false);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.quiz_generation_enabled !== false ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.quiz_generation_enabled !== false ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.quiz_generation_enabled !== false ? "Desativar Quiz" : "Ativar Quiz"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Envio privado</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'auto_send_enabled', teacherSettings[teacher.id]?.auto_send_enabled !== false);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.auto_send_enabled !== false ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.auto_send_enabled !== false ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.auto_send_enabled !== false ? "Desativar Envio" : "Ativar Envio"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Envio grupo</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'group_send_enabled', teacherSettings[teacher.id]?.group_send_enabled !== false);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.group_send_enabled !== false ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.group_send_enabled !== false ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.group_send_enabled !== false ? "Desativar Envio Grupo" : "Ativar Envio Grupo"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Conf. Aula</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'lessons_confirmation_enabled', teacherSettings[teacher.id]?.lessons_confirmation_enabled === true);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.lessons_confirmation_enabled === true ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.lessons_confirmation_enabled === true ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.lessons_confirmation_enabled === true ? "Desativar Conf. Aula" : "Ativar Conf. Aula"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">Erro ao carregar configurações.</p>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   ))}
                 </TableBody>
               </Table>

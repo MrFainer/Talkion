@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -56,6 +56,11 @@ type MessageSettingsPayload = {
   group_news_send_time?: string;
   lessons_confirmation_time?: string;
   lessons_confirmation_enabled?: boolean;
+  news_capture_enabled?: boolean;
+  quiz_generation_enabled?: boolean;
+  auto_send_enabled?: boolean;
+  group_send_enabled?: boolean;
+  automation_days?: number[];
   auto_group_targets?: any;
 };
 
@@ -89,6 +94,15 @@ export default function AutomationPage() {
   const [groupSendTime, setGroupSendTime] = useState("08:00");
   const [lessonsConfirmationTime, setLessonsConfirmationTime] = useState("08:00");
   const [lessonsConfirmationEnabled, setLessonsConfirmationEnabled] = useState(true);
+  const [newsCaptureEnabled, setNewsCaptureEnabled] = useState(true);
+  const [quizGenerationEnabled, setQuizGenerationEnabled] = useState(true);
+  const [autoSendEnabled, setAutoSendEnabled] = useState(true);
+  const [groupSendEnabled, setGroupSendEnabled] = useState(true);
+  const [initialNewsCaptureEnabled, setInitialNewsCaptureEnabled] = useState(true);
+  const [initialAutoSendEnabled, setInitialAutoSendEnabled] = useState(true);
+  const [initialGroupSendEnabled, setInitialGroupSendEnabled] = useState(true);
+  const [initialLessonsConfirmationEnabled, setInitialLessonsConfirmationEnabled] = useState(true);
+  const [automationDays, setAutomationDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [lessonsConfirmationSaving, setLessonsConfirmationSaving] = useState(false);
   const [autoGroupTargets, setAutoGroupTargets] = useState<
     Array<{ groupId: string; groupLevel: "LEVEL_1" | "LEVEL_2" | "LEVEL_3" }>
@@ -296,6 +310,16 @@ export default function AutomationPage() {
       setGroupSendTime(payload.group_news_send_time || "08:00");
       setLessonsConfirmationTime(payload.lessons_confirmation_time || "08:00");
       setLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
+      setNewsCaptureEnabled(payload.news_capture_enabled !== false);
+      setInitialNewsCaptureEnabled(payload.news_capture_enabled !== false);
+      setQuizGenerationEnabled(payload.quiz_generation_enabled !== false);
+      setAutoSendEnabled(payload.auto_send_enabled !== false);
+      setInitialAutoSendEnabled(payload.auto_send_enabled !== false);
+      setGroupSendEnabled(payload.group_send_enabled !== false);
+      setInitialGroupSendEnabled(payload.group_send_enabled !== false);
+      setLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
+      setInitialLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
+      setAutomationDays(Array.isArray(payload.automation_days) ? payload.automation_days : [0, 1, 2, 3, 4, 5, 6]);
       const rawTargets = payload.auto_group_targets;
       const parsedTargets = Array.isArray(rawTargets)
         ? rawTargets
@@ -342,6 +366,11 @@ export default function AutomationPage() {
         group_news_send_time: groupSendTime || "08:00",
         lessons_confirmation_time: lessonsConfirmationTime || "08:00",
         lessons_confirmation_enabled: lessonsConfirmationEnabled,
+        news_capture_enabled: newsCaptureEnabled,
+        quiz_generation_enabled: quizGenerationEnabled,
+        auto_send_enabled: autoSendEnabled,
+        group_send_enabled: groupSendEnabled,
+        automation_days: automationDays,
         auto_group_targets: autoGroupTargets,
       });
       toast.success("Horários salvos com sucesso.", { id: toastId });
@@ -381,6 +410,42 @@ export default function AutomationPage() {
     }
   };
 
+  const handleToggleNewsCapture = async () => {
+    if (!user?.id) return;
+    const nextValue = !newsCaptureEnabled;
+    setNewsCaptureEnabled(nextValue);
+    try {
+      await api.put(`/message-settings/${user.id}`, { news_capture_enabled: nextValue });
+    } catch {
+      setNewsCaptureEnabled(!nextValue);
+      toast.error("Erro ao atualizar captura de notícia.");
+    }
+  };
+
+  const handleToggleAutoSend = async () => {
+    if (!user?.id) return;
+    const nextValue = !autoSendEnabled;
+    setAutoSendEnabled(nextValue);
+    try {
+      await api.put(`/message-settings/${user.id}`, { auto_send_enabled: nextValue });
+    } catch {
+      setAutoSendEnabled(!nextValue);
+      toast.error("Erro ao atualizar envio automático.");
+    }
+  };
+
+  const toggleAutomationDay = (day: number) => {
+    setAutomationDays((prev) => {
+      if (prev.includes(day)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((d) => d !== day);
+      }
+      return [...prev, day].sort();
+    });
+  };
+
+  const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
   const isGroupSelected = (groupId: string) => {
     return autoGroupTargets.some((item) => item.groupId === groupId);
   };
@@ -417,18 +482,21 @@ export default function AutomationPage() {
           <h1 className="text-2xl sm:text-3xl font-bold">Automação</h1>
         </div>
 
+        {initialNewsCaptureEnabled && (
         <Card>
           <CardHeader>
             <CardTitle>Gerar Notícia e Quiz</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">Busca a notícia do dia e valida/cria os quizzes de cada nível.</p>
-            <Button onClick={handleRunDailyNews} disabled={runningDailyNews} className="h-9">
+            <Button onClick={handleRunDailyNews} disabled={runningDailyNews} className="h-9 shrink-0">
               {runningDailyNews ? "Processando..." : "Gerar"}
             </Button>
           </CardContent>
         </Card>
+        )}
 
+        {initialNewsCaptureEnabled && (
         <Card>
           <CardHeader>
             <CardTitle>Disparar Notícia</CardTitle>
@@ -442,6 +510,7 @@ export default function AutomationPage() {
             </Button>
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -453,28 +522,83 @@ export default function AutomationPage() {
             </p>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {initialNewsCaptureEnabled && (
               <div className="space-y-2">
                 <Label htmlFor="news-capture-time">Capturar notícia</Label>
-                <Input
-                  id="news-capture-time"
-                  type="time"
-                  value={newsCaptureTime}
-                  onChange={(e) => setNewsCaptureTime(e.target.value)}
-                  disabled={scheduleLoading || scheduleSaving}
-                  className="h-9 w-full min-w-0 sm:w-32"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="news-capture-time"
+                    type="time"
+                    value={newsCaptureTime}
+                    onChange={(e) => setNewsCaptureTime(e.target.value)}
+                    disabled={scheduleLoading || scheduleSaving}
+                    className="h-9 w-full min-w-0 sm:w-32"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleToggleNewsCapture}
+                          className={newsCaptureEnabled ? "text-red-500" : "text-green-500"}
+                          aria-label={newsCaptureEnabled ? "Desativar captura de notícia" : "Ativar captura de notícia"}
+                        >
+                          {newsCaptureEnabled ? (
+                            <PowerOff className="h-4 w-4" />
+                          ) : (
+                            <Power className="h-4 w-4" />
+                          )}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>
+                      <p>{newsCaptureEnabled ? "Desativar Captura" : "Ativar Captura"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
+              )}
+              {initialAutoSendEnabled && (
               <div className="space-y-2">
                 <Label htmlFor="private-send-time">Envio automático (privado)</Label>
-                <Input
-                  id="private-send-time"
-                  type="time"
-                  value={privateSendTime}
-                  onChange={(e) => setPrivateSendTime(e.target.value)}
-                  disabled={scheduleLoading || scheduleSaving}
-                  className="h-9 w-full min-w-0 sm:w-32"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="private-send-time"
+                    type="time"
+                    value={privateSendTime}
+                    onChange={(e) => setPrivateSendTime(e.target.value)}
+                    disabled={scheduleLoading || scheduleSaving}
+                    className="h-9 w-full min-w-0 sm:w-32"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleToggleAutoSend}
+                          className={autoSendEnabled ? "text-red-500" : "text-green-500"}
+                          aria-label={autoSendEnabled ? "Desativar envio automático" : "Ativar envio automático"}
+                        >
+                          {autoSendEnabled ? (
+                            <PowerOff className="h-4 w-4" />
+                          ) : (
+                            <Power className="h-4 w-4" />
+                          )}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>
+                      <p>{autoSendEnabled ? "Desativar Envio Automático" : "Ativar Envio Automático"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </div>
+              )}
+              {initialGroupSendEnabled && (
               <div className="space-y-2">
                 <Label htmlFor="group-send-time">Envio automático (grupos)</Label>
                 <Input
@@ -491,6 +615,8 @@ export default function AutomationPage() {
                   </p>
                 ) : null}
               </div>
+              )}
+              {initialLessonsConfirmationEnabled && (
               <div className="space-y-2">
                 <Label htmlFor="lessons-confirm-time">Confirmação de aula</Label>
                 <div className="flex items-center gap-2">
@@ -499,7 +625,7 @@ export default function AutomationPage() {
                     type="time"
                     value={lessonsConfirmationTime}
                     onChange={(e) => setLessonsConfirmationTime(e.target.value)}
-                    disabled={scheduleLoading || scheduleSaving || !lessonsConfirmationEnabled}
+                    disabled={scheduleLoading || scheduleSaving}
                     className="h-9 w-full min-w-0 sm:w-32"
                   />
                   <Tooltip>
@@ -529,6 +655,32 @@ export default function AutomationPage() {
                     </TooltipContent>
                   </Tooltip>
                 </div>
+              </div>
+              )}
+            </div>
+
+            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && user?.role !== "ADMIN" && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                As funções de automação estão desativadas para a sua conta. Entre em contato com o administrador do
+                Talkion para mais informações.
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Dias da semana (automático)</Label>
+              <div className="flex flex-wrap gap-2">
+                {dayLabels.map((label, index) => (
+                  <Button
+                    key={index}
+                    type="button"
+                    variant={automationDays.includes(index) ? "default" : "outline"}
+                    onClick={() => toggleAutomationDay(index)}
+                    disabled={scheduleLoading || scheduleSaving}
+                    size="sm"
+                    className="h-9 min-w-[44px]"
+                  >
+                    {label}
+                  </Button>
+                ))}
               </div>
             </div>
 

@@ -33,6 +33,11 @@ export class UpdateSettingsDto {
   group_news_send_time?: string;
   lessons_confirmation_time?: string;
   lessons_confirmation_enabled?: boolean;
+  news_capture_enabled?: boolean;
+  quiz_generation_enabled?: boolean;
+  auto_send_enabled?: boolean;
+  group_send_enabled?: boolean;
+  automation_days?: any;
   auto_group_targets?: any;
 
   ignored_groups?: any;

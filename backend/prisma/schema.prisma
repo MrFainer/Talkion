@@ -313,6 +313,12 @@ model MessageSettings {
   lessons_confirmation_time   String   @db.VarChar(5) @default("08:00")
   lessons_confirmation_enabled Boolean @default(false)
 
+  news_capture_enabled        Boolean  @default(true)
+  quiz_generation_enabled     Boolean  @default(true)
+  auto_send_enabled           Boolean  @default(true)
+  group_send_enabled          Boolean  @default(true)
+  automation_days             Json     @default("[0,1,2,3,4,5,6]")
+
   auto_group_targets          Json     @default("[]")
   
   ignored_groups              Json     @default("[]")

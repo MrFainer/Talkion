@@ -1385,6 +1385,11 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
         tips?: string[];
       };
 
+      if (teachId) {
+        await this.creditsService.deductCredits(teachId as string, 'speaking_transcription');
+        await this.creditsService.deductCredits(teachId as string, 'speaking_feedback');
+      }
+
       return {
         score:
           typeof parsed.score === 'number' && Number.isFinite(parsed.score)
@@ -1413,11 +1418,6 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
           : [],
         transcription: studentTranscription,
       };
-
-      if (teachId) {
-        await this.creditsService.deductCredits(teachId as string, 'speaking_transcription');
-        await this.creditsService.deductCredits(teachId as string, 'speaking_feedback');
-      }
     } catch (error) {
       this.logger.error('Erro ao avaliar speaking via IA', error);
       throw error;
