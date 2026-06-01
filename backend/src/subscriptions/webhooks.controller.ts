@@ -49,7 +49,7 @@ export class WebhooksController {
   ) {
     const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
 
-    if (secret && !validateMercadoPagoSignature(body, signature, secret)) {
+    if (signature && secret && !validateMercadoPagoSignature(body, signature, secret)) {
       this.logger.warn(`Invalid webhook signature (requestId: ${requestId || 'N/A'})`);
       throw new UnauthorizedException('Invalid signature');
     }
