@@ -14,6 +14,8 @@ import { StudentsModule } from './students/students.module';
 import { SettingsModule } from './settings/settings.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { TeacherDashboardModule } from './teacher-dashboard/teacher-dashboard.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { CreditsModule } from './credits/credits.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { TeacherDashboardModule } from './teacher-dashboard/teacher-dashboard.mo
     SettingsModule,
     LessonsModule,
     TeacherDashboardModule,
+    SubscriptionsModule,
+    CreditsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

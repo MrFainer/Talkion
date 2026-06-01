@@ -85,4 +85,88 @@ export class MailService {
       this.logger.warn(`Fallback: O código de redefinição para ${to} é ${token}`);
     }
   }
+
+  async sendLowCreditsEmail(to: string, name: string, balance: number) {
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject: '⚠️ Créditos baixos - Talkion',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #f59e0b; text-align: center;">Créditos Baixos</h2>
+            <p>Olá ${name},</p>
+            <p>Seus créditos no Talkion estão acabando!</p>
+            <div style="background-color: #fef3c7; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; color: #92400e;">${Math.floor(balance)}</span>
+              <p style="color: #92400e; margin: 5px 0 0;">créditos restantes</p>
+            </div>
+            <p>Recomendamos que você adquira mais créditos ou um plano com mais créditos mensais para continuar usando a plataforma sem interrupções.</p>
+            <p style="text-align: center; margin-top: 20px;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Adquirir Créditos</a>
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`E-mail de créditos baixos enviado: ${info.messageId}`);
+    } catch (error) {
+      this.logger.error('Erro ao enviar e-mail de créditos baixos', error);
+    }
+  }
+
+  async sendPaymentApprovedEmail(to: string, name: string, planName: string, amount: number, credits: number) {
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject: '✅ Pagamento aprovado - Talkion',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #10b981; text-align: center;">Pagamento Aprovado!</h2>
+            <p>Olá ${name},</p>
+            <p>Seu pagamento foi aprovado com sucesso!</p>
+            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>Plano:</strong> ${planName}</p>
+              <p style="margin: 5px 0;"><strong>Valor:</strong> R$ ${amount.toFixed(2)}</p>
+              <p style="margin: 5px 0;"><strong>Créditos recebidos:</strong> ${credits.toLocaleString('pt-BR')}</p>
+            </div>
+            <p>Seus créditos já estão disponíveis na sua conta. Aproveite!</p>
+          </div>
+        `,
+      });
+      this.logger.log(`E-mail de pagamento aprovado enviado: ${info.messageId}`);
+    } catch (error) {
+      this.logger.error('Erro ao enviar e-mail de pagamento aprovado', error);
+    }
+  }
+
+  async sendPaymentRejectedEmail(to: string, name: string, planName: string, amount: number) {
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject: '❌ Pagamento recusado - Talkion',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #ef4444; text-align: center;">Pagamento Recusado</h2>
+            <p>Olá ${name},</p>
+            <p>Infelizmente seu pagamento do plano <strong>${planName}</strong> no valor de <strong>R$ ${amount.toFixed(2)}</strong> foi recusado.</p>
+            <p>Possíveis motivos:</p>
+            <ul>
+              <li>Saldo insuficiente</li>
+              <li>Cartão bloqueado</li>
+              <li>Dados incorretos</li>
+            </ul>
+            <p style="text-align: center; margin-top: 20px;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions/checkout" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Tentar Novamente</a>
+            </p>
+            <p>Verifique seus dados e tente novamente. Se o problema persistir, entre em contato com seu banco.</p>
+          </div>
+        `,
+      });
+      this.logger.log(`E-mail de pagamento recusado enviado: ${info.messageId}`);
+    } catch (error) {
+      this.logger.error('Erro ao enviar e-mail de pagamento recusado', error);
+    }
+  }
 }

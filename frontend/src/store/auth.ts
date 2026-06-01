@@ -13,6 +13,9 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
+  subscriptionStatus: string | null;
+  subscriptionNextBillingDate: string | null;
+  setSubscriptionData: (status: string | null, nextBillingDate?: string | null) => void;
   login: (user: User, token: string, rememberMe?: boolean) => void;
   logout: () => void;
   hydrate: () => void;
@@ -26,6 +29,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   isAuthenticated: false,
   isHydrated: false,
+  subscriptionStatus: null,
+  subscriptionNextBillingDate: null,
+  setSubscriptionData: (status, nextBillingDate) =>
+    set({ subscriptionStatus: status, subscriptionNextBillingDate: nextBillingDate ?? null }),
   login: (user, token, rememberMe = true) => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
@@ -46,11 +53,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(USER_KEY);
     }
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, token: null, isAuthenticated: false, subscriptionStatus: null, subscriptionNextBillingDate: null });
   },
   hydrate: () => {
     if (typeof window === 'undefined') return;
-    
+
     const token =
       localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
     const userRaw =

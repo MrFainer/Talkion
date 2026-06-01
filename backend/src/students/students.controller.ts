@@ -28,11 +28,6 @@ export class StudentsController {
     return this.studentsService.importExcel(teacherId, file);
   }
 
-  @Patch('teacher/:teacherId/:studentId/toggle')
-  async toggle(@Param('teacherId') teacherId: string, @Param('studentId') studentId: string) {
-    return this.studentsService.toggleActive(teacherId, studentId);
-  }
-
   @Patch('teacher/:teacherId/:studentId/level')
   async updateLevel(
     @Param('teacherId') teacherId: string, 

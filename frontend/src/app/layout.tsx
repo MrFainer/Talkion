@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import SubscriptionGuard from "@/components/SubscriptionGuard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -34,9 +35,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <TooltipProvider>
           <ProtectedRoute>
-            <div className="flex min-h-[100dvh] w-full [overflow-x:clip]">
-              {children}
-            </div>
+            <SubscriptionGuard>
+              <div className="flex min-h-[100dvh] w-full [overflow-x:clip]">
+                {children}
+              </div>
+            </SubscriptionGuard>
           </ProtectedRoute>
           <Toaster position="bottom-right" expand={true} />
         </TooltipProvider>

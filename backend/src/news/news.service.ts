@@ -6,6 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
+import { CreditsService } from '../credits/credits.service';
 import type { UsageTrackingContext } from '../ai/usage-cost.service';
 import { QuizService } from '../quiz/quiz.service';
 
@@ -50,6 +51,7 @@ export class NewsService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly quizService: QuizService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   async handleDailyNewsScraping() {
@@ -455,6 +457,13 @@ export class NewsService {
       },
     });
 
+    if (tracking?.teacherId) {
+      const actionKey = input.sourceType === SourceType.AI_GENERATED
+        ? 'news_ai_fallback'
+        : `news_capture_${input.level.toLowerCase().replace('level_', 'level_')}`;
+      await this.creditsService.deductCredits(tracking.teacherId, actionKey, 'news', createdNews.id);
+    }
+
     if (input.sourceType === SourceType.AI_GENERATED) {
       try {
         const audioBuffer = await this.aiService.generateNewsAudio(
@@ -471,6 +480,10 @@ export class NewsService {
           data: { audio_url: audioUrl },
         });
         this.logger.log(`Áudio gerado para notícia IA: [${input.level}] ${input.title}`);
+
+        if (tracking?.teacherId) {
+          await this.creditsService.deductCredits(tracking.teacherId, 'news_tts', 'news', createdNews.id);
+        }
       } catch (error) {
         this.logger.warn(
           `Falha ao gerar áudio para notícia [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,

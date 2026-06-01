@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
+import { CreditsService } from '../credits/credits.service';
 import type { UsageTrackingContext } from '../ai/usage-cost.service';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class QuizService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   /**
@@ -63,6 +65,11 @@ export class QuizService {
       });
 
       this.logger.log(`Quiz criado com sucesso para a notícia ${newsId}`);
+
+      if (tracking?.teacherId) {
+        await this.creditsService.deductCredits(tracking.teacherId, 'quiz_generation', 'quiz', newQuiz.id);
+      }
+
       return {
         quiz: newQuiz,
         created: true,

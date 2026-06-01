@@ -31,7 +31,13 @@ import {
 } from "lucide-react";
 
 const formatNumber = (value: number) =>
-  new Intl.NumberFormat("pt-BR").format(value);
+  new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value);
+
+const formatDecimal = (value: number, digits = 1) =>
+  new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(value);
 
 const formatWeekLabel = (dateStr: string) => {
   const d = new Date(dateStr + "T00:00:00");
@@ -213,14 +219,14 @@ export default function DashboardPage() {
                     <ArrowDown className="h-3 w-3" />
                   )}
                   {rateChange >= 0 ? "+" : ""}
-                  {rateChange}%
+                  {Math.round(rateChange)}%
                 </span>
               </div>
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-2 mb-4">
                 <span className="text-4xl font-bold">
-                  {engagement.dailyResponseRate ?? 0}%
+                  {Math.round(engagement.dailyResponseRate ?? 0)}%
                 </span>
                 <span className="text-sm text-muted-foreground">
                   de {engagement.totalActiveStudents ?? 0} alunos ativos
@@ -233,7 +239,7 @@ export default function DashboardPage() {
                 alunos responderam hoje
                 <span className="mx-2">·</span>
                 <span className="font-medium text-foreground">
-                  {engagement.yesterdayRate ?? 0}%
+                  {Math.round(engagement.yesterdayRate ?? 0)}%
                 </span>{" "}
                 ontem
               </div>
@@ -254,7 +260,7 @@ export default function DashboardPage() {
                       unit="%"
                     />
                     <Tooltip
-                      formatter={(value: any) => [`${value}%`, "Taxa"]}
+                      formatter={(value: any) => [`${Math.round(value)}%`, "Taxa"]}
                     />
                     <Bar
                       dataKey="rate"
@@ -413,7 +419,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   Média geral:{" "}
                   <span className="font-medium text-foreground">
-                    {pronunciation.average}
+                    {formatDecimal(pronunciation.average)}
                   </span>{" "}
                   ·{" "}
                   {formatNumber(pronunciation.total)} avaliação
@@ -441,7 +447,7 @@ export default function DashboardPage() {
                         />
                         <Tooltip
                           formatter={(value: any) => [
-                            `${Number(value).toFixed(1)}`,
+                            formatDecimal(value),
                             "Nota média",
                           ]}
                           labelFormatter={(label: any) => `Semana: ${label}`}
@@ -461,15 +467,15 @@ export default function DashboardPage() {
                     </div>
                     <span>
                       Máx:{" "}
-                      {Math.max(
+                      {formatDecimal(Math.max(
                         ...chartData.map((d: any) => d.score)
-                      ).toFixed(1)}
+                      ))}
                     </span>
                     <span>
                       Mín:{" "}
-                      {Math.min(
+                      {formatDecimal(Math.min(
                         ...chartData.map((d: any) => d.score)
-                      ).toFixed(1)}
+                      ))}
                     </span>
                   </div>
                 </>

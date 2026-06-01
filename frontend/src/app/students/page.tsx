@@ -12,10 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { PlusCircle, Power, PowerOff, Pencil, X, Upload, Check, RefreshCw, Trash2, CalendarDays } from "lucide-react";
+import { PlusCircle, Pencil, X, Upload, Check, RefreshCw, Trash2, CalendarDays } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 
@@ -74,6 +74,7 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [studentLimit, setStudentLimit] = useState<number | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<{ id: string; full_name: string } | null>(null);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
@@ -139,6 +140,16 @@ export default function StudentsPage() {
     fetchStudents();
   }, [fetchStudents]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get(`/subscriptions/user/${user.id}`).then((res) => {
+      const sub = res.data;
+      if (sub) {
+        setStudentLimit(sub.max_students + (sub.additional_students || 0));
+      }
+    }).catch(() => {});
+  }, [user?.id]);
+
   const normalizeFullName = (value: string) => {
     return value
       .trim()
@@ -188,19 +199,19 @@ export default function StudentsPage() {
       setNewStudentLessons([]);
       fetchStudents();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao cadastrar aluno.");
+      const msg = error.response?.data?.message || "Erro ao cadastrar aluno.";
+      if (msg.includes("limite de alunos")) {
+        toast.error(msg, {
+          action: {
+            label: "Ver Planos",
+            onClick: () => router.push("/subscriptions"),
+          },
+        });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleToggleStatus = async (studentId: string) => {
-    try {
-      await api.patch(`/students/teacher/${user?.id}/${studentId}/toggle`);
-      toast.success("Status atualizado!");
-      fetchStudents();
-    } catch (error) {
-      toast.error("Erro ao atualizar status.");
     }
   };
 
@@ -415,6 +426,14 @@ export default function StudentsPage() {
   const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (studentLimit !== null && students.length >= studentLimit) {
+      toast.error("Você atingiu o limite de alunos do seu plano.", {
+        action: { label: "Ver Planos", onClick: () => router.push("/subscriptions") },
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
 
     setSelectedImportFile(file);
     setImportProgress(0);
@@ -663,10 +682,25 @@ export default function StudentsPage() {
                 setIsDialogOpen(open);
               }}
             >
-              <DialogTrigger render={<Button className="flex items-center gap-2" />}>
+              <Button
+                className="flex items-center gap-2"
+                onClick={() => {
+                  if (studentLimit !== null && students.length >= studentLimit) {
+                    toast.error("Você atingiu o limite de alunos do seu plano.", {
+                      action: { label: "Ver Planos", onClick: () => router.push("/subscriptions") },
+                    });
+                    return;
+                  }
+                  setFullName("");
+                  setWhatsappNumber("");
+                  setEnglishLevel("LEVEL_1");
+                  setNewStudentLessons([]);
+                  setIsDialogOpen(true);
+                }}
+              >
                 <PlusCircle className="h-4 w-4" />
                 Adicionar Aluno
-              </DialogTrigger>
+              </Button>
               <DialogContent>
               <DialogHeader>
                 <DialogTitle>Novo Aluno</DialogTitle>
@@ -921,7 +955,7 @@ export default function StudentsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Lista de Alunos</CardTitle>
+            <CardTitle>Lista de Alunos — {students.length} {students.length === 1 ? "aluno" : "alunos"}</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -929,13 +963,13 @@ export default function StudentsPage() {
             ) : students.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">Nenhum aluno cadastrado ainda.</p>
             ) : (
-              <Table className="min-w-[760px]">
+              <div className="overflow-x-auto">
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Nível</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Recebeu hoje?</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -984,11 +1018,6 @@ export default function StudentsPage() {
                             {student.english_level === 'LEVEL_3' && 'Nível 3'}
                           </span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${student.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {student.active ? "Ativo" : "Inativo"}
-                        </span>
                       </TableCell>
                       <TableCell>
                         <span
@@ -1073,21 +1102,6 @@ export default function StudentsPage() {
                         )}
                         <Tooltip>
                           <TooltipTrigger render={
-                            <Button 
-                              variant="ghost" 
-                              size="icon-sm"
-                              onClick={() => handleToggleStatus(student.id)}
-                              className={student.active ? "text-red-500" : "text-green-500"}
-                            >
-                              {student.active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                            </Button>
-                          } />
-                          <TooltipContent>
-                            <p>{student.active ? "Inativar Aluno" : "Ativar Aluno"}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger render={
                             <Button
                               variant="ghost"
                               size="icon-sm"
@@ -1111,9 +1125,10 @@ export default function StudentsPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                </TableBody>
-              </Table>
-            )}
+                  </TableBody>
+                </Table>
+                </div>
+              )}
           </CardContent>
         </Card>
       </main>

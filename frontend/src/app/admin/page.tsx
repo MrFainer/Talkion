@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShieldCheck, Ban, CheckCircle2, Download, Coins } from "lucide-react";
+import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import * as XLSX from "xlsx";
 
@@ -167,6 +167,10 @@ export default function AdminPage() {
             <p className="text-muted-foreground mt-1">Gerencie os professores da plataforma</p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+            <Button onClick={() => router.push("/admin/credit-config")} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
+              <Settings2 className="w-4 h-4" />
+              Créditos
+            </Button>
             <Button onClick={handleExportExcel} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
               <Download className="w-4 h-4" />
               Exportar Excel
@@ -280,8 +284,8 @@ export default function AdminPage() {
                           >
                             <Coins className="h-3.5 w-3.5" />
                             {Number(teacher.creditBalance ?? 0).toLocaleString("pt-BR", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
                             })}
                           </button>
                         )}

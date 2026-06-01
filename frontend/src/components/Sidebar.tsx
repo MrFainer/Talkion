@@ -10,6 +10,7 @@ import {
   Users,
   Wallet,
   LayoutDashboard,
+  CreditCard,
   MessageCircle,
   Bot,
   Menu,
@@ -20,6 +21,7 @@ import {
   ChevronDown,
   Link2,
   CalendarDays,
+  Coins,
 } from "lucide-react";
 
 const normalizeWhatsappStatus = (value: unknown) => {
@@ -54,6 +56,8 @@ type SidebarNavProps = {
   userName?: string;
   userEmail?: string;
   whatsappStatus: string;
+  creditBalance?: number | null;
+  hasActivePlan?: boolean | null;
   onLogout: () => void;
 };
 
@@ -73,6 +77,8 @@ function SidebarNav({
   userName,
   userEmail,
   whatsappStatus,
+  creditBalance,
+  hasActivePlan,
   onLogout,
 }: SidebarNavProps) {
   return (
@@ -101,7 +107,7 @@ function SidebarNav({
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
         {links.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
           return (
             <Link
               key={link.href}
@@ -115,8 +121,8 @@ function SidebarNav({
                 isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
               }`}
             >
-              <Icon className="h-4 w-4" />
-              {link.label}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{link.label}</span>
             </Link>
           );
         })}
@@ -174,10 +180,38 @@ function SidebarNav({
           </div>
         </div>
 
+        <div className="pt-2">
+          {(() => {
+            const Icon = CreditCard;
+            const isActive = pathname === "/subscriptions" || pathname.startsWith("/subscriptions/");
+            return (
+              <Link
+                href="/subscriptions"
+                onClick={(e) => {
+                  if (!shouldInterceptClick(e)) return;
+                  e.preventDefault();
+                  onNavigate("/subscriptions");
+                }}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">Assinatura</span>
+                {hasActivePlan === false && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 leading-tight">
+                    Sem plano
+                  </span>
+                )}
+              </Link>
+            );
+          })()}
+        </div>
+
         {adminLink ? (
           (() => {
             const AdminIcon = adminLink.icon;
-            const isActive = pathname === adminLink.href;
+            const isActive = pathname === adminLink.href || pathname.startsWith(`${adminLink.href}/`);
             return (
               <Link
                 href={adminLink.href}
@@ -212,6 +246,14 @@ function SidebarNav({
             />
             <span className="text-xs text-muted-foreground font-medium">WhatsApp {whatsappStatus}</span>
           </div>
+          {creditBalance != null && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <Coins className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-xs font-medium text-amber-600">
+                {creditBalance.toLocaleString("pt-BR")} créditos
+              </span>
+            </div>
+          )}
         </div>
 
         <button
@@ -235,6 +277,8 @@ export function Sidebar() {
   const [isWhatsappMenuOpen, setIsWhatsappMenuOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
 
   useEffect(() => {
     setLogoSrc(`/logo.png?v=${Date.now()}`);
@@ -257,6 +301,42 @@ export function Sidebar() {
     if (user?.id) {
       fetchStatus();
       intervalId = setInterval(fetchStatus, 15000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      if (!user?.id) return;
+      try {
+        const res = await api.get(`/subscriptions/user/${user.id}`);
+        setHasActivePlan(res.data?.status === 'active');
+      } catch {
+        setHasActivePlan(false);
+      }
+    };
+    fetchSubscription();
+  }, [user?.id]);
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    const fetchBalance = async () => {
+      if (!user?.id || user.role === 'ADMIN') return;
+      try {
+        const res = await api.get(`/credits/balance/${user.id}`);
+        setCreditBalance(res.data.balance);
+      } catch {
+        setCreditBalance(null);
+      }
+    };
+
+    if (user?.id && user.role !== 'ADMIN') {
+      fetchBalance();
+      intervalId = setInterval(fetchBalance, 30000);
     }
 
     return () => {
@@ -407,6 +487,8 @@ export function Sidebar() {
               userName={user?.name || ""}
               userEmail={user?.email || ""}
               whatsappStatus={whatsappStatus}
+              creditBalance={creditBalance}
+              hasActivePlan={hasActivePlan}
               onLogout={logout}
             />
           </div>
@@ -423,6 +505,7 @@ export function Sidebar() {
           pathname={pathname}
           isWhatsappSectionActive={isWhatsappSectionActive}
           isWhatsappMenuOpen={isWhatsappMenuOpen}
+          hasActivePlan={hasActivePlan}
           onToggleWhatsappMenu={() => setIsWhatsappMenuOpen((current) => !current)}
           shouldInterceptClick={shouldInterceptClick}
           onNavigate={handleNavigate}
@@ -430,6 +513,7 @@ export function Sidebar() {
           userName={user?.name || ""}
           userEmail={user?.email || ""}
           whatsappStatus={whatsappStatus}
+          creditBalance={creditBalance}
           onLogout={logout}
         />
       </div>

@@ -82,6 +82,8 @@ model User {
   quizzes         Quiz[]           @relation("TeacherQuizzes")
   messageSettings        MessageSettings?         @relation("TeacherMessageSettings")
   messageSettingsHistory MessageSettingsHistory[] @relation("TeacherMessageSettingsHistory")
+  subscriptions          Subscription[]
+  creditTransactions     CreditTransaction[]
 }
 
 model Student {
@@ -331,4 +333,92 @@ model MessageSettingsHistory {
   created_at        DateTime @default(now())
 
   teacher User @relation("TeacherMessageSettingsHistory", fields: [teacher_id], references: [id], onDelete: Cascade)
+}
+
+model CreditActionConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  category    String   @default("content")
+  default_cost Int     @default(5)
+  current_cost Int     @default(5)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}
+
+model CreditTransaction {
+  id              String   @id @default(uuid())
+  user_id         String
+  type            String   @default("DEBIT") // DEBIT or CREDIT
+  amount          Int
+  balance_after   Int
+  description     String
+  action_key      String?
+  reference_type  String?
+  reference_id    String?
+  created_at      DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([user_id, type])
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  credits     Int
+  max_students Int    @default(50)
+  mercadopago_plan_id String? @unique
+  active      Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                          String   @id @default(uuid())
+  user_id                     String
+  plan_id                     String
+  mercadopago_customer_id     String?
+  mercadopago_subscription_id String?  @unique
+  status                      String   @default("pending")
+  next_billing_date           DateTime?
+  card_last_four              String?
+  card_holder_name            String?
+  payment_method              String?
+  additional_students         Int      @default(0)
+  max_students                Int      @default(50)
+  created_at                  DateTime @default(now())
+  updated_at                  DateTime @updatedAt
+
+  user     User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan     @relation(fields: [plan_id], references: [id])
+  payments SubscriptionPayment[]
+
+  @@index([user_id])
+  @@index([status])
+}
+
+model SubscriptionPayment {
+  id                      String   @id @default(uuid())
+  subscription_id         String
+  mercadopago_payment_id  String?  @unique
+  amount                  Float
+  status                  String
+  payment_method          String?
+  paid_at                 DateTime?
+  cycle_start             DateTime?
+  cycle_end               DateTime?
+  created_at              DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+
+  @@index([subscription_id])
+  @@index([mercadopago_payment_id])
+  @@index([status])
 }

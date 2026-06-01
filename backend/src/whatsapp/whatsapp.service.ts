@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
+import { CreditsService } from '../credits/credits.service';
 import { QuizService } from '../quiz/quiz.service';
 import { NewsService } from '../news/news.service';
 import { randomUUID } from 'crypto';
@@ -124,6 +125,7 @@ export class WhatsappService {
     private readonly aiService: AiService,
     private readonly quizService: QuizService,
     private readonly newsService: NewsService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   private async runWithConcurrencyLimit<T>(
@@ -616,6 +618,10 @@ export class WhatsappService {
     this.logger.log(
       `[LESSONS] Confirmação enviada (texto) para ${this.formatStudentLog(input.student as any)} | ${dateLabel} ${input.lessonTime}`,
     );
+
+    if (input.teacherId) {
+      await this.creditsService.deductCredits(input.teacherId, 'lesson_confirmation_send', 'lesson', input.student.id);
+    }
 
     return {
       ok: true,
@@ -1717,6 +1723,10 @@ export class WhatsappService {
           count++;
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
+
+        if (teacherId) {
+          await this.creditsService.deductCredits(teacherId, 'news_individual_send', 'whatsapp', student.id);
+        }
       } catch (error) {
         this.logger.error(
           `[BROADCAST] Erro ao enviar para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
@@ -1753,6 +1763,10 @@ export class WhatsappService {
             });
             count++;
             await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+
+          if (teacherId) {
+            await this.creditsService.deductCredits(teacherId, 'news_individual_send', 'whatsapp', student.id);
           }
         } catch (error) {
           this.logger.error(
@@ -2205,6 +2219,10 @@ export class WhatsappService {
       }
     }
 
+    if (providedTeacherId) {
+      await this.creditsService.deductCredits(providedTeacherId, 'news_quiz_group_send', 'whatsapp', quizId || undefined);
+    }
+
     return {
       sent: true,
       targetNumber,
@@ -2513,6 +2531,10 @@ export class WhatsappService {
       });
     }
 
+    if (latestQuiz && student?.teacher_id) {
+      await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_received', 'quiz', latestQuiz.id);
+    }
+
     this.logger.log(
       `[QUIZ][RESOLUCAO] Quiz resolvido para ${this.formatStudentLog(student)} | origem: ${quizResolutionSource}${
         quotedMessageId ? ` | mensagem citada: ${quotedMessageId}` : ''
@@ -2713,6 +2735,10 @@ export class WhatsappService {
         incomingMessageId: input.incomingMessageId || null,
       },
     });
+
+    if (input.student?.teacher_id && pending?.lesson_id) {
+      await this.creditsService.deductCredits(input.student.teacher_id, 'lesson_confirmation_process', 'lesson', pending.lesson_id);
+    }
 
     if (decision === 'UNKNOWN') {
       return false;

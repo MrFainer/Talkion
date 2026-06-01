@@ -7,6 +7,7 @@ import { CostAction } from '@prisma/client';
 import { parseBuffer, parseFile } from 'music-metadata';
 import { OpenAI } from 'openai';
 import { UsageCostService, type UsageTrackingContext } from './usage-cost.service';
+import { CreditsService } from '../credits/credits.service';
 
 type SpeakingEvaluationResult = {
   score: number;
@@ -122,7 +123,10 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private openai: OpenAI;
 
-  constructor(private readonly usageCostService: UsageCostService) {
+  constructor(
+    private readonly usageCostService: UsageCostService,
+    private readonly creditsService: CreditsService,
+  ) {
     try {
       this.openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY || 'dummy_key_to_start',
@@ -1406,6 +1410,12 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
           : [],
         transcription: studentTranscription,
       };
+
+      const teachId = tracking?.teacherId;
+      if (teachId) {
+        await this.creditsService.deductCredits(teachId as string, 'speaking_transcription');
+        await this.creditsService.deductCredits(teachId as string, 'speaking_feedback');
+      }
     } catch (error) {
       this.logger.error('Erro ao avaliar speaking via IA', error);
       throw error;

@@ -10,7 +10,7 @@ export class StudentsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly whatsappService: WhatsappService
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   private normalizeFullName(name: string) {
@@ -128,10 +128,24 @@ export class StudentsService {
       );
     }
     
+    // Verifica limite de alunos da assinatura
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { user_id: teacherId, status: { in: ['active', 'pending', 'paused'] } },
+    });
+    if (subscription) {
+      const totalLimit = subscription.max_students + subscription.additional_students;
+      const currentCount = await this.prisma.student.count({ where: { teacher_id: teacherId } });
+      if (currentCount >= totalLimit) {
+        throw new BadRequestException(
+          'Você atingiu o limite de alunos do seu plano. Acesse a página de assinatura para contratar vagas adicionais.',
+        );
+      }
+    }
+
     // Verifica se o número existe no WhatsApp
     const isValid = await this.whatsappService.checkNumber(teacherId, rawNumber);
 
-    return this.prisma.student.create({
+    const student = await this.prisma.student.create({
       data: {
         teacher_id: teacherId,
         full_name: normalizedName,
@@ -140,18 +154,8 @@ export class StudentsService {
         english_level: data.englishLevel || 'LEVEL_1',
       },
     });
-  }
 
-  async toggleActive(teacherId: string, studentId: string) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.teacher_id !== teacherId) {
-      throw new NotFoundException('Aluno não encontrado.');
-    }
-
-    return this.prisma.student.update({
-      where: { id: studentId },
-      data: { active: !student.active },
-    });
+    return student;
   }
 
   async updateLevel(teacherId: string, studentId: string, level: any) {
@@ -306,6 +310,22 @@ export class StudentsService {
           ...student,
           whatsapp_valid: isValid,
         });
+      }
+
+      if (studentsToCreate.length > 0) {
+        const subscription = await this.prisma.subscription.findFirst({
+          where: { user_id: teacherId, status: { in: ['active', 'pending', 'paused'] } },
+        });
+        if (subscription) {
+          const totalLimit = subscription.max_students + subscription.additional_students;
+          const currentCount = await this.prisma.student.count({ where: { teacher_id: teacherId } });
+          if (currentCount + studentsToCreate.length > totalLimit) {
+            throw new BadRequestException(
+              `A importação excede o limite de ${totalLimit} alunos do seu plano. ` +
+              `Acesse a página de assinatura para contratar vagas adicionais.`,
+            );
+          }
+        }
       }
 
       const result =
