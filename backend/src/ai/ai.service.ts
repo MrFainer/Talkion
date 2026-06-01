@@ -703,15 +703,14 @@ Se não conseguir interpretar, retorne: {"answers": null}`;
     text: string,
     tracking?: UsageTrackingContext,
   ): Promise<'YES' | 'NO' | 'UNKNOWN'> {
-    const cleaned = String(text || '').trim();
+    const cleaned = String(text || '').trim().toLowerCase();
     if (!cleaned) return 'UNKNOWN';
 
-    const heuristic = cleaned.toLowerCase();
-    if (/^(yes|yep|yeah|y|sim|confirmo|confirmar|ok|okay)\b/i.test(heuristic)) {
-      return 'YES';
-    }
-    if (/^(no|nope|n|nao|não|recuso|cancelar|cancelo)\b/i.test(heuristic)) {
-      return 'NO';
+    const hasYesKeyword = /\b(yes|yep|yeah|sim|confirmo|confirmar|ok|okay|beleza|bora|vamos|com certeza|pode ser|pode confirmar)\b/i.test(cleaned);
+    const hasNoKeyword = /\b(no|nope|nao|não|recuso|cancelar|cancelo|negativo|de jeito nenhum|impossivel|hoje não|nao vou poder)\b/i.test(cleaned);
+
+    if (!hasYesKeyword && !hasNoKeyword) {
+      return 'UNKNOWN';
     }
 
     const prompt = `Você é um classificador de respostas curtas.
@@ -720,8 +719,8 @@ Tarefa:
 - Dado um texto, classifique como confirmação (YES), recusa (NO) ou incerto (UNKNOWN).
 
 Regras:
-- Respostas como "yes", "sim", "ok", "confirmo" => YES
-- Respostas como "no", "não", "recuso", "cancelo" => NO
+- Respostas como "yes", "sim", "ok", "confirmo", "com certeza" => YES
+- Respostas como "no", "não", "recuso", "cancelo", "hoje não" => NO
 - Qualquer outra coisa => UNKNOWN
 
 Retorne SOMENTE JSON no formato: {"decision":"YES"|"NO"|"UNKNOWN"}

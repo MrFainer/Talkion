@@ -66,9 +66,6 @@ export class CreditsService {
     const currentBalance = Math.floor(user.credit_balance);
     if (currentBalance < cost) {
       this.logger.warn(`Créditos insuficientes para ${userId}: tem ${currentBalance}, precisa ${cost}`);
-      if (user.email) {
-        await this.sendInsufficientCreditsEmail(user.email, user.name || '', currentBalance, cost, actionKey);
-      }
       throw new BadRequestException(
         `Créditos insuficientes. Você tem ${currentBalance} créditos, precisa de ${cost}.`,
       );
@@ -204,23 +201,10 @@ export class CreditsService {
     const balance = Math.floor(user.credit_balance);
     if (balance < cost) {
       this.logger.warn(`Créditos insuficientes para ${userId}: tem ${balance}, precisa ${cost}`);
-      await this.sendInsufficientCreditsEmail(user.email, user.name, balance, cost, actionKey);
       throw new BadRequestException(
         `Créditos insuficientes. Você tem ${balance} créditos, precisa de ${cost} para esta ação.`,
       );
     }
-  }
-
-  private async sendInsufficientCreditsEmail(
-    email: string,
-    name: string,
-    balance: number,
-    cost: number,
-    actionKey: string,
-  ) {
-    const config = await this.prisma.creditActionConfig.findUnique({ where: { key: actionKey } });
-    const actionName = config?.name || actionKey;
-    await this.mailService.sendInsufficientCreditsEmail(email, name, balance, cost, actionName);
   }
 
   async checkAndNotifyLowCredits(userId: string, balance?: number) {

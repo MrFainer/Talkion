@@ -2691,38 +2691,7 @@ export class WhatsappService {
 
       pending = confirmationByQuote;
     } else {
-      const lastRequest = await this.prisma.whatsappMessage.findFirst({
-        where: {
-          student_id: input.student.id,
-          direction: 'OUTGOING',
-          content_kind: 'LESSON_CONFIRMATION_REQUEST',
-          created_at: { gte: startOfDay, lte: endOfDay },
-        },
-        select: { external_message_id: true },
-        orderBy: { created_at: 'desc' },
-      });
-      const requestMessageId = lastRequest?.external_message_id || null;
-
-      if (requestMessageId) {
-        pending = await this.prisma.lessonConfirmation.findFirst({
-          where: { request_message_id: requestMessageId, status: 'PENDING' },
-          select: { id: true, status: true, lesson_id: true, request_message_id: true },
-        });
-      }
-
-      if (!pending) {
-        pending = await this.prisma.lessonConfirmation.findFirst({
-          where: {
-            occurrence_date: startOfDay,
-            status: 'PENDING',
-            lesson: {
-              student_id: input.student.id,
-            },
-          },
-          select: { id: true, status: true, lesson_id: true, request_message_id: true },
-          orderBy: { updated_at: 'desc' },
-        });
-      }
+      return false;
     }
 
     if (!pending) {
