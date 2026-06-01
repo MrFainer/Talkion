@@ -229,6 +229,7 @@ export class SubscriptionsService {
           user_id: userId,
           plan_id: plan.id,
           mercadopago_customer_id: mpCustomerId,
+          mercadopago_card_id: payment.cardId ? String(payment.cardId) : null,
           mercadopago_subscription_id: mpSubscriptionId,
           status: 'active',
           next_billing_date: nextBilling,
@@ -379,9 +380,13 @@ export class SubscriptionsService {
       throw new BadRequestException('Nenhum cliente Mercado Pago encontrado');
     }
 
-    const cards = await this.mp.listCustomerCards(sub.mercadopago_customer_id);
-    const savedCard = cards[0];
-    if (!savedCard) {
+    let savedCardId = sub.mercadopago_card_id;
+    if (!savedCardId) {
+      const cards = await this.mp.listCustomerCards(sub.mercadopago_customer_id);
+      const savedCard = cards[0];
+      savedCardId = savedCard?.cardId || null;
+    }
+    if (!savedCardId) {
       throw new BadRequestException('Nenhum cartão salvo encontrado. Acesse a página de assinatura para cadastrar um novo cartão.');
     }
 
@@ -401,7 +406,7 @@ export class SubscriptionsService {
       this.logger.log(`Charging prorated R$${proratedCharge.toFixed(2)} for plan change to ${newPlan.name}`);
       const payment = await this.mp.createOneTimePaymentWithCardId(
         sub.mercadopago_customer_id,
-        savedCard.cardId,
+        savedCardId,
         proratedCharge,
         `Talkion - Alteração para ${newPlan.name}`,
         userId,

@@ -385,6 +385,7 @@ model Subscription {
   user_id                     String
   plan_id                     String
   mercadopago_customer_id     String?
+  mercadopago_card_id         String?
   mercadopago_subscription_id String?  @unique
   status                      String   @default("pending")
   next_billing_date           DateTime?
