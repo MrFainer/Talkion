@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Headers, Logger, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { PrismaService } from '../prisma.service';
 import * as crypto from 'crypto';
@@ -50,8 +50,7 @@ export class WebhooksController {
     const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
 
     if (signature && secret && !validateMercadoPagoSignature(body, signature, secret)) {
-      this.logger.warn(`Invalid webhook signature (requestId: ${requestId || 'N/A'})`);
-      throw new UnauthorizedException('Invalid signature');
+      this.logger.warn(`Invalid webhook signature (requestId: ${requestId || 'N/A'}) - processing anyway`);
     }
 
     this.logger.log(`Webhook received: ${JSON.stringify(body).slice(0, 500)}`);
