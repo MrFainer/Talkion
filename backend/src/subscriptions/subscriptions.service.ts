@@ -429,7 +429,7 @@ export class SubscriptionsService {
     try {
       const preapproval = await this.mp.createSubscription(
         sub.mercadopago_customer_id,
-        savedCard.cardId,
+        savedCardId,
         newTotal,
         newPlan.name,
         userId,
@@ -451,8 +451,8 @@ export class SubscriptionsService {
         additional_students: newExtraStudents,
         mercadopago_subscription_id: mpSubscriptionId,
         next_billing_date: nextBilling,
-        card_last_four: savedCard.lastFourDigits || sub.card_last_four,
-        card_holder_name: savedCard.holderName || sub.card_holder_name,
+        card_last_four: sub.card_last_four,
+        card_holder_name: sub.card_holder_name,
       },
     });
 
