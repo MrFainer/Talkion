@@ -141,7 +141,7 @@ async function main() {
       data: {
         name: 'Talkion Base',
         description: 'Plano ideal para professores com até 60 alunos',
-        price: 79.90,
+        price: 84.90,
         credits: 15000,
         max_students: 60,
         active: true,
@@ -176,7 +176,7 @@ async function main() {
       data: {
         name: 'Talkion Premium',
         description: 'Plano completo para professores com até 100 alunos',
-        price: 149.90,
+        price: 159.90,
         credits: 30000,
         max_students: 100,
         active: true,

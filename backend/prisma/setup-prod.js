@@ -41,7 +41,7 @@ async function main() {
   const basePlanData = {
     name: 'Talkion Base',
     description: 'Plano ideal para professores com até 60 alunos',
-    price: 79.90,
+    price: 84.90,
     credits: 15000,
     max_students: 60,
     active: true,
@@ -53,11 +53,12 @@ async function main() {
 
   if (!existingBase) {
     await prisma.subscriptionPlan.create({ data: basePlanData });
-    console.log('[setup] Plano criado: Talkion Base (R$79,90/mês)');
+    console.log('[setup] Plano criado: Talkion Base (R$84,90/mês)');
   } else {
     const baseUpdate = {};
     if (existingBase.max_students !== 60) baseUpdate.max_students = 60;
     if (existingBase.description !== basePlanData.description) baseUpdate.description = basePlanData.description;
+    if (existingBase.price !== basePlanData.price) baseUpdate.price = basePlanData.price;
     if (Object.keys(baseUpdate).length > 0) {
       await prisma.subscriptionPlan.update({
         where: { id: existingBase.id },
@@ -75,7 +76,7 @@ async function main() {
   const premiumPlanData = {
     name: 'Talkion Premium',
     description: 'Plano completo para professores com até 100 alunos',
-    price: 149.90,
+    price: 159.90,
     credits: 30000,
     max_students: 100,
     active: true,
@@ -87,9 +88,24 @@ async function main() {
 
   if (!existingPremium) {
     await prisma.subscriptionPlan.create({ data: premiumPlanData });
-    console.log('[setup] Plano criado: Talkion Premium (R$149,90/mês)');
+    console.log('[setup] Plano criado: Talkion Premium (R$159,90/mês)');
   } else {
-    console.log('[setup] Plano Talkion Premium já existe.');
+    const premiumUpdate = {};
+    if (existingPremium.max_students !== 100) premiumUpdate.max_students = 100;
+    if (existingPremium.description !== premiumPlanData.description) premiumUpdate.description = premiumPlanData.description;
+    if (existingPremium.price !== premiumPlanData.price) premiumUpdate.price = premiumPlanData.price;
+    if (Object.keys(premiumUpdate).length > 0) {
+      await prisma.subscriptionPlan.update({
+        where: { id: existingPremium.id },
+        data: premiumUpdate,
+      });
+      console.log('[setup] Plano Talkion Premium atualizado.');
+    }
+
+    await prisma.subscription.updateMany({
+      where: { plan_id: existingPremium.id, max_students: { not: 100 } },
+      data: { max_students: 100 },
+    });
   }
 
   console.log('[setup] Setup concluído.');
