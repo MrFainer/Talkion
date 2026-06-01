@@ -140,10 +140,10 @@ async function main() {
     await prisma.subscriptionPlan.create({
       data: {
         name: 'Talkion Base',
-        description: 'Plano ideal para professores com até 60 alunos',
+        description: 'Plano ideal para professores com até 50 alunos',
         price: 84.90,
         credits: 15000,
-        max_students: 60,
+        max_students: 50,
         active: true,
       },
     });
@@ -152,20 +152,20 @@ async function main() {
     await prisma.subscriptionPlan.update({
       where: { id: existingBase.id },
       data: {
-        description: 'Plano ideal para professores com até 60 alunos',
-        max_students: 60,
+        description: 'Plano ideal para professores com até 50 alunos',
+        max_students: 50,
       },
     });
-    console.log('[seed] Plano Talkion Base atualizado para 60 alunos.');
+    console.log('[seed] Plano Talkion Base atualizado para 50 alunos.');
 
     await prisma.subscription.updateMany({
       where: {
         plan_id: existingBase.id,
-        max_students: { not: 60 },
+        max_students: { not: 50 },
       },
-      data: { max_students: 60 },
+      data: { max_students: 50 },
     });
-    console.log('[seed] Assinaturas do Base sincronizadas para 60 alunos.');
+    console.log('[seed] Assinaturas do Base sincronizadas para 50 alunos.');
   }
 
   const existingPremium = await prisma.subscriptionPlan.findFirst({

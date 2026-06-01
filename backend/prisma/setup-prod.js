@@ -40,10 +40,10 @@ async function main() {
   // ─── Planos ──────────────────────────────────────────────────────
   const basePlanData = {
     name: 'Talkion Base',
-    description: 'Plano ideal para professores com até 60 alunos',
+    description: 'Plano ideal para professores com até 50 alunos',
     price: 84.90,
     credits: 15000,
-    max_students: 60,
+    max_students: 50,
     active: true,
   };
 
@@ -56,7 +56,7 @@ async function main() {
     console.log('[setup] Plano criado: Talkion Base (R$84,90/mês)');
   } else {
     const baseUpdate = {};
-    if (existingBase.max_students !== 60) baseUpdate.max_students = 60;
+    if (existingBase.max_students !== 50) baseUpdate.max_students = 50;
     if (existingBase.description !== basePlanData.description) baseUpdate.description = basePlanData.description;
     if (existingBase.price !== basePlanData.price) baseUpdate.price = basePlanData.price;
     if (Object.keys(baseUpdate).length > 0) {
@@ -68,8 +68,8 @@ async function main() {
     }
 
     await prisma.subscription.updateMany({
-      where: { plan_id: existingBase.id, max_students: { not: 60 } },
-      data: { max_students: 60 },
+      where: { plan_id: existingBase.id, max_students: { not: 50 } },
+      data: { max_students: 50 },
     });
   }
 
