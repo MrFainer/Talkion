@@ -114,6 +114,34 @@ export class MailService {
     }
   }
 
+  async sendInsufficientCreditsEmail(to: string, name: string, balance: number, cost: number, actionName: string) {
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject: '⛔ Créditos insuficientes - Talkion',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #ef4444; text-align: center;">Ação bloqueada por créditos insuficientes</h2>
+            <p>Olá ${name},</p>
+            <p>A ação <strong>${actionName}</strong> não foi realizada porque sua conta não tem créditos suficientes.</p>
+            <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>Saldo atual:</strong> ${Math.floor(balance)} créditos</p>
+              <p style="margin: 5px 0;"><strong>Custo da ação:</strong> ${cost} créditos</p>
+            </div>
+            <p>Adquira mais créditos ou contrate um plano para continuar usando a plataforma.</p>
+            <p style="text-align: center; margin-top: 20px;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Adquirir Créditos</a>
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`E-mail de créditos insuficientes enviado: ${info.messageId}`);
+    } catch (error) {
+      this.logger.error('Erro ao enviar e-mail de créditos insuficientes', error);
+    }
+  }
+
   async sendPaymentApprovedEmail(to: string, name: string, planName: string, amount: number, credits: number) {
     try {
       const info = await this.transporter.sendMail({

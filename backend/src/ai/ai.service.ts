@@ -1303,6 +1303,10 @@ ${JSON.stringify(keys)}${variationRules}`;
     mimeType?: string,
     tracking?: UsageTrackingContext,
   ): Promise<SpeakingEvaluationResult> {
+    const teachId = tracking?.teacherId;
+    await this.creditsService.requireCredits(teachId as string, 'speaking_transcription');
+    await this.creditsService.requireCredits(teachId as string, 'speaking_feedback');
+
     const { buffer, extension } = this.decodeAudioBase64(audioBase64, mimeType);
     const tempDir = await mkdtemp(join(tmpdir(), 'talkion-audio-'));
     const tempFilePath = join(tempDir, `submission.${extension}`);
@@ -1411,7 +1415,6 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
         transcription: studentTranscription,
       };
 
-      const teachId = tracking?.teacherId;
       if (teachId) {
         await this.creditsService.deductCredits(teachId as string, 'speaking_transcription');
         await this.creditsService.deductCredits(teachId as string, 'speaking_feedback');

@@ -18,6 +18,9 @@ export class QuizService {
    * Gera um quiz para uma notícia recém-cadastrada que ainda não tenha quiz.
    */
   async generateQuizForNews(newsId: string, tracking?: UsageTrackingContext) {
+    if (tracking?.teacherId) {
+      await this.creditsService.requireCredits(tracking.teacherId, 'quiz_generation');
+    }
     try {
       const news = await this.prisma.news.findUnique({
         where: { id: newsId },

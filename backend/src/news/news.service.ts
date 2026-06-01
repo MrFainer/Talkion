@@ -446,6 +446,13 @@ export class NewsService {
       }
     }
 
+    if (tracking?.teacherId) {
+      const actionKey = input.sourceType === SourceType.AI_GENERATED
+        ? 'news_ai_fallback'
+        : `news_capture_${input.level.toLowerCase().replace('level_', 'level_')}`;
+      await this.creditsService.requireCredits(tracking.teacherId, actionKey);
+    }
+
     const createdNews = await this.prisma.news.create({
       data: {
         teacher_id: tracking?.teacherId || null,
@@ -465,6 +472,9 @@ export class NewsService {
     }
 
     if (input.sourceType === SourceType.AI_GENERATED) {
+      if (tracking?.teacherId) {
+        await this.creditsService.requireCredits(tracking.teacherId, 'news_tts');
+      }
       try {
         const audioBuffer = await this.aiService.generateNewsAudio(
           input.content,

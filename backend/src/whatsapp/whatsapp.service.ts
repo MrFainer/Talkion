@@ -505,6 +505,7 @@ export class WhatsappService {
     occurrenceDate: Date;
     teacherSettings?: { private_lesson_confirmation_idea?: string | null; ai_model?: string | null; ai_temperature?: number | null } | null;
   }) {
+    await this.creditsService.requireCredits(input.teacherId, 'lesson_confirmation_send');
     const studentName = String(input.student.full_name || '').trim();
     const dateLabel = input.occurrenceDate.toISOString().slice(0, 10);
 
@@ -1396,6 +1397,7 @@ export class WhatsappService {
 
   async broadcastPrivate(teacherId: string) {
     this.logger.log(`[BROADCAST] Iniciando disparo privado para alunos do professor ${teacherId}`);
+    await this.creditsService.requireCredits(teacherId, 'news_individual_send');
     const students = await this.prisma.student.findMany({
       where: {
         teacher_id: teacherId,
@@ -1798,6 +1800,7 @@ export class WhatsappService {
 
     const teacherId = providedTeacherId || student?.teacher_id;
     if (!teacherId) throw new Error('teacherId is required to send messages');
+    await this.creditsService.requireCredits(teacherId, 'news_quiz_group_send');
 
     // Busca as configurações de mensagens do professor, ou cria se não existir
     let settings = await this.prisma.messageSettings.findUnique({
@@ -2459,6 +2462,10 @@ export class WhatsappService {
   ) {
     if (!this.isPossibleQuizAnswer(text)) return;
 
+    if (student.teacher_id) {
+      await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_received');
+    }
+
     const isGroup = remoteJid.includes('@g.us');
     if (isGroup && student.teacher_id) {
       const configured = await this.isConfiguredGroup(student.teacher_id, remoteJid);
@@ -2647,6 +2654,9 @@ export class WhatsappService {
     incomingMessageId?: string | null;
     quotedMessageId?: string | null;
   }) {
+    if (input.student.teacher_id) {
+      await this.creditsService.requireCredits(input.student.teacher_id, 'lesson_confirmation_process');
+    }
     const raw = String(input.text || '').trim();
     if (!raw) return false;
 

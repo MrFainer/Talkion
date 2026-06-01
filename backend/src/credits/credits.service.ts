@@ -66,7 +66,12 @@ export class CreditsService {
     const currentBalance = Math.floor(user.credit_balance);
     if (currentBalance < cost) {
       this.logger.warn(`Créditos insuficientes para ${userId}: tem ${currentBalance}, precisa ${cost}`);
-      return { deducted: false, balance: currentBalance, cost };
+      if (user.email) {
+        await this.sendInsufficientCreditsEmail(user.email, user.name || '', currentBalance, cost, actionKey);
+      }
+      throw new BadRequestException(
+        `Créditos insuficientes. Você tem ${currentBalance} créditos, precisa de ${cost}.`,
+      );
     }
 
     const newBalance = currentBalance - cost;
@@ -184,6 +189,38 @@ export class CreditsService {
       this.prisma.creditTransaction.count({ where: { user_id: userId } }),
     ]);
     return { data, total, page, limit, pages: Math.ceil(total / limit) };
+  }
+
+  async requireCredits(userId: string, actionKey: string) {
+    const cost = await this.getCost(actionKey);
+    if (cost <= 0) return;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { credit_balance: true, email: true, name: true },
+    });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const balance = Math.floor(user.credit_balance);
+    if (balance < cost) {
+      this.logger.warn(`Créditos insuficientes para ${userId}: tem ${balance}, precisa ${cost}`);
+      await this.sendInsufficientCreditsEmail(user.email, user.name, balance, cost, actionKey);
+      throw new BadRequestException(
+        `Créditos insuficientes. Você tem ${balance} créditos, precisa de ${cost} para esta ação.`,
+      );
+    }
+  }
+
+  private async sendInsufficientCreditsEmail(
+    email: string,
+    name: string,
+    balance: number,
+    cost: number,
+    actionKey: string,
+  ) {
+    const config = await this.prisma.creditActionConfig.findUnique({ where: { key: actionKey } });
+    const actionName = config?.name || actionKey;
+    await this.mailService.sendInsufficientCreditsEmail(email, name, balance, cost, actionName);
   }
 
   async checkAndNotifyLowCredits(userId: string, balance?: number) {
