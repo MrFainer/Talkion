@@ -207,7 +207,7 @@ export default function LandingPage() {
   const flagUrl = (code: string) => `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 
   return (
-    <div className="min-h-screen w-full">
+    <div className="min-h-[100dvh] w-full">
       {/* Navbar */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -217,15 +217,15 @@ export default function LandingPage() {
         }`}
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2.5">
+          <div className={`flex items-center gap-2.5 rounded-full px-3.5 py-1.5 transition-colors duration-300 ${scrolled ? "bg-white text-slate-900" : "bg-slate-950 text-white ring-1 ring-slate-800"}`}>
             <Image
-              src="/logo.png"
+              src={scrolled ? "/logo.png" : "/logo-branco.png"}
               alt="Talkion"
-              width={32}
-              height={32}
-              className="h-8 w-8"
+              width={22}
+              height={22}
+              className="h-5 w-5 shrink-0 object-contain"
             />
-            <span className={`text-xl font-bold tracking-tight ${scrolled ? "text-slate-900" : "text-white"}`}>
+            <span className="text-lg font-semibold tracking-tight">
               Talkion
             </span>
           </div>
@@ -268,26 +268,26 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero - Foco na dor do professor */}
-      <section className="relative min-h-screen flex items-center overflow-hidden">
+      <section className="relative min-h-[100dvh] flex items-center overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(59,130,246,0.25),transparent_40%),radial-gradient(circle_at_70%_80%,rgba(99,102,241,0.15),transparent_35%),linear-gradient(180deg,#09090b_0%,#111827_45%,#0f172a_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:52px_52px] opacity-30" />
         <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_18%_22%,rgba(96,165,250,0.18)_0,transparent_28%),radial-gradient(circle_at_80%_30%,rgba(148,163,184,0.15)_0,transparent_24%),radial-gradient(circle_at_72%_76%,rgba(59,130,246,0.16)_0,transparent_28%)]" />
-        <div className="absolute left-[6%] top-[22%] anim-float-slow">
+        <div className="absolute left-[6%] top-[22%] anim-float-slow max-md:hidden">
           <div className="h-12 w-12 rotate-12 rounded-xl border border-blue-500/25 bg-blue-500/5 backdrop-blur-sm" />
         </div>
-        <div className="absolute right-[8%] top-[65%] anim-float-med">
+        <div className="absolute right-[8%] top-[65%] anim-float-med max-md:hidden">
           <div className="h-10 w-10 -rotate-6 rounded-lg border border-indigo-500/25 bg-indigo-500/5 backdrop-blur-sm" />
         </div>
-        <div className="absolute left-[12%] top-[15%] h-2.5 w-2.5 anim-glow rounded-full bg-blue-400" />
-        <div className="absolute right-[18%] top-[20%] h-3 w-3 anim-drift rounded-full bg-indigo-400/70" />
-        <div className="absolute left-[20%] bottom-[22%] anim-float-fast">
+        <div className="absolute left-[12%] top-[15%] h-2.5 w-2.5 anim-glow rounded-full bg-blue-400 max-md:hidden" />
+        <div className="absolute right-[18%] top-[20%] h-3 w-3 anim-drift rounded-full bg-indigo-400/70 max-md:hidden" />
+        <div className="absolute left-[20%] bottom-[22%] anim-float-fast max-md:hidden">
           <div className="h-4 w-4 rotate-45 rounded-sm border border-blue-400/30 bg-blue-400/10" />
         </div>
-        <div className="absolute right-[25%] bottom-[15%] h-2 w-2 anim-glow rounded-full bg-sky-400" />
-        <div className="absolute left-[45%] top-[8%] anim-drift">
+        <div className="absolute right-[25%] bottom-[15%] h-2 w-2 anim-glow rounded-full bg-sky-400 max-md:hidden" />
+        <div className="absolute left-[45%] top-[8%] anim-drift max-md:hidden">
           <div className="h-6 w-6 rounded-full border border-indigo-400/20 bg-indigo-400/5 backdrop-blur-sm" />
         </div>
-        <div className="absolute right-[40%] bottom-[30%] anim-float-slow">
+        <div className="absolute right-[40%] bottom-[30%] anim-float-slow max-md:hidden">
           <div className="h-5 w-5 rotate-12 rounded-lg border border-blue-400/20 bg-blue-400/5" />
         </div>
 
@@ -521,12 +521,14 @@ export default function LandingPage() {
                 key={lang.name}
                 className="rounded-2xl border-2 border-slate-200 bg-white px-6 py-4 text-center transition hover:border-blue-100 hover:shadow-md"
               >
-                <img
-                  src={flagUrl(lang.flag)}
-                  alt={lang.name}
-                  className="mx-auto h-8 w-8 rounded-sm object-cover shadow-sm"
-                  loading="lazy"
-                />
+                <div className="mx-auto flex h-9 w-9 items-center justify-center overflow-hidden rounded-sm bg-slate-100 shadow-sm">
+                  <img
+                    src={flagUrl(lang.flag)}
+                    alt={lang.name}
+                    className="h-full w-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
                 <p className="mt-1.5 text-sm font-semibold text-slate-700">
                   {lang.name}
                 </p>
@@ -702,7 +704,7 @@ export default function LandingPage() {
       </button>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 bg-slate-950 py-12">
+      <footer className="border-t border-slate-800 bg-slate-950 py-12 pb-[calc(3rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-2.5">
