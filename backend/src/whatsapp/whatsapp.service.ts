@@ -2343,7 +2343,9 @@ export class WhatsappService {
     const isGroup = typeof remoteJid === 'string' && remoteJid.includes('@g.us');
     const senderJidRaw = isGroup ? data?.key?.participant : remoteJid;
 
-    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | senderJidRaw=${senderJidRaw}`);
+    const allKeys = Object.keys(data || {}).join(',');
+    const keyKeys = Object.keys(data?.key || {}).join(',');
+    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | pushName=${data?.pushName} | dataKeys=${allKeys} | keyKeys=${keyKeys}`);
 
     const textContent = this.extractTextContent(messageData);
     const hasAudio = Boolean(messageData?.audioMessage);
