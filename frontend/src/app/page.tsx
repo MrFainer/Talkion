@@ -207,7 +207,7 @@ export default function LandingPage() {
   const flagUrl = (code: string) => `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 
   return (
-    <div className="min-h-[100dvh] w-full">
+    <div className="min-h-[100dvh] w-full [overscroll-behavior-y:contain]">
       {/* Navbar */}
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
