@@ -192,7 +192,7 @@ export class WhatsappService {
 
     if (existingInstance) {
       if (this.getWebhookUrl()) {
-        try { await this.setWebhook(instanceName); } catch { }
+        try { await this.setWebhook(instanceName); } catch (e) { this.logger.error(`[WEBHOOK] Falha ao configurar webhook para ${instanceName}`, e); }
       }
       return this.normalizeInstance(existingInstance, instanceName);
     }
@@ -2337,11 +2337,14 @@ export class WhatsappService {
   }
 
   private async processSingleMessage(instanceName: string, data: any) {
-    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | type=${typeof data} | hasKey=${Boolean(data?.key)} | hasMessage=${Boolean(data?.message)}`);
-
     const messageData = data?.message;
     const remoteJid = data?.key?.remoteJid;
     const fromMe = data?.key?.fromMe;
+    const isGroup = typeof remoteJid === 'string' && remoteJid.includes('@g.us');
+    const senderJidRaw = isGroup ? data?.key?.participant : remoteJid;
+
+    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | senderJidRaw=${senderJidRaw}`);
+
     const textContent = this.extractTextContent(messageData);
     const hasAudio = Boolean(messageData?.audioMessage);
     const incomingMessageId = this.extractIncomingMessageId(data);
@@ -2356,7 +2359,6 @@ export class WhatsappService {
       return;
     }
 
-    const isGroup = remoteJid.includes('@g.us');
     const senderJid = isGroup ? data?.key?.participant : remoteJid;
 
     if (typeof senderJid !== 'string') {
@@ -3522,11 +3524,14 @@ export class WhatsappService {
   private async setWebhook(instanceName: string) {
     const webhookUrl = this.getWebhookUrl();
     if (!webhookUrl) {
+      this.logger.warn('[WEBHOOK] BACKEND_URL não configurada');
       return {
         configured: false,
         reason: 'BACKEND_URL não configurada',
       };
     }
+
+    this.logger.log(`[WEBHOOK] Configurando webhook para ${instanceName} -> ${webhookUrl}`);
 
     const payload = {
       webhook: {
@@ -3544,6 +3549,8 @@ export class WhatsappService {
       `/webhook/set/${instanceName}`,
       payload,
     );
+
+    this.logger.log(`[WEBHOOK] Configurado com sucesso para ${instanceName}`);
 
     return {
       configured: true,
