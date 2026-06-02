@@ -216,7 +216,7 @@ export class CreditsService {
     });
 
     const lowestCost = configs[0]?.current_cost ?? 5;
-    const threshold = Math.max(lowestCost * 10, 200);
+    const threshold = Math.max(lowestCost * 10, 1000);
 
     if (currentBalance > 0 && currentBalance <= threshold) {
       const user = await this.prisma.user.findUnique({

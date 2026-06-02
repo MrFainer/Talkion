@@ -665,6 +665,8 @@ export default function AutomationPage() {
                 Talkion para mais informações.
               </div>
             )}
+
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || user?.role === "ADMIN") && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Dias da semana (automático)</Label>
               <div className="flex flex-wrap gap-2">
@@ -683,7 +685,9 @@ export default function AutomationPage() {
                 ))}
               </div>
             </div>
+            )}
 
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || user?.role === "ADMIN") && (
             <div className="space-y-3 rounded-lg border p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -842,12 +846,15 @@ export default function AutomationPage() {
                 </div>
               ) : null}
             </div>
+            )}
 
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || user?.role === "ADMIN") && (
             <div className="flex justify-end">
               <Button onClick={handleSaveSchedule} disabled={scheduleSaving || scheduleLoading}>
                 {scheduleSaving ? "Salvando..." : "Salvar"}
               </Button>
             </div>
+            )}
           </CardContent>
         </Card>
       </main>

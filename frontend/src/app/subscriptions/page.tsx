@@ -44,6 +44,15 @@ const formatCurrency = (value: number) =>
 const formatNumber = (value: number) =>
   new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value);
 
+const getStartOfWeek = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
 const topUpPacks = [
   { id: 'topup_5000', name: '5.000 Créditos', price: 29.90, credits: 5000 },
   { id: 'topup_10000', name: '10.000 Créditos', price: 49.90, credits: 10000 },
@@ -383,9 +392,9 @@ export default function SubscriptionsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {transactions.length > 0 ? (
-                    <div className="space-y-2">
-                      {transactions.map((tx: any) => (
+                  {transactions.filter((tx: any) => new Date(tx.created_at) >= getStartOfWeek()).length > 0 ? (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {transactions.filter((tx: any) => new Date(tx.created_at) >= getStartOfWeek()).map((tx: any) => (
                         <div
                           key={tx.id}
                           className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5"
@@ -436,7 +445,7 @@ export default function SubscriptionsPage() {
                 </CardHeader>
                 <CardContent>
                   {subscription.payments && subscription.payments.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
                       {subscription.payments.map((payment: any) => (
                         <div
                           key={payment.id}

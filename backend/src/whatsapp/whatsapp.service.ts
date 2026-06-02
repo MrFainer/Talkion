@@ -2323,7 +2323,17 @@ export class WhatsappService {
       return { processed: false, event };
     }
 
-    const data = payload?.data || payload;
+    const rawData = payload?.data || payload;
+    const messages = Array.isArray(rawData) ? rawData : [rawData];
+
+    for (const msg of messages) {
+      await this.processSingleMessage(instanceName, msg);
+    }
+
+    return { processed: true, event };
+  }
+
+  private async processSingleMessage(instanceName: string, data: any) {
     const messageData = data?.message;
     const remoteJid = data?.key?.remoteJid;
     const fromMe = data?.key?.fromMe;
@@ -2333,18 +2343,18 @@ export class WhatsappService {
     const quotedMessageId = this.extractQuotedMessageId(data);
 
     if (!messageData || typeof remoteJid !== 'string') {
-      return { processed: false, reason: 'Mensagem ignorada' };
+      return;
     }
 
     if (fromMe) {
-      return { processed: false, reason: 'Mensagem própria ignorada' };
+      return;
     }
 
     const isGroup = remoteJid.includes('@g.us');
     const senderJid = isGroup ? data?.key?.participant : remoteJid;
 
     if (typeof senderJid !== 'string') {
-      return { processed: false, reason: 'Remetente não identificado' };
+      return;
     }
 
     const whatsappNumber = senderJid.split('@')[0];
@@ -2362,14 +2372,14 @@ export class WhatsappService {
       this.logger.warn(
         `[ENTRADA][IGNORADA] Aluno nao encontrado para o numero ${whatsappNumber}.`,
       );
-      return { processed: false, reason: 'Aluno não encontrado' };
+      return;
     }
 
     if (student.active === false) {
       this.logger.warn(
         `[ENTRADA][IGNORADA] Aluno inativo: ${this.formatStudentLog(student as any)}.`,
       );
-      return { processed: false, reason: 'Aluno inativo' };
+      return;
     }
 
     const isPossibleQuiz = textContent ? this.isPossibleQuizAnswer(textContent) : false;
@@ -2409,7 +2419,7 @@ export class WhatsappService {
         incomingMessageId,
         quotedMessageId,
       );
-      return { processed: true, event, type: 'audio' };
+      return;
     }
 
     if (textContent) {
@@ -2421,7 +2431,7 @@ export class WhatsappService {
         quotedMessageId,
       });
       if (handledLesson) {
-        return { processed: true, event, type: 'lesson_confirmation' };
+        return;
       }
 
       await this.handleTextMessage(
@@ -2431,10 +2441,8 @@ export class WhatsappService {
         undefined,
         quotedMessageId,
       );
-      return { processed: true, event, type: 'text' };
+      return;
     }
-
-    return { processed: false, reason: 'Sem conteúdo útil' };
   }
 
   private isPossibleQuizAnswer(text: string): boolean {
@@ -2485,12 +2493,8 @@ export class WhatsappService {
   ) {
     if (!this.isPossibleQuizAnswer(text)) return;
 
-    if (student.teacher_id) {
-      await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_received');
-      await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_metrics');
-    }
-
     const isGroup = remoteJid.includes('@g.us');
+
     if (isGroup && student.teacher_id) {
       const configured = await this.isConfiguredGroup(student.teacher_id, remoteJid);
       if (!configured) {
@@ -2499,6 +2503,11 @@ export class WhatsappService {
         );
         return;
       }
+    }
+
+    if (student.teacher_id) {
+      try { await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_received'); } catch { }
+      try { await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_metrics'); } catch { }
     }
 
     let parsedAnswers = preParsedAnswers;
@@ -2563,7 +2572,7 @@ export class WhatsappService {
     }
 
     if (latestQuiz && student?.teacher_id) {
-      await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_received', 'quiz', latestQuiz.id);
+      try { await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_received', 'quiz', latestQuiz.id); } catch { }
     }
 
     this.logger.log(
@@ -2667,7 +2676,7 @@ export class WhatsappService {
     });
 
     if (student.teacher_id) {
-      await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_metrics', 'quiz', latestQuiz.id);
+      try { await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_metrics', 'quiz', latestQuiz.id); } catch { }
     }
 
     this.logger.log(
@@ -2682,9 +2691,6 @@ export class WhatsappService {
     incomingMessageId?: string | null;
     quotedMessageId?: string | null;
   }) {
-    if (input.student.teacher_id) {
-      await this.creditsService.requireCredits(input.student.teacher_id, 'lesson_confirmation_process');
-    }
     const raw = String(input.text || '').trim();
     if (!raw) return false;
 
@@ -2744,7 +2750,7 @@ export class WhatsappService {
     });
 
     if (input.student?.teacher_id && pending?.lesson_id) {
-      await this.creditsService.deductCredits(input.student.teacher_id, 'lesson_confirmation_process', 'lesson', pending.lesson_id);
+      try { await this.creditsService.deductCredits(input.student.teacher_id, 'lesson_confirmation_process', 'lesson', pending.lesson_id); } catch { }
     }
 
     if (decision === 'UNKNOWN') {
