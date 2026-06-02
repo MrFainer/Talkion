@@ -15,18 +15,20 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     hydrate();
   }, [hydrate]);
 
+  const publicRoutes = ['/login', '/'];
+
   useEffect(() => {
-    if (mounted && isHydrated && !isAuthenticated && pathname !== '/login') {
+    if (mounted && isHydrated && !isAuthenticated && !publicRoutes.includes(pathname)) {
       router.push("/login");
     }
   }, [isAuthenticated, isHydrated, router, pathname, mounted]);
 
   if (!mounted || !isHydrated) {
-    return null; // Aguarda a hidratação completa
+    return null;
   }
 
-  if (!isAuthenticated && pathname !== '/login') {
-    return null; // Não renderiza o conteúdo se não estiver autenticado
+  if (!isAuthenticated && !publicRoutes.includes(pathname)) {
+    return null;
   }
 
   return <>{children}</>;

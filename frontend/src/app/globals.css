@@ -4,6 +4,37 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-12px) rotate(2deg); }
+  50% { transform: translateY(-20px) rotate(0deg); }
+  75% { transform: translateY(-8px) rotate(-2deg); }
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0px, 0px); }
+  25% { transform: translate(12px, -10px); }
+  50% { transform: translate(-6px, -16px); }
+  75% { transform: translate(-14px, -4px); }
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.5); }
+}
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.anim-float-slow { animation: float 7s ease-in-out infinite; }
+.anim-float-med { animation: float 5s ease-in-out infinite reverse; }
+.anim-float-fast { animation: float 4s ease-in-out infinite; }
+.anim-drift { animation: drift 12s ease-in-out infinite; }
+.anim-glow { animation: glow 3s ease-in-out infinite; }
+.anim-card1 { animation: cardFloat 4s ease-in-out infinite; }
+.anim-card2 { animation: cardFloat 4.5s ease-in-out infinite 0.5s; }
+.anim-card3 { animation: cardFloat 5s ease-in-out infinite 1s; }
+
+
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

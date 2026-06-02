@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -27,12 +29,18 @@ function AuthBackground() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.2),transparent_30%),linear-gradient(180deg,#09090b_0%,#111827_45%,#0f172a_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:52px_52px] opacity-35" />
       <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_18%_22%,rgba(96,165,250,0.18)_0,transparent_28%),radial-gradient(circle_at_80%_30%,rgba(148,163,184,0.15)_0,transparent_24%),radial-gradient(circle_at_72%_76%,rgba(59,130,246,0.16)_0,transparent_28%)]" />
-      <div className="absolute left-[8%] top-[28%] h-10 w-10 rotate-12 rounded-xl border border-blue-400/20" />
-      <div className="absolute right-[9%] top-[76%] h-8 w-8 -rotate-6 rounded-lg border border-blue-400/20" />
-      <div className="absolute left-[16%] top-[16%] h-2 w-2 rounded-full bg-blue-400/60" />
-      <div className="absolute right-[18%] top-[22%] h-2.5 w-2.5 rounded-full bg-slate-300/45" />
-      <div className="absolute left-[20%] bottom-[18%] h-2.5 w-2.5 rounded-full bg-blue-400/50" />
-      <div className="absolute right-[33%] bottom-[11%] h-1.5 w-1.5 rounded-full bg-slate-300/45" />
+      <div className="absolute left-[8%] top-[28%] anim-float-slow">
+        <div className="h-10 w-10 rotate-12 rounded-xl border border-blue-400/20" />
+      </div>
+      <div className="absolute right-[9%] top-[76%] anim-float-med">
+        <div className="h-8 w-8 -rotate-6 rounded-lg border border-blue-400/20" />
+      </div>
+      <div className="absolute left-[16%] top-[16%] h-2 w-2 anim-glow rounded-full bg-blue-400/60" />
+      <div className="absolute right-[18%] top-[22%] h-2.5 w-2.5 anim-drift rounded-full bg-slate-300/45" />
+      <div className="absolute left-[20%] bottom-[18%] anim-float-fast">
+        <div className="h-2.5 w-2.5 rounded-full bg-blue-400/50" />
+      </div>
+      <div className="absolute right-[33%] bottom-[11%] h-1.5 w-1.5 anim-glow rounded-full bg-slate-300/45" />
     </>
   );
 }
@@ -68,6 +76,7 @@ function RequirementItem({
 
 export default function LoginPage() {
   const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
   const { login, isAuthenticated, isHydrated, hydrate } = useAuthStore();
 
   useEffect(() => {
@@ -338,15 +347,24 @@ export default function LoginPage() {
     <div className="relative min-h-full w-full flex-1 overflow-hidden">
       <AuthBackground />
 
-      <div className="relative z-10 flex min-h-full w-full items-center justify-center px-4 py-6 sm:px-6">
-        <div
-          className={`w-full rounded-[24px] border border-white/10 bg-white/95 p-4 shadow-[0_30px_80px_rgba(2,6,23,0.55)] backdrop-blur sm:p-6 ${
-            isRegisterView ? "max-w-2xl" : "max-w-md"
-          }`}
-        >
+      <div className={`relative z-10 flex min-h-full w-full flex-col items-center justify-center px-4 py-6 transition-all duration-[400ms] ease-in-out sm:px-6 ${leaving ? "translate-y-2 opacity-0" : "translate-y-0 opacity-100"}`}>
+        <div className={`w-full ${isRegisterView ? "max-w-2xl" : "max-w-md"}`}>
+          <Link
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              setLeaving(true);
+              setTimeout(() => router.push("/"), 400);
+            }}
+            className="mb-3 flex w-fit items-center gap-1.5 text-sm font-medium text-slate-400 transition-all duration-200 hover:gap-3 hover:text-slate-200"
+          >
+            <ArrowLeft className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1" />
+            Voltar para home
+          </Link>
+          <div className="w-full rounded-[24px] border border-white/10 bg-white/95 p-4 shadow-[0_30px_80px_rgba(2,6,23,0.55)] backdrop-blur sm:p-6">
             <div className="mb-4 text-center">
               <div className="mb-3 flex justify-center">
-                <div className="inline-flex items-center gap-2.5 rounded-full bg-slate-950 px-3.5 py-1.5 text-white ring-1 ring-slate-800">
+                <Link href="/" className="inline-flex items-center gap-2.5 rounded-full bg-slate-950 px-3.5 py-1.5 text-white ring-1 ring-slate-800 transition hover:bg-slate-800">
                   <Image
                     src="/logo-branco.png"
                     alt="Talkion"
@@ -355,7 +373,7 @@ export default function LoginPage() {
                     className="h-5 w-5 shrink-0 object-contain"
                   />
                   <span className="text-lg font-semibold tracking-tight">Talkion</span>
-                </div>
+                </Link>
               </div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-800 sm:text-[1.85rem]">
                 {authTitle}
@@ -806,6 +824,7 @@ export default function LoginPage() {
           <p className="mt-4 text-center text-[11px] text-slate-500">
             © 2026 Talkion. Todos os direitos reservados.
           </p>
+        </div>
         </div>
       </div>
     </div>
