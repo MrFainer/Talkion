@@ -2365,6 +2365,12 @@ export class WhatsappService {
       return;
     }
 
+    const senderSuffix = senderJid.split('@')[1];
+    if (senderSuffix === 'lid') {
+      this.logger.warn(`[ENTRADA][IGNORADA] SenderJid com @lid (não é número de telefone): ${senderJid}`);
+      return;
+    }
+
     const whatsappNumber = senderJid.split('@')[0];
     const numberVariants = this.getWhatsappNumberVariants(whatsappNumber);
 
