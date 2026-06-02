@@ -515,23 +515,23 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-12 grid grid-cols-4 gap-4">
             {languages.map((lang) => (
               <div
                 key={lang.name}
                 className="rounded-2xl border-2 border-slate-200 bg-white px-6 py-4 text-center transition hover:border-blue-100 hover:shadow-md"
               >
-                <div className="mx-auto flex h-9 w-9 items-center justify-center overflow-hidden rounded-sm bg-slate-100 shadow-sm">
+                <div className="flex items-center gap-2">
                   <img
                     src={flagUrl(lang.flag)}
                     alt={lang.name}
-                    className="h-full w-full object-contain"
+                    className="h-5 w-7 rounded-[2px] object-cover shadow-sm"
                     loading="lazy"
                   />
+                  <span className="text-sm font-semibold text-slate-700">
+                    {lang.name}
+                  </span>
                 </div>
-                <p className="mt-1.5 text-sm font-semibold text-slate-700">
-                  {lang.name}
-                </p>
               </div>
             ))}
           </div>
@@ -543,7 +543,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
             {[
-              { value: "5h", label: "Economizadas por semana", icon: Clock },
+              { value: "20h+", label: "Economizadas por semana", icon: Clock },
               { value: "100%", label: "Via WhatsApp", icon: MessageCircle },
               { value: "24/7", label: "Automação contínua", icon: Bot },
               { value: "∞", label: "Idiomas suportados", icon: Globe },
@@ -704,7 +704,7 @@ export default function LandingPage() {
       </button>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 bg-slate-950 py-12 pb-[calc(3rem+env(safe-area-inset-bottom))]">
+      <footer className="border-t border-slate-800 bg-slate-950 py-12">
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-2.5">
