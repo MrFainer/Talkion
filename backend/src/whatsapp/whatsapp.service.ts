@@ -2343,9 +2343,7 @@ export class WhatsappService {
     const isGroup = typeof remoteJid === 'string' && remoteJid.includes('@g.us');
     const senderJidRaw = isGroup ? data?.key?.participant : remoteJid;
 
-    const allKeys = Object.keys(data || {}).join(',');
-    const keyKeys = Object.keys(data?.key || {}).join(',');
-    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | pushName=${data?.pushName} | dataKeys=${allKeys} | keyKeys=${keyKeys}`);
+    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | participantAlt=${data?.key?.participantAlt} | pushName=${data?.pushName}`);
 
     const textContent = this.extractTextContent(messageData);
     const hasAudio = Boolean(messageData?.audioMessage);
@@ -2361,16 +2359,20 @@ export class WhatsappService {
       return;
     }
 
-    const senderJid = isGroup ? data?.key?.participant : remoteJid;
+    let senderJid = isGroup ? data?.key?.participant : remoteJid;
 
     if (typeof senderJid !== 'string') {
       return;
     }
 
-    const senderSuffix = senderJid.split('@')[1];
-    if (senderSuffix === 'lid') {
-      this.logger.warn(`[ENTRADA][IGNORADA] SenderJid com @lid (não é número de telefone): ${senderJid}`);
-      return;
+    if (senderJid.endsWith('@lid') && isGroup) {
+      const alt = data?.key?.participantAlt;
+      if (typeof alt === 'string' && alt.includes('@s.whatsapp.net')) {
+        senderJid = alt;
+      } else {
+        this.logger.warn(`[ENTRADA][IGNORADA] SenderJid com @lid sem participantAlt: ${senderJid}`);
+        return;
+      }
     }
 
     const whatsappNumber = senderJid.split('@')[0];
