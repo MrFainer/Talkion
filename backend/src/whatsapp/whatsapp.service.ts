@@ -191,6 +191,9 @@ export class WhatsappService {
     const existingInstance = await this.fetchInstance(instanceName);
 
     if (existingInstance) {
+      if (this.getWebhookUrl()) {
+        try { await this.setWebhook(instanceName); } catch { }
+      }
       return this.normalizeInstance(existingInstance, instanceName);
     }
 
@@ -2334,6 +2337,8 @@ export class WhatsappService {
   }
 
   private async processSingleMessage(instanceName: string, data: any) {
+    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | type=${typeof data} | hasKey=${Boolean(data?.key)} | hasMessage=${Boolean(data?.message)}`);
+
     const messageData = data?.message;
     const remoteJid = data?.key?.remoteJid;
     const fromMe = data?.key?.fromMe;
@@ -2343,6 +2348,7 @@ export class WhatsappService {
     const quotedMessageId = this.extractQuotedMessageId(data);
 
     if (!messageData || typeof remoteJid !== 'string') {
+      this.logger.warn(`[WEBHOOK] Mensagem ignorada - messageData: ${!!messageData}, remoteJid: ${remoteJid}`);
       return;
     }
 
