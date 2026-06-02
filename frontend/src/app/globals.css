@@ -157,6 +157,7 @@
   }
   html {
     @apply font-sans;
+    overscroll-behavior-y: contain;
   }
   html,
   body {

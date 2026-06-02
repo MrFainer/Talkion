@@ -515,7 +515,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-12 grid grid-cols-4 gap-4">
+          <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
             {languages.map((lang) => (
               <div
                 key={lang.name}
