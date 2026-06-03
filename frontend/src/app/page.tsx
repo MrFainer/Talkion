@@ -821,16 +821,16 @@ export default function LandingPage() {
       <footer className="border-t border-slate-800 bg-slate-950 py-12">
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
-            <div className="flex items-center gap-2.5">
+            <Link href="/" className="inline-flex items-center gap-2.5 rounded-full bg-slate-950 px-3.5 py-1.5 text-white ring-1 ring-slate-800 transition hover:bg-slate-800">
               <Image
                 src="/logo-branco.png"
                 alt="Talkion"
-                width={28}
-                height={28}
-                className="h-7 w-7"
+                width={22}
+                height={22}
+                className="h-5 w-5 shrink-0 object-contain"
               />
-              <span className="text-lg font-bold text-white">Talkion</span>
-            </div>
+              <span className="text-lg font-semibold tracking-tight">Talkion</span>
+            </Link>
             <div className="flex items-center gap-6 text-sm text-slate-500">
               <button onClick={() => scrollTo("benefits")} className="transition hover:text-slate-300">
                 Por que usar?
