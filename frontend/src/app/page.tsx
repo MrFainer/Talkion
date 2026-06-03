@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -179,6 +179,10 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const [depoimentoIndex, setDepoimentoIndex] = useState(0);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactSuccess, setContactSuccess] = useState(false);
+  const [contactError, setContactError] = useState("");
+  const turnstileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onScroll = () => {
@@ -194,6 +198,33 @@ export default function LandingPage() {
       setDepoimentoIndex((prev) => (prev + 1) % depoimentos.length);
     }, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const el = turnstileRef.current;
+    if (!el) return;
+
+    const renderWidget = () => {
+      if (!(window as any).turnstile || el.dataset.turnstileRendered) return;
+      el.dataset.turnstileRendered = "1";
+      (window as any).turnstile.render(el, {
+        sitekey:
+          process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+          "1x00000000000000000000AA",
+        theme: "dark",
+      });
+    };
+
+    if ((window as any).turnstile) {
+      renderWidget();
+    } else if (!document.querySelector('script[src*="turnstile/v0/api.js"]')) {
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      script.async = true;
+      script.defer = true;
+      script.onload = renderWidget;
+      document.head.appendChild(script);
+    }
   }, []);
 
   const scrollTo = (id: string) => {
@@ -625,17 +656,80 @@ export default function LandingPage() {
           </div>
           <div className="mx-auto mt-12 max-w-lg">
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.target as HTMLFormElement;
-                const data = new FormData(form);
-                const nome = data.get("nome") as string;
-                const email = data.get("email") as string;
-                const mensagem = data.get("mensagem") as string;
-                window.location.href = `mailto:talkionadmin@gmail.com?subject=Contato%20-%20${encodeURIComponent(nome)}&body=${encodeURIComponent(`Nome: ${nome}\nE-mail: ${email}\n\n${mensagem}`)}`;
-              }}
-              className="space-y-5"
-            >
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setContactLoading(true);
+                  setContactSuccess(false);
+                  setContactError("");
+
+                  const form = e.target as HTMLFormElement;
+                  const data = new FormData(form);
+
+                  const website = data.get("website") as string;
+                  if (website) return;
+
+                  const nome = data.get("nome") as string;
+                  const email = data.get("email") as string;
+                  const mensagem = data.get("mensagem") as string;
+
+                  let turnstileToken = "";
+                  try {
+                    turnstileToken =
+                      (window as any).turnstile?.getResponse() || "";
+                    if (!turnstileToken) {
+                      setContactError(
+                        "Verifique o Captcha antes de enviar."
+                      );
+                      setContactLoading(false);
+                      return;
+                    }
+                  } catch {
+                    setContactError("Erro ao verificar Captcha.");
+                    setContactLoading(false);
+                    return;
+                  }
+
+                  try {
+                    const res = await fetch(
+                      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/contact`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          nome,
+                          email,
+                          mensagem,
+                          turnstileToken,
+                        }),
+                      }
+                    );
+
+                    const result = await res.json();
+
+                    if (result.success) {
+                      setContactSuccess(true);
+                      form.reset();
+                      (window as any).turnstile?.reset();
+                    } else {
+                      setContactError(
+                        result.message || "Erro ao enviar mensagem."
+                      );
+                      (window as any).turnstile?.reset();
+                    }
+                  } catch {
+                    setContactError(
+                      "Erro de conexão. Verifique sua internet e tente novamente."
+                    );
+                  } finally {
+                    setContactLoading(false);
+                  }
+                }}
+                className="space-y-5"
+              >
+              <div className="absolute opacity-0 pointer-events-none" aria-hidden="true">
+                <label htmlFor="website">Nao preencher</label>
+                <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
+              </div>
               <div>
                 <label htmlFor="nome" className="mb-1.5 block text-sm font-medium text-slate-400">
                   Nome
@@ -671,16 +765,36 @@ export default function LandingPage() {
                   name="mensagem"
                   required
                   rows={4}
-                  placeholder="Conte como podemos ajudar..."
+                  placeholder="Quero saber mais informações sobre o Talkion"
                   className="w-full resize-none rounded-xl border border-slate-700/60 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-500 backdrop-blur transition focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
                 />
               </div>
+              {contactSuccess && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-300">
+                  Mensagem enviada com sucesso! Responderemos em breve.
+                </div>
+              )}
+              {contactError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
+                  {contactError}
+                </div>
+              )}
+              <div className="flex justify-center">
+                <div ref={turnstileRef} className="cf-turnstile-widget" />
+              </div>
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500"
+                disabled={contactLoading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Enviar Mensagem
-                <ArrowRight className="h-4 w-4" />
+                {contactLoading ? (
+                  <>Enviando...</>
+                ) : (
+                  <>
+                    Enviar Mensagem
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
               </button>
               <p className="text-center text-sm text-slate-500">
                 Respondemos em até 24 horas úteis.

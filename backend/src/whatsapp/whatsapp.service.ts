@@ -751,6 +751,197 @@ export class WhatsappService {
     return { sent, skipped };
   }
 
+  private async sendWeeklyLessonSummaries(teacherId: string) {
+    const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+    const now = new Date();
+
+    const timeStr = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false, timeZone,
+    }).format(now);
+    const [h, min] = timeStr.split(':').map(Number);
+    const todayStart = new Date(now.getTime() - h * 3600000 - min * 60000);
+    todayStart.setSeconds(0, 0);
+
+    const weekdayName = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      timeZone,
+    }).format(now);
+    const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const todayWeekday = weekdayNames.indexOf(weekdayName.toLowerCase());
+
+    const mondayOffset = todayWeekday === 0 ? -6 : 1 - todayWeekday;
+    const monday = new Date(todayStart);
+    monday.setDate(todayStart.getDate() + mondayOffset);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    const settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+      select: {
+        private_lesson_confirmation_idea: true,
+        ai_model: true,
+        ai_temperature: true,
+      },
+    });
+
+    const hour = Number(h);
+    const period = hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+
+    const lessons = await this.prisma.lesson.findMany({
+      where: {
+        student: {
+          teacher_id: teacherId,
+          active: true,
+          whatsapp_valid: true,
+        },
+        OR: [
+          { kind: 'RECURRING', recurring: true, weekday: { in: [1, 2, 3, 4, 5, 6, 0] } },
+          { kind: 'EXTRA', date: { gte: monday, lte: sunday } },
+        ],
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            full_name: true,
+            whatsapp_number: true,
+          },
+        },
+      },
+      orderBy: [{ student_id: 'asc' }, { time: 'asc' }],
+    });
+
+    if (lessons.length === 0) {
+      return { sent: 0, skipped: 0 };
+    }
+
+    const byStudent = new Map<string, {
+      student: { id: string; full_name: string; whatsapp_number: string };
+      lessons: Array<{ weekday: number | null; time: string }>;
+    }>();
+
+    for (const lesson of lessons) {
+      let lessonWeekday: number | null = null;
+      if (lesson.kind === 'RECURRING' && lesson.recurring) {
+        lessonWeekday = lesson.weekday;
+      } else if (lesson.kind === 'EXTRA' && lesson.date) {
+        lessonWeekday = lesson.date.getDay();
+      }
+      if (lessonWeekday === null) continue;
+      if (lessonWeekday === 1) continue;
+
+      const key = lesson.student.id;
+      if (!byStudent.has(key)) {
+        byStudent.set(key, {
+          student: lesson.student,
+          lessons: [],
+        });
+      }
+      byStudent.get(key)!.lessons.push({ weekday: lessonWeekday, time: lesson.time });
+    }
+
+    let sent = 0;
+    let skipped = 0;
+
+    const students = Array.from(byStudent.values());
+
+    const defaultIdea =
+      'Você pode montar a confirmação de aula com base nesse modelo aqui:\n\nGood {{period}} {{nome}}, how are you doing today? 🎉\n\nI would like to confirm our English Mentoring this {{diasemana}} at {{hora_en}} 🙌🏻\n\nParabéns pelo seu comprometimento e dedicação nos estudos de inglês 🚀🇺🇸\n\nHave an excellent week  🎊';
+    const rawIdea = String(
+      settings?.private_lesson_confirmation_idea || defaultIdea,
+    ).trim();
+
+    const extractTemplate = (raw: string) => {
+      const idx = raw.indexOf('\n\n');
+      if (idx <= 0) return raw;
+      const head = raw.slice(0, idx).toLowerCase();
+      if (head.includes('você pode montar')) {
+        return raw.slice(idx + 2).trim();
+      }
+      return raw;
+    };
+
+    const templateBase = extractTemplate(rawIdea);
+
+    await this.runWithConcurrencyLimit(
+      students,
+      Math.min(this.groupSendParallelBase, students.length || 1),
+      async (entry) => {
+        entry.lessons.sort((a, b) => (a.weekday ?? 7) - (b.weekday ?? 7) || a.time.localeCompare(b.time));
+
+        const lines = entry.lessons
+          .filter((l) => l.weekday !== null)
+          .map((l) => {
+            const dayLabel = weekdayLabels[l.weekday!];
+            return `🗓 ${dayLabel} - ${l.time}`;
+          });
+
+        if (lines.length === 0) {
+          skipped += 1;
+          return;
+        }
+
+        const studentName = String(entry.student.full_name || '').trim();
+        const scheduleText = lines.join('\n');
+
+        try {
+          await this.creditsService.requireCredits(teacherId, 'lesson_confirmation_send');
+        } catch {
+          this.logger.warn(
+            `[LESSONS] Créditos insuficientes para resumo semanal de ${studentName}`,
+          );
+          skipped += 1;
+          return;
+        }
+
+        const applyVars = (text: string) =>
+          String(text || '')
+            .replace(/{{nome}}/g, studentName)
+            .replace(/{{period}}/g, period)
+            .replace(/{{diasemana}}/g, 'this week')
+            .replace(/{{hora_en}}/g, 'see schedule below');
+
+        const greeting = applyVars(templateBase);
+
+        const buttonsFooter = 'Responda com *Yes* or *No*.';
+        const text = `${greeting}\n\n${scheduleText}\n\n${buttonsFooter}`;
+
+        const sendResult = await this.sendMessage(
+          teacherId,
+          entry.student.whatsapp_number,
+          text,
+          {
+            studentId: entry.student.id,
+            relatedNewsId: null,
+            contentKind: 'WEEKLY_LESSON_SUMMARY',
+          },
+        ).catch((error) => {
+          this.logger.error(
+            `[LESSONS] Erro ao enviar resumo semanal para ${entry.student.full_name}: ${error?.message || error}`,
+          );
+          return null;
+        });
+
+        if (sendResult) {
+          await this.creditsService.deductCredits(teacherId, 'lesson_confirmation_send', 'lesson', entry.student.id);
+          sent += 1;
+          this.logger.log(
+            `[LESSONS] Resumo semanal enviado para ${entry.student.full_name} | ${lines.length} aula(s)`,
+          );
+        } else {
+          skipped += 1;
+        }
+      },
+    );
+
+    return { sent, skipped };
+  }
+
   /**
    * Verifica se o número possui WhatsApp ativo
    */
@@ -1401,6 +1592,17 @@ export class WhatsappService {
       }
 
       if (job.lessonsDue) {
+        if (dayOfWeek === 1) {
+          tasks.push(
+            this.sendWeeklyLessonSummaries(job.teacherId).catch((error) => {
+              this.logger.error(
+                `[AUTO][${jobId}] Falha envio resumo semanal teacherId=${job.teacherId}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+            }),
+          );
+        }
         tasks.push(
           this.sendTodayLessonConfirmations(job.teacherId).catch((error) => {
             this.logger.error(
@@ -2452,6 +2654,16 @@ export class WhatsappService {
         return;
       }
 
+      const handledWeekly = await this.handleWeeklySummaryResponse({
+        student: student as any,
+        text: textContent,
+        quotedMessageId,
+        teacherId: student.teacher_id || undefined,
+      });
+      if (handledWeekly) {
+        return;
+      }
+
       await this.handleTextMessage(
         student,
         remoteJid,
@@ -2798,6 +3010,55 @@ export class WhatsappService {
 
     this.logger.log(
       `[LESSONS] Resposta processada para ${this.formatStudentLog(input.student)} | status=${newStatus} | confirmation=${pending.id}`,
+    );
+
+    return true;
+  }
+
+  private async handleWeeklySummaryResponse(input: {
+    student: StudentContext;
+    text: string;
+    quotedMessageId?: string | null;
+    teacherId?: string;
+  }) {
+    if (!input.quotedMessageId || !input.teacherId) return false;
+
+    const quotedMsg = await this.prisma.whatsappMessage.findFirst({
+      where: { external_message_id: input.quotedMessageId, content_kind: 'WEEKLY_LESSON_SUMMARY' },
+      select: { id: true },
+    });
+    if (!quotedMsg) return false;
+
+    const raw = String(input.text || '').trim();
+    if (!raw) return false;
+
+    const decision = await this.aiService.classifyYesNo(raw, {
+      teacherId: input.teacherId,
+      studentId: input.student.id,
+      referenceType: 'weekly_summary',
+      referenceId: quotedMsg.id,
+      remoteJid: null,
+      flowType: 'INCOMING',
+      metadata: {
+        quotedMessageId: input.quotedMessageId || null,
+      },
+    });
+
+    if (decision === 'UNKNOWN') return false;
+
+    try {
+      await this.creditsService.deductCredits(input.teacherId, 'lesson_confirmation_process', 'lesson', input.student.id);
+    } catch { }
+
+    await this.prisma.whatsappMessage.updateMany({
+      where: { external_message_id: input.quotedMessageId },
+      data: {
+        content_kind: decision === 'YES' ? 'WEEKLY_SUMMARY_CONFIRMED' : 'WEEKLY_SUMMARY_DECLINED',
+      },
+    });
+
+    this.logger.log(
+      `[LESSONS] Resposta semanal: ${input.student.full_name} | ${decision === 'YES' ? 'confirmou' : 'recusou'} a agenda da semana`,
     );
 
     return true;

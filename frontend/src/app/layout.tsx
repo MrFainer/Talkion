@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/sonner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
 import { TooltipProvider } from "@/components/ui/tooltip";
-
 const inter = Inter({ subsets: ["latin"] });
 
 

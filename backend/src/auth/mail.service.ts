@@ -197,4 +197,27 @@ export class MailService {
       this.logger.error('Erro ao enviar e-mail de pagamento recusado', error);
     }
   }
+
+  async sendContactEmail(nome: string, email: string, mensagem: string) {
+    const html = `
+      <h2>Novo contato do site</h2>
+      <p><strong>Nome:</strong> ${nome}</p>
+      <p><strong>E-mail:</strong> ${email}</p>
+      <p><strong>Mensagem:</strong></p>
+      <p>${mensagem}</p>
+    `;
+
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.from,
+        to: 'talkionadmin@gmail.com',
+        subject: `Contato - ${nome}`,
+        html,
+      });
+      this.logger.log(`E-mail de contato enviado: ${info.messageId}`);
+    } catch (error) {
+      this.logger.error('Erro ao enviar e-mail de contato', error);
+      throw error;
+    }
+  }
 }

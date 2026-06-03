@@ -16,6 +16,7 @@ import { LessonsModule } from './lessons/lessons.module';
 import { TeacherDashboardModule } from './teacher-dashboard/teacher-dashboard.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { CreditsModule } from './credits/credits.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { CreditsModule } from './credits/credits.module';
     TeacherDashboardModule,
     SubscriptionsModule,
     CreditsModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],
