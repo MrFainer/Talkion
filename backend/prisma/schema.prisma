@@ -313,6 +313,12 @@ model MessageSettings {
   lessons_confirmation_time   String   @db.VarChar(5) @default("08:00")
   lessons_confirmation_enabled Boolean @default(false)
 
+  admin_news_capture_enabled        Boolean  @default(true)
+  admin_quiz_generation_enabled     Boolean  @default(true)
+  admin_auto_send_enabled           Boolean  @default(true)
+  admin_group_send_enabled          Boolean  @default(true)
+  admin_lessons_confirmation_enabled Boolean @default(true)
+
   news_capture_enabled        Boolean  @default(true)
   quiz_generation_enabled     Boolean  @default(true)
   auto_send_enabled           Boolean  @default(true)

@@ -37,6 +37,12 @@ export class UpdateSettingsDto {
   quiz_generation_enabled?: boolean;
   auto_send_enabled?: boolean;
   group_send_enabled?: boolean;
+
+  admin_news_capture_enabled?: boolean;
+  admin_quiz_generation_enabled?: boolean;
+  admin_auto_send_enabled?: boolean;
+  admin_group_send_enabled?: boolean;
+  admin_lessons_confirmation_enabled?: boolean;
   automation_days?: any;
   auto_group_targets?: any;
 

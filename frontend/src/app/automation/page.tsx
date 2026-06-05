@@ -60,6 +60,11 @@ type MessageSettingsPayload = {
   quiz_generation_enabled?: boolean;
   auto_send_enabled?: boolean;
   group_send_enabled?: boolean;
+  admin_news_capture_enabled?: boolean;
+  admin_quiz_generation_enabled?: boolean;
+  admin_auto_send_enabled?: boolean;
+  admin_group_send_enabled?: boolean;
+  admin_lessons_confirmation_enabled?: boolean;
   automation_days?: number[];
   auto_group_targets?: any;
 };
@@ -311,14 +316,14 @@ export default function AutomationPage() {
       setLessonsConfirmationTime(payload.lessons_confirmation_time || "08:00");
       setLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
       setNewsCaptureEnabled(payload.news_capture_enabled !== false);
-      setInitialNewsCaptureEnabled(payload.news_capture_enabled !== false);
+      setInitialNewsCaptureEnabled(payload.admin_news_capture_enabled !== false);
       setQuizGenerationEnabled(payload.quiz_generation_enabled !== false);
       setAutoSendEnabled(payload.auto_send_enabled !== false);
-      setInitialAutoSendEnabled(payload.auto_send_enabled !== false);
+      setInitialAutoSendEnabled(payload.admin_auto_send_enabled !== false);
       setGroupSendEnabled(payload.group_send_enabled !== false);
-      setInitialGroupSendEnabled(payload.group_send_enabled !== false);
+      setInitialGroupSendEnabled(payload.admin_group_send_enabled !== false);
       setLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
-      setInitialLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
+      setInitialLessonsConfirmationEnabled(payload.admin_lessons_confirmation_enabled !== false);
       setAutomationDays(Array.isArray(payload.automation_days) ? payload.automation_days : [0, 1, 2, 3, 4, 5, 6]);
       const rawTargets = payload.auto_group_targets;
       const parsedTargets = Array.isArray(rawTargets)

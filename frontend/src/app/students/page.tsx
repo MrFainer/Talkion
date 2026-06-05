@@ -141,6 +141,13 @@ export default function StudentsPage() {
   }, [fetchStudents]);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      fetchStudents();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchStudents]);
+
+  useEffect(() => {
     if (!user?.id) return;
     api.get(`/subscriptions/user/${user.id}`).then((res) => {
       const sub = res.data;

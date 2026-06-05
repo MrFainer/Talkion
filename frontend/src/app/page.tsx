@@ -30,6 +30,7 @@ import {
   Repeat,
   Award,
   CalendarCheck,
+  HelpCircle,
 } from "lucide-react";
 
 const features = [
@@ -175,6 +176,29 @@ const depoimentos = [
   },
 ];
 
+const faq = [
+  {
+    question: "O que está incluso nos planos?",
+    answer:
+      "Todos os planos incluem acesso completo às funcionalidades da plataforma, incluindo envio de mensagens, comunicação com grupos, criação de conteúdos com IA e gerenciamento de alunos.",
+  },
+  {
+    question: "Como funcionam os créditos?",
+    answer:
+      "Cada funcionalidade da plataforma consome uma quantidade de créditos. Por exemplo, gerar uma notícia, criar um quiz, enviar uma mensagem ou transcrever um áudio de speaking — cada ação gasta uma pequena parcela dos seus créditos mensais. Os créditos são renovados todo mês e você acompanha o consumo em tempo real pelo painel de controle.",
+  },
+  {
+    question: "Posso trocar de plano depois?",
+    answer:
+      "Sim. Você pode alterar seu plano conforme o crescimento da sua turma.",
+  },
+  {
+    question: "Como funciona a cobrança de alunos excedentes?",
+    answer:
+      "Caso a quantidade de alunos ultrapasse o limite do plano contratado, será cobrado apenas o valor correspondente aos alunos adicionais ativos.",
+  },
+];
+
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [showTop, setShowTop] = useState(false);
@@ -182,6 +206,9 @@ export default function LandingPage() {
   const [contactLoading, setContactLoading] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
   const [contactError, setContactError] = useState("");
+  const [contactMessage, setContactMessage] = useState("Quero saber mais informações sobre o Talkion");
+  const [showContactHint, setShowContactHint] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const turnstileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -235,6 +262,16 @@ export default function LandingPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const goToContact = (plan: string) => {
+    setContactMessage(`Quero saber mais informações sobre o Plano ${plan} do Talkion`);
+    setShowContactHint(true);
+    setTimeout(() => {
+      document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+
+
   const flagUrl = (code: string) => `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 
   return (
@@ -263,6 +300,7 @@ export default function LandingPage() {
           <div className="hidden items-center gap-8 md:flex">
             {[
               { label: "Por que usar?", target: "benefits" },
+              { label: "Planos", target: "plans" },
               { label: "Funcionalidades", target: "features" },
               { label: "Como funciona", target: "how-it-works" },
               { label: "Idiomas", target: "languages" },
@@ -411,6 +449,169 @@ export default function LandingPage() {
                 <div>
                   <h3 className="text-xl font-semibold text-slate-900">{benefit.title}</h3>
                   <p className="mt-2 leading-relaxed text-slate-500">{benefit.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Planos */}
+      <section id="plans" className="relative bg-slate-50 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
+              <CreditCard className="h-3.5 w-3.5" />
+              Planos
+            </span>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Escolha o plano ideal para sua turma
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-500">
+              Automatize a comunicação com seus alunos, economize tempo e mantenha o engajamento das suas aulas.
+            </p>
+          </div>
+          <div className="mx-auto mt-16 grid max-w-5xl gap-8 lg:grid-cols-2">
+            {/* Plano Base */}
+            <div className="relative flex flex-col rounded-2xl border border-slate-200 bg-white p-8 transition hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5">
+              <h3 className="text-lg font-semibold text-slate-500">Plano Base</h3>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-slate-900">R$ 84,90</span>
+                <span className="text-sm text-slate-500">/mês</span>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed text-slate-500">
+                Ideal para professores que estão começando a automatizar a comunicação com seus alunos.
+              </p>
+              <ul className="mt-6 flex-1 space-y-3">
+                {[
+                  "Acesso a todas as funcionalidades da plataforma",
+                  "Envio de mensagens para grupos e conversas privadas",
+                  "Criação de quizzes e conteúdos com IA",
+                  "Gestão simplificada dos alunos",
+                  "Suporte online",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm text-slate-700">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 space-y-2 border-t border-slate-100 pt-6">
+                <p className="text-xs text-slate-400">
+                  Inclui a quantidade de alunos prevista para o plano
+                </p>
+                <p className="text-xs text-slate-400">
+                  Aluno adicional: R$ 2,99 por aluno/mês
+                </p>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-medium text-slate-500">15.000 créditos/mês</span>
+                </div>
+              </div>
+              <button
+                onClick={() => goToContact("Base")}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-6 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+              >
+                Começar Agora
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Plano Premium (Destacado) */}
+            <div className="relative flex flex-col rounded-2xl border-2 border-blue-500 bg-white p-8 shadow-xl shadow-blue-500/10">
+              <div className="absolute -top-3.5 left-6 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-1 text-xs font-semibold text-white shadow-lg">
+                <Star className="h-3 w-3 fill-white" />
+                Recomendado
+              </div>
+              <h3 className="text-lg font-semibold text-slate-500">Plano Premium</h3>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-slate-900">R$ 159,90</span>
+                <span className="text-sm text-slate-500">/mês</span>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed text-slate-500">
+                Perfeito para professores com maior volume de alunos e necessidade de comunicação frequente.
+              </p>
+              <ul className="mt-6 flex-1 space-y-3">
+                {[
+                  "Todas as funcionalidades do Plano Base",
+                  "Maior capacidade de utilização da plataforma",
+                  "Mais créditos mensais para recursos com IA",
+                  "Melhor custo-benefício para turmas maiores",
+                  "Suporte prioritário",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm text-slate-700">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 space-y-2 border-t border-slate-100 pt-6">
+                <p className="text-xs text-slate-400">
+                  Inclui a quantidade de alunos prevista para o plano
+                </p>
+                <p className="text-xs text-slate-400">
+                  Aluno adicional: R$ 2,99 por aluno/mês
+                </p>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-medium text-slate-500">30.000 créditos/mês</span>
+                </div>
+              </div>
+              <button
+                onClick={() => goToContact("Premium")}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition hover:from-blue-500 hover:to-indigo-500"
+              >
+                Quero o Premium
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-slate-400">
+            Todos os recursos da plataforma estão disponíveis em qualquer plano. A diferença entre os planos está na capacidade de utilização e quantidade de alunos atendidos.
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="relative bg-white py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700">
+              <HelpCircle className="h-3.5 w-3.5" />
+              Perguntas Frequentes
+            </span>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Ainda com dúvidas?
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-500">
+              As principais perguntas que nossos professores fazem antes de começar.
+            </p>
+          </div>
+          <div className="mx-auto mt-12 max-w-3xl space-y-3">
+            {faq.map((item, index) => (
+              <div
+                key={index}
+                className="overflow-hidden rounded-2xl border border-slate-200 transition hover:border-slate-300"
+              >
+                <button
+                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                  className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-slate-50"
+                >
+                  <span className="text-base font-semibold text-slate-900">{item.question}</span>
+                  <ChevronDown
+                    className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 ${
+                      openFaq === index ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <div
+                  className={`overflow-hidden transition-all duration-200 ${
+                    openFaq === index ? "max-h-48" : "max-h-0"
+                  }`}
+                >
+                  <p className="border-t border-slate-100 px-6 py-5 text-sm leading-relaxed text-slate-500">
+                    {item.answer}
+                  </p>
                 </div>
               </div>
             ))}
@@ -742,6 +943,9 @@ export default function LandingPage() {
                   placeholder="Seu nome completo"
                   className="w-full rounded-xl border border-slate-700/60 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-500 backdrop-blur transition focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
                 />
+                {showContactHint && (
+                  <p className="mt-1.5 text-xs text-blue-400">Preencha seu nome para receber as informações.</p>
+                )}
               </div>
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-400">
@@ -755,6 +959,9 @@ export default function LandingPage() {
                   placeholder="seu@email.com"
                   className="w-full rounded-xl border border-slate-700/60 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-500 backdrop-blur transition focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
                 />
+                {showContactHint && (
+                  <p className="mt-1.5 text-xs text-blue-400">Preencha seu email para receber as informações.</p>
+                )}
               </div>
               <div>
                 <label htmlFor="mensagem" className="mb-1.5 block text-sm font-medium text-slate-400">
@@ -765,8 +972,9 @@ export default function LandingPage() {
                   name="mensagem"
                   required
                   rows={4}
-                  placeholder="Quero saber mais informações sobre o Talkion"
-                  className="w-full resize-none rounded-xl border border-slate-700/60 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-500 backdrop-blur transition focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  className="w-full resize-none rounded-xl border border-slate-700/60 bg-white/5 px-4 py-3 text-sm text-white backdrop-blur transition focus:border-blue-500/50 focus:bg-white/10 focus:outline-none"
                 />
               </div>
               {contactSuccess && (
@@ -832,17 +1040,17 @@ export default function LandingPage() {
               <span className="text-lg font-semibold tracking-tight">Talkion</span>
             </Link>
             <div className="flex items-center gap-6 text-sm text-slate-500">
+              <button onClick={() => scrollTo("plans")} className="transition hover:text-slate-300">
+                Planos
+              </button>
               <button onClick={() => scrollTo("benefits")} className="transition hover:text-slate-300">
                 Por que usar?
               </button>
               <button onClick={() => scrollTo("features")} className="transition hover:text-slate-300">
                 Funcionalidades
               </button>
-              <button onClick={() => scrollTo("how-it-works")} className="transition hover:text-slate-300">
-                Como funciona
-              </button>
-              <button onClick={() => scrollTo("contact")} className="transition hover:text-slate-300">
-                Contato
+              <button onClick={() => scrollTo("faq")} className="transition hover:text-slate-300">
+                FAQ
               </button>
             </div>
           </div>

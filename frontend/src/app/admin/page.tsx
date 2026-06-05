@@ -386,11 +386,11 @@ export default function AdminPage() {
                                           size="icon-sm"
                                           onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation();
-                                            handleAdminToggleSetting(teacher.id, 'news_capture_enabled', teacherSettings[teacher.id]?.news_capture_enabled !== false);
+                                            handleAdminToggleSetting(teacher.id, 'admin_news_capture_enabled', teacherSettings[teacher.id]?.admin_news_capture_enabled !== false);
                                           }}
-                                          className={teacherSettings[teacher.id]?.news_capture_enabled !== false ? "text-red-500" : "text-green-500"}
+                                          className={teacherSettings[teacher.id]?.admin_news_capture_enabled !== false ? "text-red-500" : "text-green-500"}
                                         >
-                                          {teacherSettings[teacher.id]?.news_capture_enabled !== false ? (
+                                          {teacherSettings[teacher.id]?.admin_news_capture_enabled !== false ? (
                                             <PowerOff className="h-4 w-4" />
                                           ) : (
                                             <Power className="h-4 w-4" />
@@ -399,7 +399,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.news_capture_enabled !== false ? "Desativar Captura" : "Ativar Captura"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_news_capture_enabled !== false ? "Desativar Captura" : "Ativar Captura"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
@@ -414,11 +414,11 @@ export default function AdminPage() {
                                           size="icon-sm"
                                           onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation();
-                                            handleAdminToggleSetting(teacher.id, 'quiz_generation_enabled', teacherSettings[teacher.id]?.quiz_generation_enabled !== false);
+                                            handleAdminToggleSetting(teacher.id, 'admin_quiz_generation_enabled', teacherSettings[teacher.id]?.admin_quiz_generation_enabled !== false);
                                           }}
-                                          className={teacherSettings[teacher.id]?.quiz_generation_enabled !== false ? "text-red-500" : "text-green-500"}
+                                          className={teacherSettings[teacher.id]?.admin_quiz_generation_enabled !== false ? "text-red-500" : "text-green-500"}
                                         >
-                                          {teacherSettings[teacher.id]?.quiz_generation_enabled !== false ? (
+                                          {teacherSettings[teacher.id]?.admin_quiz_generation_enabled !== false ? (
                                             <PowerOff className="h-4 w-4" />
                                           ) : (
                                             <Power className="h-4 w-4" />
@@ -427,7 +427,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.quiz_generation_enabled !== false ? "Desativar Quiz" : "Ativar Quiz"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_quiz_generation_enabled !== false ? "Desativar Quiz" : "Ativar Quiz"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
@@ -442,11 +442,11 @@ export default function AdminPage() {
                                           size="icon-sm"
                                           onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation();
-                                            handleAdminToggleSetting(teacher.id, 'auto_send_enabled', teacherSettings[teacher.id]?.auto_send_enabled !== false);
+                                            handleAdminToggleSetting(teacher.id, 'admin_auto_send_enabled', teacherSettings[teacher.id]?.admin_auto_send_enabled !== false);
                                           }}
-                                          className={teacherSettings[teacher.id]?.auto_send_enabled !== false ? "text-red-500" : "text-green-500"}
+                                          className={teacherSettings[teacher.id]?.admin_auto_send_enabled !== false ? "text-red-500" : "text-green-500"}
                                         >
-                                          {teacherSettings[teacher.id]?.auto_send_enabled !== false ? (
+                                          {teacherSettings[teacher.id]?.admin_auto_send_enabled !== false ? (
                                             <PowerOff className="h-4 w-4" />
                                           ) : (
                                             <Power className="h-4 w-4" />
@@ -455,7 +455,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.auto_send_enabled !== false ? "Desativar Envio" : "Ativar Envio"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_auto_send_enabled !== false ? "Desativar Envio" : "Ativar Envio"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
@@ -470,11 +470,11 @@ export default function AdminPage() {
                                           size="icon-sm"
                                           onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation();
-                                            handleAdminToggleSetting(teacher.id, 'group_send_enabled', teacherSettings[teacher.id]?.group_send_enabled !== false);
+                                            handleAdminToggleSetting(teacher.id, 'admin_group_send_enabled', teacherSettings[teacher.id]?.admin_group_send_enabled !== false);
                                           }}
-                                          className={teacherSettings[teacher.id]?.group_send_enabled !== false ? "text-red-500" : "text-green-500"}
+                                          className={teacherSettings[teacher.id]?.admin_group_send_enabled !== false ? "text-red-500" : "text-green-500"}
                                         >
-                                          {teacherSettings[teacher.id]?.group_send_enabled !== false ? (
+                                          {teacherSettings[teacher.id]?.admin_group_send_enabled !== false ? (
                                             <PowerOff className="h-4 w-4" />
                                           ) : (
                                             <Power className="h-4 w-4" />
@@ -483,7 +483,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.group_send_enabled !== false ? "Desativar Envio Grupo" : "Ativar Envio Grupo"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_group_send_enabled !== false ? "Desativar Envio Grupo" : "Ativar Envio Grupo"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
@@ -498,11 +498,11 @@ export default function AdminPage() {
                                           size="icon-sm"
                                           onClick={(e: React.MouseEvent) => {
                                             e.stopPropagation();
-                                            handleAdminToggleSetting(teacher.id, 'lessons_confirmation_enabled', teacherSettings[teacher.id]?.lessons_confirmation_enabled === true);
+                                            handleAdminToggleSetting(teacher.id, 'admin_lessons_confirmation_enabled', teacherSettings[teacher.id]?.admin_lessons_confirmation_enabled !== false);
                                           }}
-                                          className={teacherSettings[teacher.id]?.lessons_confirmation_enabled === true ? "text-red-500" : "text-green-500"}
+                                          className={teacherSettings[teacher.id]?.admin_lessons_confirmation_enabled !== false ? "text-red-500" : "text-green-500"}
                                         >
-                                          {teacherSettings[teacher.id]?.lessons_confirmation_enabled === true ? (
+                                          {teacherSettings[teacher.id]?.admin_lessons_confirmation_enabled !== false ? (
                                             <PowerOff className="h-4 w-4" />
                                           ) : (
                                             <Power className="h-4 w-4" />
@@ -511,7 +511,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.lessons_confirmation_enabled === true ? "Desativar Conf. Aula" : "Ativar Conf. Aula"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_lessons_confirmation_enabled !== false ? "Desativar Conf. Aula" : "Ativar Conf. Aula"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>

@@ -1327,6 +1327,11 @@ export class WhatsappService {
         quiz_generation_enabled: boolean;
         auto_send_enabled: boolean;
         group_send_enabled: boolean;
+        admin_news_capture_enabled: boolean;
+        admin_quiz_generation_enabled: boolean;
+        admin_auto_send_enabled: boolean;
+        admin_group_send_enabled: boolean;
+        admin_lessons_confirmation_enabled: boolean;
         automation_days: unknown;
         auto_group_targets: unknown;
       } | null;
@@ -1347,6 +1352,11 @@ export class WhatsappService {
               quiz_generation_enabled: true,
               auto_send_enabled: true,
               group_send_enabled: true,
+              admin_news_capture_enabled: true,
+              admin_quiz_generation_enabled: true,
+              admin_auto_send_enabled: true,
+              admin_group_send_enabled: true,
+              admin_lessons_confirmation_enabled: true,
               automation_days: true,
               auto_group_targets: true,
             },
@@ -1392,20 +1402,24 @@ export class WhatsappService {
 
       const captureDue =
         isAutomationDay &&
+        settings.admin_news_capture_enabled !== false &&
         settings.news_capture_enabled !== false &&
         settings.news_capture_time && settings.news_capture_time === hhmm;
       const privateDue =
         isAutomationDay &&
+        settings.admin_auto_send_enabled !== false &&
         settings.auto_send_enabled !== false &&
         settings.private_news_send_time &&
         settings.private_news_send_time === hhmm;
       const groupDue =
         isAutomationDay &&
+        settings.admin_group_send_enabled !== false &&
         settings.group_send_enabled !== false &&
         settings.group_news_send_time &&
         settings.group_news_send_time === hhmm &&
         normalizedTargets.length > 0;
       const lessonsDue =
+        settings.admin_lessons_confirmation_enabled !== false &&
         settings.lessons_confirmation_enabled &&
         settings.lessons_confirmation_time &&
         settings.lessons_confirmation_time === hhmm;
@@ -1419,7 +1433,7 @@ export class WhatsappService {
         privateDue: Boolean(privateDue),
         groupDue: Boolean(groupDue),
         lessonsDue: Boolean(lessonsDue),
-        generateQuiz: settings.quiz_generation_enabled !== false,
+        generateQuiz: settings.admin_quiz_generation_enabled !== false && settings.quiz_generation_enabled !== false,
         targets: normalizedTargets,
       });
     }
