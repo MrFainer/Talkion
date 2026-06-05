@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
+import { useSettingsStore } from "@/store/settings";
 import api from "@/lib/api";
 import {
   Users,
@@ -346,13 +347,21 @@ export function Sidebar() {
 
 
 
+  const { admin_lessons_confirmation_enabled, loaded, fetch: fetchSettings } = useSettingsStore();
+
+  useEffect(() => {
+    if (user?.id && !loaded) {
+      fetchSettings(user.id);
+    }
+  }, [user?.id, loaded, fetchSettings]);
+
   const isAdmin = user?.role === "ADMIN";
   const dashboardHref = isAdmin ? "/billing" : "/dashboard";
   const dashboardLabel = isAdmin ? "Faturamento" : "Dashboard";
   const links = [
     { href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard },
     { href: "/students", label: "Alunos", icon: Users },
-    { href: "/lessons", label: "Aulas", icon: CalendarDays },
+    ...(admin_lessons_confirmation_enabled !== false ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
     { href: "/automation", label: "Automação", icon: Bot },
   ];
   const adminLink =
