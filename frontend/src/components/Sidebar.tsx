@@ -279,7 +279,7 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
-  const [lessonsEnabled, setLessonsEnabled] = useState(true);
+  const [lessonsEnabled, setLessonsEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     setLogoSrc(`/logo.png?v=${Date.now()}`);
@@ -350,7 +350,7 @@ export function Sidebar() {
       if (!user?.id) return;
       try {
         const res = await api.get(`/message-settings/${user.id}`);
-        setLessonsEnabled(res.data?.lessons_confirmation_enabled !== false);
+        setLessonsEnabled(res.data?.admin_lessons_confirmation_enabled !== false);
       } catch {
         setLessonsEnabled(true);
       }
@@ -364,7 +364,7 @@ export function Sidebar() {
   const links = [
     { href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard },
     { href: "/students", label: "Alunos", icon: Users },
-    ...(lessonsEnabled ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
+    ...(lessonsEnabled === true ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
     { href: "/automation", label: "Automação", icon: Bot },
   ];
   const adminLink =
