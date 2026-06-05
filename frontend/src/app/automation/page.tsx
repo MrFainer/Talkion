@@ -103,7 +103,7 @@ export default function AutomationPage() {
   const [lessonsConfirmationTime, setLessonsConfirmationTime] = useState("08:00");
   const [lessonsConfirmationEnabled, setLessonsConfirmationEnabled] = useState(true);
   const [weeklySummaryTime, setWeeklySummaryTime] = useState("08:00");
-  const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(false);
+  const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(true);
   const [weeklySummarySaving, setWeeklySummarySaving] = useState(false);
   const [initialWeeklySummaryEnabled, setInitialWeeklySummaryEnabled] = useState(true);
   const [newsCaptureEnabled, setNewsCaptureEnabled] = useState(true);
@@ -567,181 +567,164 @@ export default function AutomationPage() {
               Configure os horários de captura e envios automáticos.
             </p>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="flex flex-wrap gap-x-4 gap-y-2 items-end">
               {initialNewsCaptureEnabled && (
-              <div className="space-y-2">
-                <Label htmlFor="news-capture-time">Capturar notícia</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="news-capture-time"
-                    type="time"
-                    value={newsCaptureTime}
-                    onChange={(e) => setNewsCaptureTime(e.target.value)}
-                    disabled={scheduleLoading || scheduleSaving}
-                    className="h-9 w-full min-w-0 sm:w-32"
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="news-capture-time" className="text-xs whitespace-nowrap">Capturar</Label>
+                <Input
+                  id="news-capture-time"
+                  type="time"
+                  value={newsCaptureTime}
+                  onChange={(e) => setNewsCaptureTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleNewsCapture}
+                        className={newsCaptureEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={newsCaptureEnabled ? "Desativar captura de notícia" : "Ativar captura de notícia"}
+                      >
+                        {newsCaptureEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
                   />
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleToggleNewsCapture}
-                          className={newsCaptureEnabled ? "text-red-500" : "text-green-500"}
-                          aria-label={newsCaptureEnabled ? "Desativar captura de notícia" : "Ativar captura de notícia"}
-                        >
-                          {newsCaptureEnabled ? (
-                            <PowerOff className="h-4 w-4" />
-                          ) : (
-                            <Power className="h-4 w-4" />
-                          )}
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>
-                      <p>{newsCaptureEnabled ? "Desativar Captura" : "Ativar Captura"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                  <TooltipContent>
+                    <p>{newsCaptureEnabled ? "Desativar Captura" : "Ativar Captura"}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
               )}
               {initialAutoSendEnabled && (
-              <div className="space-y-2">
-                <Label htmlFor="private-send-time">Envio automático (privado)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="private-send-time"
-                    type="time"
-                    value={privateSendTime}
-                    onChange={(e) => setPrivateSendTime(e.target.value)}
-                    disabled={scheduleLoading || scheduleSaving}
-                    className="h-9 w-full min-w-0 sm:w-32"
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="private-send-time" className="text-xs whitespace-nowrap">Privado</Label>
+                <Input
+                  id="private-send-time"
+                  type="time"
+                  value={privateSendTime}
+                  onChange={(e) => setPrivateSendTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleAutoSend}
+                        className={autoSendEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={autoSendEnabled ? "Desativar envio automático" : "Ativar envio automático"}
+                      >
+                        {autoSendEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
                   />
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleToggleAutoSend}
-                          className={autoSendEnabled ? "text-red-500" : "text-green-500"}
-                          aria-label={autoSendEnabled ? "Desativar envio automático" : "Ativar envio automático"}
-                        >
-                          {autoSendEnabled ? (
-                            <PowerOff className="h-4 w-4" />
-                          ) : (
-                            <Power className="h-4 w-4" />
-                          )}
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>
-                      <p>{autoSendEnabled ? "Desativar Envio Automático" : "Ativar Envio Automático"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                  <TooltipContent>
+                    <p>{autoSendEnabled ? "Desativar Envio" : "Ativar Envio"}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
               )}
               {initialGroupSendEnabled && (
-              <div className="space-y-2">
-                <Label htmlFor="group-send-time">Envio automático (grupos)</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="group-send-time" className="text-xs whitespace-nowrap">Grupos</Label>
                 <Input
                   id="group-send-time"
                   type="time"
                   value={groupSendTime}
                   onChange={(e) => setGroupSendTime(e.target.value)}
                   disabled={scheduleLoading || scheduleSaving || !hasAutoGroupsSelected}
-                  className="h-9 w-full min-w-0 sm:w-32"
+                  className="h-8 w-28"
                 />
-                {!hasAutoGroupsSelected ? (
-                  <p className="text-xs text-muted-foreground">
-                    Selecione pelo menos 1 grupo abaixo para habilitar o envio automático em grupos.
-                  </p>
-                ) : null}
               </div>
               )}
               {initialLessonsConfirmationEnabled && (
-              <div className="space-y-2">
-                <Label htmlFor="lessons-confirm-time">Confirmação de aula</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="lessons-confirm-time"
-                    type="time"
-                    value={lessonsConfirmationTime}
-                    onChange={(e) => setLessonsConfirmationTime(e.target.value)}
-                    disabled={scheduleLoading || scheduleSaving}
-                    className="h-9 w-full min-w-0 sm:w-32"
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="lessons-confirm-time" className="text-xs whitespace-nowrap">Conf. Aula</Label>
+                <Input
+                  id="lessons-confirm-time"
+                  type="time"
+                  value={lessonsConfirmationTime}
+                  onChange={(e) => setLessonsConfirmationTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleLessonsConfirmationEnabled}
+                        disabled={scheduleLoading || scheduleSaving || lessonsConfirmationSaving}
+                        className={lessonsConfirmationEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={lessonsConfirmationEnabled ? "Desativar confirmação de aula" : "Ativar confirmação de aula"}
+                      >
+                        {lessonsConfirmationEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
                   />
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleToggleLessonsConfirmationEnabled}
-                          disabled={scheduleLoading || scheduleSaving || lessonsConfirmationSaving}
-                          className={lessonsConfirmationEnabled ? "text-red-500" : "text-green-500"}
-                          aria-label={
-                            lessonsConfirmationEnabled ? "Desativar confirmação de aula" : "Ativar confirmação de aula"
-                          }
-                        >
-                          {lessonsConfirmationEnabled ? (
-                            <PowerOff className="h-4 w-4" />
-                          ) : (
-                            <Power className="h-4 w-4" />
-                          )}
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>
-                      <p>{lessonsConfirmationEnabled ? "Desativar Confirmação" : "Ativar Confirmação"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                  <TooltipContent>
+                    <p>{lessonsConfirmationEnabled ? "Desativar Conf." : "Ativar Conf."}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
               )}
               {initialWeeklySummaryEnabled && (
-              <div className="space-y-2">
-                <Label htmlFor="weekly-summary-time">Resumo semanal (segunda-feira)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="weekly-summary-time"
-                    type="time"
-                    value={weeklySummaryTime}
-                    onChange={(e) => setWeeklySummaryTime(e.target.value)}
-                    disabled={scheduleLoading || scheduleSaving}
-                    className="h-9 w-full min-w-0 sm:w-32"
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="weekly-summary-time" className="text-xs whitespace-nowrap">Res. Semanal (seg)</Label>
+                <Input
+                  id="weekly-summary-time"
+                  type="time"
+                  value={weeklySummaryTime}
+                  onChange={(e) => setWeeklySummaryTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleWeeklySummary}
+                        disabled={scheduleLoading || scheduleSaving || weeklySummarySaving}
+                        className={weeklySummaryEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={weeklySummaryEnabled ? "Desativar resumo semanal" : "Ativar resumo semanal"}
+                      >
+                        {weeklySummaryEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
                   />
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={handleToggleWeeklySummary}
-                          disabled={scheduleLoading || scheduleSaving || weeklySummarySaving}
-                          className={weeklySummaryEnabled ? "text-red-500" : "text-green-500"}
-                          aria-label={
-                            weeklySummaryEnabled ? "Desativar resumo semanal" : "Ativar resumo semanal"
-                          }
-                        >
-                          {weeklySummaryEnabled ? (
-                            <PowerOff className="h-4 w-4" />
-                          ) : (
-                            <Power className="h-4 w-4" />
-                          )}
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>
-                      <p>{weeklySummaryEnabled ? "Desativar Resumo Semanal" : "Ativar Resumo Semanal"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
+                  <TooltipContent>
+                    <p>{weeklySummaryEnabled ? "Desativar Res." : "Ativar Res."}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
               )}
             </div>

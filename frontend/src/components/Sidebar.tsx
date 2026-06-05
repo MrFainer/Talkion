@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
@@ -279,7 +279,14 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
+  const [lessonsEnabled, setLessonsEnabled] = useState<boolean | undefined>(undefined);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get(`/message-settings/${user.id}`)
+      .then((res) => setLessonsEnabled(res.data?.admin_lessons_confirmation_enabled !== false))
+      .catch(() => setLessonsEnabled(true));
+  }, [user?.id]);
 
   useEffect(() => {
     setLogoSrc(`/logo.png?v=${Date.now()}`);
@@ -353,7 +360,7 @@ export function Sidebar() {
   const links = [
     { href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard },
     { href: "/students", label: "Alunos", icon: Users },
-    { href: "/lessons", label: "Aulas", icon: CalendarDays },
+    ...(lessonsEnabled === true ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
     { href: "/automation", label: "Automação", icon: Bot },
   ];
   const adminLink =
