@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Talkion",
-  description: "Gerencie seus alunos e fluxos de inglês via WhatsApp.",
+  description: "Automatize o aprendizado dos seus alunos com conteúdo diário, quizzes e prática de speaking pelo WhatsApp.",
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",

@@ -1713,7 +1713,7 @@ export class WhatsappService {
       where: {
         student_id: { in: students.map((s) => s.id) },
         direction: 'OUTGOING',
-        content_kind: 'PRIVATE_BROADCAST_NEWS',
+        content_kind: { startsWith: 'PRIVATE_BROADCAST' },
         created_at: { gte: startOfDay, lte: endOfDay },
       },
       select: { student_id: true },
