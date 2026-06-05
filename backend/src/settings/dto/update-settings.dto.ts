@@ -33,6 +33,9 @@ export class UpdateSettingsDto {
   group_news_send_time?: string;
   lessons_confirmation_time?: string;
   lessons_confirmation_enabled?: boolean;
+  weekly_summary_time?: string;
+  weekly_summary_enabled?: boolean;
+  admin_weekly_summary_enabled?: boolean;
   news_capture_enabled?: boolean;
   quiz_generation_enabled?: boolean;
   auto_send_enabled?: boolean;

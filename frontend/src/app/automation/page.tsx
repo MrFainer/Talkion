@@ -56,6 +56,9 @@ type MessageSettingsPayload = {
   group_news_send_time?: string;
   lessons_confirmation_time?: string;
   lessons_confirmation_enabled?: boolean;
+  weekly_summary_time?: string;
+  weekly_summary_enabled?: boolean;
+  admin_weekly_summary_enabled?: boolean;
   news_capture_enabled?: boolean;
   quiz_generation_enabled?: boolean;
   auto_send_enabled?: boolean;
@@ -99,6 +102,10 @@ export default function AutomationPage() {
   const [groupSendTime, setGroupSendTime] = useState("08:00");
   const [lessonsConfirmationTime, setLessonsConfirmationTime] = useState("08:00");
   const [lessonsConfirmationEnabled, setLessonsConfirmationEnabled] = useState(true);
+  const [weeklySummaryTime, setWeeklySummaryTime] = useState("08:00");
+  const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(false);
+  const [weeklySummarySaving, setWeeklySummarySaving] = useState(false);
+  const [initialWeeklySummaryEnabled, setInitialWeeklySummaryEnabled] = useState(true);
   const [newsCaptureEnabled, setNewsCaptureEnabled] = useState(true);
   const [quizGenerationEnabled, setQuizGenerationEnabled] = useState(true);
   const [autoSendEnabled, setAutoSendEnabled] = useState(true);
@@ -315,6 +322,9 @@ export default function AutomationPage() {
       setGroupSendTime(payload.group_news_send_time || "08:00");
       setLessonsConfirmationTime(payload.lessons_confirmation_time || "08:00");
       setLessonsConfirmationEnabled(payload.lessons_confirmation_enabled !== false);
+      setWeeklySummaryTime(payload.weekly_summary_time || "08:00");
+      setWeeklySummaryEnabled(payload.weekly_summary_enabled === true);
+      setInitialWeeklySummaryEnabled(payload.admin_weekly_summary_enabled !== false);
       setNewsCaptureEnabled(payload.news_capture_enabled !== false);
       setInitialNewsCaptureEnabled(payload.admin_news_capture_enabled !== false);
       setQuizGenerationEnabled(payload.quiz_generation_enabled !== false);
@@ -371,6 +381,8 @@ export default function AutomationPage() {
         group_news_send_time: groupSendTime || "08:00",
         lessons_confirmation_time: lessonsConfirmationTime || "08:00",
         lessons_confirmation_enabled: lessonsConfirmationEnabled,
+        weekly_summary_time: weeklySummaryTime || "08:00",
+        weekly_summary_enabled: weeklySummaryEnabled,
         news_capture_enabled: newsCaptureEnabled,
         quiz_generation_enabled: quizGenerationEnabled,
         auto_send_enabled: autoSendEnabled,
@@ -412,6 +424,35 @@ export default function AutomationPage() {
       toast.error(error.response?.data?.message || "Erro ao atualizar confirmação de aula.");
     } finally {
       setLessonsConfirmationSaving(false);
+    }
+  };
+
+  const handleToggleWeeklySummary = async () => {
+    if (!user?.id) return;
+    if (scheduleLoading || scheduleSaving || weeklySummarySaving) return;
+
+    const nextValue = !weeklySummaryEnabled;
+    const previousValue = weeklySummaryEnabled;
+
+    setWeeklySummaryEnabled(nextValue);
+    setWeeklySummarySaving(true);
+
+    try {
+      await api.put(`/message-settings/${user.id}`, {
+        weekly_summary_enabled: nextValue,
+      });
+      if (nextValue) {
+        toast.success("Função de Resumo Semanal Ativada.");
+      } else {
+        toast("Função de Resumo Semanal Desativada.", {
+          icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        });
+      }
+    } catch (error: any) {
+      setWeeklySummaryEnabled(previousValue);
+      toast.error(error.response?.data?.message || "Erro ao atualizar resumo semanal.");
+    } finally {
+      setWeeklySummarySaving(false);
     }
   };
 
@@ -662,9 +703,50 @@ export default function AutomationPage() {
                 </div>
               </div>
               )}
+              {initialWeeklySummaryEnabled && (
+              <div className="space-y-2">
+                <Label htmlFor="weekly-summary-time">Resumo semanal (segunda-feira)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="weekly-summary-time"
+                    type="time"
+                    value={weeklySummaryTime}
+                    onChange={(e) => setWeeklySummaryTime(e.target.value)}
+                    disabled={scheduleLoading || scheduleSaving}
+                    className="h-9 w-full min-w-0 sm:w-32"
+                  />
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleToggleWeeklySummary}
+                          disabled={scheduleLoading || scheduleSaving || weeklySummarySaving}
+                          className={weeklySummaryEnabled ? "text-red-500" : "text-green-500"}
+                          aria-label={
+                            weeklySummaryEnabled ? "Desativar resumo semanal" : "Ativar resumo semanal"
+                          }
+                        >
+                          {weeklySummaryEnabled ? (
+                            <PowerOff className="h-4 w-4" />
+                          ) : (
+                            <Power className="h-4 w-4" />
+                          )}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>
+                      <p>{weeklySummaryEnabled ? "Desativar Resumo Semanal" : "Ativar Resumo Semanal"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+              )}
             </div>
 
-            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && user?.role !== "ADMIN" && (
+            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && user?.role !== "ADMIN" && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 As funções de automação estão desativadas para a sua conta. Entre em contato com o administrador do
                 Talkion para mais informações.

@@ -1323,6 +1323,8 @@ export class WhatsappService {
         group_news_send_time: string;
         lessons_confirmation_time: string;
         lessons_confirmation_enabled: boolean;
+        weekly_summary_time: string;
+        weekly_summary_enabled: boolean;
         news_capture_enabled: boolean;
         quiz_generation_enabled: boolean;
         auto_send_enabled: boolean;
@@ -1332,6 +1334,7 @@ export class WhatsappService {
         admin_auto_send_enabled: boolean;
         admin_group_send_enabled: boolean;
         admin_lessons_confirmation_enabled: boolean;
+        admin_weekly_summary_enabled: boolean;
         automation_days: unknown;
         auto_group_targets: unknown;
       } | null;
@@ -1348,6 +1351,8 @@ export class WhatsappService {
               group_news_send_time: true,
               lessons_confirmation_time: true,
               lessons_confirmation_enabled: true,
+              weekly_summary_time: true,
+              weekly_summary_enabled: true,
               news_capture_enabled: true,
               quiz_generation_enabled: true,
               auto_send_enabled: true,
@@ -1357,6 +1362,7 @@ export class WhatsappService {
               admin_auto_send_enabled: true,
               admin_group_send_enabled: true,
               admin_lessons_confirmation_enabled: true,
+              admin_weekly_summary_enabled: true,
               automation_days: true,
               auto_group_targets: true,
             },
@@ -1380,6 +1386,7 @@ export class WhatsappService {
       privateDue: boolean;
       groupDue: boolean;
       lessonsDue: boolean;
+      weeklySummaryDue: boolean;
       generateQuiz: boolean;
       targets: Array<{ groupId: string; groupLevel?: string }>;
     }> = [];
@@ -1423,8 +1430,14 @@ export class WhatsappService {
         settings.lessons_confirmation_enabled &&
         settings.lessons_confirmation_time &&
         settings.lessons_confirmation_time === hhmm;
+      const weeklySummaryDue =
+        dayOfWeek === 1 &&
+        settings.admin_weekly_summary_enabled !== false &&
+        settings.weekly_summary_enabled &&
+        settings.weekly_summary_time &&
+        settings.weekly_summary_time === hhmm;
 
-      if (!captureDue && !privateDue && !groupDue && !lessonsDue) continue;
+      if (!captureDue && !privateDue && !groupDue && !lessonsDue && !weeklySummaryDue) continue;
 
       dueJobs.push({
         teacherId: teacher.id,
@@ -1433,6 +1446,7 @@ export class WhatsappService {
         privateDue: Boolean(privateDue),
         groupDue: Boolean(groupDue),
         lessonsDue: Boolean(lessonsDue),
+        weeklySummaryDue: Boolean(weeklySummaryDue),
         generateQuiz: settings.admin_quiz_generation_enabled !== false && settings.quiz_generation_enabled !== false,
         targets: normalizedTargets,
       });
@@ -1605,18 +1619,18 @@ export class WhatsappService {
         );
       }
 
+      if (job.weeklySummaryDue) {
+        tasks.push(
+          this.sendWeeklyLessonSummaries(job.teacherId).catch((error) => {
+            this.logger.error(
+              `[AUTO][${jobId}] Falha envio resumo semanal teacherId=${job.teacherId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }),
+        );
+      }
       if (job.lessonsDue) {
-        if (dayOfWeek === 1) {
-          tasks.push(
-            this.sendWeeklyLessonSummaries(job.teacherId).catch((error) => {
-              this.logger.error(
-                `[AUTO][${jobId}] Falha envio resumo semanal teacherId=${job.teacherId}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-              );
-            }),
-          );
-        }
         tasks.push(
           this.sendTodayLessonConfirmations(job.teacherId).catch((error) => {
             this.logger.error(
