@@ -222,4 +222,26 @@ export class WhatsappController {
     const result = await this.whatsappService.sendLatestNewsAndQuiz(body.number, body.mode, body.teacherId);
     return result;
   }
+
+  @Post('send-weekly-summary')
+  @HttpCode(HttpStatus.OK)
+  async sendWeeklySummary(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    const result = await this.whatsappService.sendWeeklyLessonSummaries(body.teacherId);
+    return result;
+  }
+
+  @Post('send-lesson-confirmations')
+  @HttpCode(HttpStatus.OK)
+  async sendLessonConfirmations(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    const result = await this.whatsappService.sendTodayLessonConfirmations(body.teacherId);
+    return result;
+  }
 }

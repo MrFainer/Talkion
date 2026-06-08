@@ -470,7 +470,7 @@ export class WhatsappService {
       const response = await this.http.post(`/message/sendMedia/${instanceName}`, {
         number: numberOrGroupId,
         media: base64,
-        mediaType: 'audio',
+        mediatype: 'audio',
         mimetype: 'audio/mpeg',
         fileName: 'audio.mp3',
       });
@@ -637,7 +637,7 @@ export class WhatsappService {
     };
   }
 
-  private async sendTodayLessonConfirmations(teacherId: string) {
+  async sendTodayLessonConfirmations(teacherId: string) {
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
     const timeStr = new Intl.DateTimeFormat('en-US', {
@@ -751,9 +751,14 @@ export class WhatsappService {
     return { sent, skipped };
   }
 
-  private async sendWeeklyLessonSummaries(teacherId: string) {
+  async sendWeeklyLessonSummaries(teacherId: string) {
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
+    const dayOfWeek = new Date(new Date().toLocaleString('en-US', { timeZone })).getDay();
+    if (dayOfWeek !== 1) {
+      this.logger.warn(`[LESSONS] Resumo semanal ignorado: hoje não é segunda-feira (teacherId=${teacherId}).`);
+      return { sent: 0, skipped: 0 };
+    }
 
     const timeStr = new Intl.DateTimeFormat('en-US', {
       hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -850,6 +855,27 @@ export class WhatsappService {
 
     const students = Array.from(byStudent.values());
 
+    // Check which students already received the weekly summary today
+    const studentIds = students.map((s) => s.student.id);
+    const alreadySentToday = studentIds.length > 0
+      ? await this.prisma.whatsappMessage.findMany({
+          where: {
+            student_id: { in: studentIds },
+            direction: 'OUTGOING',
+            content_kind: 'WEEKLY_LESSON_SUMMARY',
+            created_at: { gte: todayStart, lte: sunday },
+          },
+          select: { student_id: true },
+          distinct: ['student_id'],
+        })
+      : [];
+    const alreadySentIds = new Set(alreadySentToday.map((m) => m.student_id).filter(Boolean) as string[]);
+    const studentsToSend = students.filter((s) => !alreadySentIds.has(s.student.id));
+    const skippedDuplicates = students.length - studentsToSend.length;
+    if (skippedDuplicates > 0) {
+      this.logger.log(`[LESSONS] ${skippedDuplicates} aluno(s) já receberam o resumo semanal hoje. Ignorando para evitar duplicidade.`);
+    }
+
     const defaultIdea =
       'Você pode montar a confirmação de aula com base nesse modelo aqui:\n\nGood {{period}} {{nome}}, how are you doing today? 🎉\n\nI would like to confirm our English Mentoring this {{diasemana}} at {{hora_en}} 🙌🏻\n\nParabéns pelo seu comprometimento e dedicação nos estudos de inglês 🚀🇺🇸\n\nHave an excellent week  🎊';
     const rawIdea = String(
@@ -869,8 +895,8 @@ export class WhatsappService {
     const templateBase = extractTemplate(rawIdea);
 
     await this.runWithConcurrencyLimit(
-      students,
-      Math.min(this.groupSendParallelBase, students.length || 1),
+      studentsToSend,
+      Math.min(this.groupSendParallelBase, studentsToSend.length || 1),
       async (entry) => {
         entry.lessons.sort((a, b) => (a.weekday ?? 7) - (b.weekday ?? 7) || a.time.localeCompare(b.time));
 
@@ -939,7 +965,7 @@ export class WhatsappService {
       },
     );
 
-    return { sent, skipped };
+    return { sent, skipped: skipped + skippedDuplicates };
   }
 
   /**
@@ -1287,6 +1313,29 @@ export class WhatsappService {
         }
       }
 
+      // Clean up audio files after dispatch completes
+      try {
+        const now = new Date();
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        const todayNews = await this.prisma.news.findMany({
+          where: {
+            teacher_id: teacherId,
+            audio_url: { not: null },
+            created_at: { gte: startOfDay, lte: endOfDay },
+          },
+          select: { id: true },
+        });
+        for (const news of todayNews) {
+          await this.newsService.cleanupNewsAudio(news.id);
+        }
+        await this.newsService.cleanupOrphanedAudioFiles();
+      } catch (error) {
+        this.logger.warn(`[DISPATCH][${jobId}] Erro ao limpar áudios: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
       this.logger.log(
         `[DISPATCH][${jobId}] Finalizado | success=${result.success} | private=${Boolean(
           result.private,
@@ -1454,7 +1503,7 @@ export class WhatsappService {
 
     const captureJobs = dueJobs.filter((job) => job.captureDue);
     const sendJobs = dueJobs.filter(
-      (job) => job.privateDue || job.groupDue || job.lessonsDue,
+      (job) => job.privateDue || job.groupDue || job.lessonsDue || job.weeklySummaryDue,
     );
     const captureParallel = Math.min(this.automationParallelBase, captureJobs.length || 1);
     const sendParallel = Math.min(this.automationParallelBase, sendJobs.length || 1);
@@ -1643,6 +1692,29 @@ export class WhatsappService {
       }
 
       await Promise.allSettled(tasks);
+
+      // Clean up audio files after sending completes
+      try {
+        const now = new Date();
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        const todayNews = await this.prisma.news.findMany({
+          where: {
+            teacher_id: job.teacherId,
+            audio_url: { not: null },
+            created_at: { gte: startOfDay, lte: endOfDay },
+          },
+          select: { id: true },
+        });
+        for (const news of todayNews) {
+          await this.newsService.cleanupNewsAudio(news.id);
+        }
+        await this.newsService.cleanupOrphanedAudioFiles();
+      } catch (error) {
+        this.logger.warn(`[AUTO][${jobId}] Erro ao limpar áudios: ${error instanceof Error ? error.message : String(error)}`);
+      }
 
       const current = this.automationInFlightByTeacher.get(job.teacherId);
       if (current?.jobId === jobId) {

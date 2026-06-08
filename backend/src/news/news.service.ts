@@ -1,9 +1,10 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { SourceType } from '@prisma/client';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, writeFile, unlink, readdir } from 'node:fs/promises';
+import { join, parse } from 'node:path';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
 import { CreditsService } from '../credits/credits.service';
@@ -53,6 +54,55 @@ export class NewsService {
     private readonly quizService: QuizService,
     private readonly creditsService: CreditsService,
   ) {}
+
+  async cleanupNewsAudio(newsId: string) {
+    try {
+      const news = await this.prisma.news.findUnique({ where: { id: newsId }, select: { audio_url: true } });
+      if (!news?.audio_url) return;
+
+      const filePath = join(process.cwd(), news.audio_url.replace(/^\//, ''));
+      await unlink(filePath).catch(() => {});
+      await this.prisma.news.update({
+        where: { id: newsId },
+        data: { audio_url: null },
+      });
+      this.logger.log(`Áudio deletado: ${newsId}`);
+    } catch (error) {
+      this.logger.warn(`Erro ao deletar áudio ${newsId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async cleanupOrphanedAudioFiles() {
+    try {
+      const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+      let files: string[];
+      try {
+        files = await readdir(audioDir);
+      } catch {
+        return;
+      }
+      const mp3Files = files.filter(f => f.endsWith('.mp3'));
+      if (mp3Files.length === 0) return;
+
+      const ids = mp3Files.map(f => parse(f).name);
+      const existing = await this.prisma.news.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
+      });
+      const existingSet = new Set(existing.map(n => n.id));
+
+      for (const file of mp3Files) {
+        const id = parse(file).name;
+        if (!existingSet.has(id)) {
+          const filePath = join(audioDir, file);
+          await unlink(filePath).catch(() => {});
+          this.logger.log(`Áudio órfão deletado: ${file}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Erro ao limpar áudios órfãos: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 
   async handleDailyNewsScraping() {
     this.logger.log('Iniciando captura diária de notícias e quizzes para todos os professores...');
@@ -474,10 +524,10 @@ export class NewsService {
     }
 
     if (input.sourceType === SourceType.AI_GENERATED) {
-      if (tracking?.teacherId) {
-        await this.creditsService.requireCredits(tracking.teacherId, 'news_tts');
-      }
       try {
+        if (tracking?.teacherId) {
+          await this.creditsService.requireCredits(tracking.teacherId, 'news_tts');
+        }
         const audioBuffer = await this.aiService.generateNewsAudio(
           input.content,
           { ...tracking, newsId: createdNews.id },

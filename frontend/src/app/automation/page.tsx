@@ -116,6 +116,8 @@ export default function AutomationPage() {
   const [initialLessonsConfirmationEnabled, setInitialLessonsConfirmationEnabled] = useState(true);
   const [automationDays, setAutomationDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [lessonsConfirmationSaving, setLessonsConfirmationSaving] = useState(false);
+  const [sendingWeeklySummary, setSendingWeeklySummary] = useState(false);
+  const [sendingLessonConfirmations, setSendingLessonConfirmations] = useState(false);
   const [autoGroupTargets, setAutoGroupTargets] = useState<
     Array<{ groupId: string; groupLevel: "LEVEL_1" | "LEVEL_2" | "LEVEL_3" }>
   >([]);
@@ -456,6 +458,40 @@ export default function AutomationPage() {
     }
   };
 
+  const handleSendWeeklySummary = async () => {
+    if (!user?.id) return;
+    setSendingWeeklySummary(true);
+    const toastId = toast.loading("Enviando resumo semanal...");
+    try {
+      const res = await api.post("/whatsapp/send-weekly-summary", { teacherId: user.id });
+      toast.success(
+        res.data?.sent ? `${res.data.sent} resumo(s) enviado(s)` : "Resumo semanal enviado com sucesso.",
+        { id: toastId },
+      );
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao enviar resumo semanal.", { id: toastId });
+    } finally {
+      setSendingWeeklySummary(false);
+    }
+  };
+
+  const handleSendLessonConfirmations = async () => {
+    if (!user?.id) return;
+    setSendingLessonConfirmations(true);
+    const toastId = toast.loading("Enviando confirmações de aula...");
+    try {
+      const res = await api.post("/whatsapp/send-lesson-confirmations", { teacherId: user.id });
+      toast.success(
+        res.data?.sent ? `${res.data.sent} confirmação(ões) enviada(s)` : "Confirmações enviadas com sucesso.",
+        { id: toastId },
+      );
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao enviar confirmações de aula.", { id: toastId });
+    } finally {
+      setSendingLessonConfirmations(false);
+    }
+  };
+
   const handleToggleNewsCapture = async () => {
     if (!user?.id) return;
     const nextValue = !newsCaptureEnabled;
@@ -553,6 +589,38 @@ export default function AutomationPage() {
             </p>
             <Button onClick={() => handleDispatchDialogChange(true)} className="h-9">
               Disparar
+            </Button>
+          </CardContent>
+        </Card>
+        )}
+
+        {initialWeeklySummaryEnabled && weeklySummaryEnabled && new Date().getDay() === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumo Semanal Manual</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Envia manualmente o resumo semanal de aulas para os alunos (disponível apenas às segundas-feiras).
+            </p>
+            <Button onClick={handleSendWeeklySummary} disabled={sendingWeeklySummary} className="h-9 shrink-0">
+              {sendingWeeklySummary ? "Enviando..." : "Enviar Resumo Semanal"}
+            </Button>
+          </CardContent>
+        </Card>
+        )}
+
+        {initialLessonsConfirmationEnabled && lessonsConfirmationEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Confirmações de Aula Manual</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Envia manualmente as confirmações de aula de hoje para os alunos.
+            </p>
+            <Button onClick={handleSendLessonConfirmations} disabled={sendingLessonConfirmations} className="h-9 shrink-0">
+              {sendingLessonConfirmations ? "Enviando..." : "Enviar Confirmações"}
             </Button>
           </CardContent>
         </Card>
