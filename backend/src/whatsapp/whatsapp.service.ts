@@ -1651,12 +1651,30 @@ export class WhatsappService {
                 return;
               }
 
-              await this.sendLatestNewsAndQuiz(
-                target.groupId,
-                'GROUP',
-                job.teacherId,
-                target.groupLevel,
-              );
+              const maxRetries = 3;
+              const retryDelayMs = 5000;
+              let lastError: Error | null = null;
+              for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                  await this.sendLatestNewsAndQuiz(
+                    target.groupId,
+                    'GROUP',
+                    job.teacherId,
+                    target.groupLevel,
+                  );
+                  lastError = null;
+                  break;
+                } catch (error) {
+                  lastError = error instanceof Error ? error : new Error(String(error));
+                  if (attempt < maxRetries) {
+                    this.logger.warn(
+                      `[AUTO][${jobId}] Tentativa ${attempt}/${maxRetries} falhou para grupo ${remoteJid}. Reintentando em ${retryDelayMs}ms...`,
+                    );
+                    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+                  }
+                }
+              }
+              if (lastError) throw lastError;
             });
           })().catch((error) => {
             this.logger.error(
