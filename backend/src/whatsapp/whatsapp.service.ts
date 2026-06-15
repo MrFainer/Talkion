@@ -719,7 +719,7 @@ export class WhatsappService {
           },
         });
 
-        if (confirmation.status !== 'PENDING') {
+        if (confirmation.status === 'DECLINED') {
           skipped += 1;
           return;
         }
@@ -3067,10 +3067,6 @@ export class WhatsappService {
         confirmationByQuote.occurrence_date < startOfDay ||
         confirmationByQuote.occurrence_date > endOfDay
       ) {
-        return true;
-      }
-
-      if (confirmationByQuote.status !== 'PENDING') {
         return true;
       }
 
