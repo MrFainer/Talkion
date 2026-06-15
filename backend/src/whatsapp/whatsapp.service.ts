@@ -2800,7 +2800,10 @@ export class WhatsappService {
       .map((p) => p.replace(/^(\d+)[-. )]*([A-E])$/, '$1$2'))
       .filter(Boolean);
 
-    if (parts.length < 2 || parts.length > 6) return false;
+    if (parts.length < 2 || parts.length > 6) {
+      if (parts.length === 1 && /^[A-E]{2,6}$/.test(parts[0])) return true;
+      return false;
+    }
 
     return parts.every(
       (p) => /^\d*[A-E]$/.test(p) || /^[A-E]$/.test(p),
@@ -3139,13 +3142,23 @@ export class WhatsappService {
     quotedMessageId?: string | null;
     teacherId?: string;
   }) {
-    if (!input.quotedMessageId || !input.teacherId) return false;
+    if (!input.quotedMessageId || !input.teacherId) {
+      this.logger.warn(
+        `[WEEKLY_SUMMARY] handleWeeklySummaryResponse: teacherId ou quotedMessageId ausente | teacherId=${input.teacherId} | quotedMessageId=${input.quotedMessageId}`,
+      );
+      return false;
+    }
 
     const quotedMsg = await this.prisma.whatsappMessage.findFirst({
       where: { external_message_id: input.quotedMessageId, content_kind: 'WEEKLY_LESSON_SUMMARY' },
       select: { id: true },
     });
-    if (!quotedMsg) return false;
+    if (!quotedMsg) {
+      this.logger.warn(
+        `[WEEKLY_SUMMARY] Mensagem semanal citada não encontrada para quotedMessageId=${input.quotedMessageId} | aluno=${input.student.full_name}`,
+      );
+      return false;
+    }
 
     const raw = String(input.text || '').trim();
     if (!raw) return false;
@@ -3162,7 +3175,12 @@ export class WhatsappService {
       },
     });
 
-    if (decision === 'UNKNOWN') return false;
+    if (decision === 'UNKNOWN') {
+      this.logger.warn(
+        `[WEEKLY_SUMMARY] IA classificou como UNKNOWN para ${input.student.full_name} | texto="${raw}"`,
+      );
+      return false;
+    }
 
     try {
       await this.creditsService.deductCredits(input.teacherId, 'weekly_summary_process', 'lesson', input.student.id);
@@ -3175,11 +3193,94 @@ export class WhatsappService {
       },
     });
 
+    if (decision === 'YES') {
+      await this.confirmWeeklyLessons(input.teacherId, input.student, input.quotedMessageId);
+    }
+
     this.logger.log(
       `[LESSONS] Resposta semanal: ${input.student.full_name} | ${decision === 'YES' ? 'confirmou' : 'recusou'} a agenda da semana`,
     );
 
     return true;
+  }
+
+  private async confirmWeeklyLessons(
+    teacherId: string,
+    student: StudentContext,
+    quotedMessageId: string,
+  ) {
+    try {
+      const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
+      const now = new Date();
+      const timeStr = new Intl.DateTimeFormat('en-US', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, timeZone,
+      }).format(now);
+      const [h] = timeStr.split(':').map(Number);
+      const todayStart = new Date(now.getTime() - h * 3600000);
+      todayStart.setMinutes(0, 0, 0);
+
+      const weekdayName = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone }).format(now);
+      const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const todayWeekday = weekdayNames.indexOf(weekdayName.toLowerCase());
+      const mondayOffset = todayWeekday === 0 ? -6 : 1 - todayWeekday;
+      const monday = new Date(todayStart);
+      monday.setDate(todayStart.getDate() + mondayOffset);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      const lessons = await this.prisma.lesson.findMany({
+        where: {
+          student_id: student.id,
+          OR: [
+            { kind: 'RECURRING', recurring: true },
+            { kind: 'EXTRA', date: { gte: monday, lte: sunday } },
+          ],
+        },
+        select: { id: true, kind: true, weekday: true, date: true, time: true },
+      });
+
+      let confirmedCount = 0;
+      for (const lesson of lessons) {
+        let occurrenceDate: Date;
+        if (lesson.kind === 'EXTRA' && lesson.date) {
+          occurrenceDate = lesson.date;
+        } else {
+          const dayDiff = lesson.weekday !== null ? lesson.weekday - todayWeekday : 0;
+          occurrenceDate = new Date(todayStart);
+          occurrenceDate.setDate(todayStart.getDate() + dayDiff);
+          if (occurrenceDate < monday) occurrenceDate.setDate(occurrenceDate.getDate() + 7);
+        }
+        if (occurrenceDate < monday || occurrenceDate > sunday) continue;
+
+        await this.prisma.lessonConfirmation.upsert({
+          where: { lesson_id_occurrence_date: { lesson_id: lesson.id, occurrence_date: occurrenceDate } },
+          create: { lesson_id: lesson.id, occurrence_date: occurrenceDate, status: 'CONFIRMED' },
+          update: { status: 'CONFIRMED' },
+        });
+        confirmedCount++;
+      }
+
+      this.logger.log(
+        `[LESSONS] Aulas confirmadas via resumo semanal: ${student.full_name} | ${confirmedCount} aula(s)`,
+      );
+
+      try {
+        const msg = confirmedCount > 0
+          ? `✅ *Agenda da semana confirmada!* ${confirmedCount} aula(s) confirmada(s). Tenha uma ótima semana! 🚀`
+          : `✅ *Agenda da semana confirmada!* Nenhuma aula encontrada para essa semana.`;
+        await this.sendMessage(teacherId, student.whatsapp_number, msg, {
+          studentId: student.id,
+          relatedNewsId: null,
+          contentKind: 'WEEKLY_SUMMARY_CONFIRMED',
+        });
+      } catch (err) {
+        this.logger.error(`[WEEKLY_SUMMARY] Erro ao enviar confirmacao para ${student.full_name}: ${err?.message || err}`);
+      }
+    } catch (error) {
+      this.logger.error(`[WEEKLY_SUMMARY] Erro ao confirmar aulas: ${error?.message || error}`);
+    }
   }
 
   private async handleAudioMessage(
