@@ -3242,7 +3242,7 @@ export class WhatsappService {
   private async confirmWeeklyLessons(
     teacherId: string,
     student: StudentContext,
-    quotedMessageId: string,
+    quotedMessageId: string | null | undefined,
   ) {
     try {
       const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
