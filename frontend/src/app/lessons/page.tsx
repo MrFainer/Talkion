@@ -29,27 +29,29 @@ type AgendaResponse = {
   items: LessonAgendaItem[];
 };
 
-type StatusFilter = "ALL" | LessonAgendaItem["status"];
-
-const statusLabel: Record<LessonAgendaItem["status"], string> = {
-  PENDING: "Pendente",
-  CONFIRMED: "Confirmada",
-  DECLINED: "Recusada",
-};
-
-const statusClass: Record<LessonAgendaItem["status"], string> = {
-  PENDING: "bg-amber-100 text-amber-900",
-  CONFIRMED: "bg-emerald-100 text-emerald-900",
-  DECLINED: "bg-rose-100 text-rose-900",
-};
+type StatusFilter = "ALL" | LessonAgendaItem["status"] | "PRE_CONFIRMED";
 
 const sourceLabel: Record<string, string> = {
   DAILY_MESSAGE: "Confirmação Diária",
   WEEKLY_SUMMARY: "Resumo Semanal",
 };
 
-const filterLabel: Record<StatusFilter, string> = {
+function getStatusDisplay(status: LessonAgendaItem["status"], source: string | null): { label: string; class: string } {
+  if (status === "CONFIRMED") {
+    if (source === "WEEKLY_SUMMARY") {
+      return { label: "Pré-confirmada", class: "bg-sky-100 text-sky-900" };
+    }
+    return { label: "Confirmada", class: "bg-emerald-100 text-emerald-900" };
+  }
+  if (status === "DECLINED") {
+    return { label: "Recusada", class: "bg-rose-100 text-rose-900" };
+  }
+  return { label: "Pendente", class: "bg-amber-100 text-amber-900" };
+}
+
+const filterLabel: Record<StatusFilter | "PRE_CONFIRMED", string> = {
   ALL: "Total",
+  PRE_CONFIRMED: "Pré-confirmadas",
   CONFIRMED: "Confirmadas",
   PENDING: "Pendentes",
   DECLINED: "Recusadas",
@@ -71,9 +73,10 @@ export default function LessonsPage() {
 
   const stats = useMemo(() => {
     const items = agenda?.items || [];
-    const out = { total: items.length, pending: 0, confirmed: 0, declined: 0 };
+    const out = { total: items.length, pending: 0, preConfirmed: 0, confirmed: 0, declined: 0 };
     for (const item of items) {
-      if (item.status === "CONFIRMED") out.confirmed += 1;
+      if (item.status === "CONFIRMED" && item.source === "WEEKLY_SUMMARY") out.preConfirmed += 1;
+      else if (item.status === "CONFIRMED") out.confirmed += 1;
       else if (item.status === "DECLINED") out.declined += 1;
       else out.pending += 1;
     }
@@ -83,6 +86,7 @@ export default function LessonsPage() {
   const filteredItems = useMemo(() => {
     const items = agenda?.items || [];
     if (statusFilter === "ALL") return items;
+    if (statusFilter === "PRE_CONFIRMED") return items.filter((item) => item.status === "CONFIRMED" && item.source === "WEEKLY_SUMMARY");
     return items.filter((item) => item.status === statusFilter);
   }, [agenda, statusFilter]);
 
@@ -164,13 +168,21 @@ export default function LessonsPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Card className={filterCardClass("ALL")} onClick={() => toggleFilter("ALL")}>
               <CardHeader className="py-4">
                 <CardTitle className="text-sm text-muted-foreground">Total</CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="text-2xl font-semibold">{stats.total}</div>
+              </CardContent>
+            </Card>
+            <Card className={filterCardClass("PRE_CONFIRMED")} onClick={() => toggleFilter("PRE_CONFIRMED")}>
+              <CardHeader className="py-4">
+                <CardTitle className="text-sm text-muted-foreground">Pré-confirmadas</CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4">
+                <div className="text-2xl font-semibold text-sky-700">{stats.preConfirmed}</div>
               </CardContent>
             </Card>
             <Card className={filterCardClass("CONFIRMED")} onClick={() => toggleFilter("CONFIRMED")}>
@@ -232,9 +244,9 @@ export default function LessonsPage() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-medium">{item.time}</div>
                           <span
-                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusClass[item.status]}`}
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusDisplay(item.status, item.source).class}`}
                           >
-                            {statusLabel[item.status]}
+                            {getStatusDisplay(item.status, item.source).label}
                           </span>
                         </div>
                         <div className="mt-2 text-sm">{item.studentName}</div>
@@ -262,9 +274,9 @@ export default function LessonsPage() {
                             <TableCell className="break-words">{item.studentName}</TableCell>
                             <TableCell>
                               <span
-                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${statusClass[item.status]}`}
+                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusDisplay(item.status, item.source).class}`}
                               >
-                                {statusLabel[item.status]}
+                                {getStatusDisplay(item.status, item.source).label}
                               </span>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
