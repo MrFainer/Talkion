@@ -916,7 +916,7 @@ export class WhatsappService {
         const scheduleText = lines.join('\n');
 
         try {
-          await this.creditsService.requireCredits(teacherId, 'lesson_confirmation_send');
+          await this.creditsService.requireCredits(teacherId, 'weekly_summary_send');
         } catch {
           this.logger.warn(
             `[LESSONS] Créditos insuficientes para resumo semanal de ${studentName}`,
@@ -954,7 +954,7 @@ export class WhatsappService {
         });
 
         if (sendResult) {
-          await this.creditsService.deductCredits(teacherId, 'lesson_confirmation_send', 'lesson', entry.student.id);
+          await this.creditsService.deductCredits(teacherId, 'weekly_summary_send', 'lesson', entry.student.id);
           sent += 1;
           this.logger.log(
             `[LESSONS] Resumo semanal enviado para ${entry.student.full_name} | ${lines.length} aula(s)`,
@@ -3165,7 +3165,7 @@ export class WhatsappService {
     if (decision === 'UNKNOWN') return false;
 
     try {
-      await this.creditsService.deductCredits(input.teacherId, 'lesson_confirmation_process', 'lesson', input.student.id);
+      await this.creditsService.deductCredits(input.teacherId, 'weekly_summary_process', 'lesson', input.student.id);
     } catch { }
 
     await this.prisma.whatsappMessage.updateMany({

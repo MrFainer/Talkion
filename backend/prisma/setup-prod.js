@@ -27,6 +27,8 @@ async function main() {
     { key: 'speaking_feedback', name: 'Feedback da IA', description: 'Geração de feedback de speaking pela IA', category: 'speaking', default_cost: 15, current_cost: 15 },
     { key: 'lesson_confirmation_send', name: 'Envio de confirmação de aula', description: 'Envio de mensagem de confirmação de aula', category: 'lessons', default_cost: 1, current_cost: 1 },
     { key: 'lesson_confirmation_process', name: 'Interpretação da resposta pela IA', description: 'Processamento da resposta de confirmação pela IA', category: 'lessons', default_cost: 1, current_cost: 1 },
+    { key: 'weekly_summary_send', name: 'Envio de resumo semanal', description: 'Envio de resumo semanal de aulas para o aluno', category: 'lessons', default_cost: 1, current_cost: 1 },
+    { key: 'weekly_summary_process', name: 'Processamento de resposta do resumo semanal', description: 'Interpretação da resposta do resumo semanal pela IA', category: 'lessons', default_cost: 1, current_cost: 1 },
   ];
 
   for (const action of creditActions) {
