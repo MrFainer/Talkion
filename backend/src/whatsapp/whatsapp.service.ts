@@ -3053,6 +3053,8 @@ export class WhatsappService {
 
     let pending: { id: string; status: any; lesson_id: string; request_message_id: string | null } | null = null;
 
+    let pendingConfirmations: Array<{ id: string; lesson_id: string }> = [];
+
     if (input.quotedMessageId) {
       const confirmationByQuote = await this.prisma.lessonConfirmation.findFirst({
         where: { request_message_id: input.quotedMessageId },
@@ -3070,24 +3072,36 @@ export class WhatsappService {
         return true;
       }
 
-      pending = confirmationByQuote;
+      pendingConfirmations = [confirmationByQuote];
     } else {
-      return false;
-    }
+      const studentLessons = await this.prisma.lesson.findMany({
+        where: {
+          student_id: input.student.id,
+          OR: [
+            { kind: 'RECURRING', recurring: true, weekday: now.getDay() },
+            { kind: 'EXTRA', date: { gte: startOfDay, lte: endOfDay } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (studentLessons.length === 0) return false;
 
-    if (!pending) {
-      return false;
-    }
-
-    if (input.quotedMessageId && pending.request_message_id && pending.request_message_id !== input.quotedMessageId) {
-      return false;
+      pendingConfirmations = await this.prisma.lessonConfirmation.findMany({
+        where: {
+          lesson_id: { in: studentLessons.map((l) => l.id) },
+          occurrence_date: { gte: startOfDay, lte: endOfDay },
+          status: 'PENDING',
+        },
+        select: { id: true, lesson_id: true },
+      });
+      if (pendingConfirmations.length === 0) return false;
     }
 
     const decision = await this.aiService.classifyYesNo(raw, {
       teacherId: input.student.teacher_id || null,
       studentId: input.student.id,
       referenceType: 'lesson_confirmation',
-      referenceId: pending.id,
+      referenceId: pendingConfirmations[0].id,
       remoteJid: input.remoteJid,
       flowType: 'INCOMING',
       metadata: {
@@ -3096,25 +3110,28 @@ export class WhatsappService {
       },
     });
 
-    if (input.student?.teacher_id && pending?.lesson_id) {
-      try { await this.creditsService.deductCredits(input.student.teacher_id, 'lesson_confirmation_process', 'lesson', pending.lesson_id); } catch { }
-    }
-
     if (decision === 'UNKNOWN') {
       return false;
     }
 
     const newStatus = decision === 'YES' ? 'CONFIRMED' : 'DECLINED';
+    const respondedAt = new Date();
 
-    await this.prisma.lessonConfirmation.update({
-      where: { id: pending.id },
-      data: {
-        status: newStatus,
-        responded_at: new Date(),
-        response_message_id: input.incomingMessageId || null,
-        source: 'DAILY_MESSAGE',
-      },
-    });
+    for (const conf of pendingConfirmations) {
+      if (input.student?.teacher_id) {
+        try { await this.creditsService.deductCredits(input.student.teacher_id, 'lesson_confirmation_process', 'lesson', conf.lesson_id); } catch { }
+      }
+
+      await this.prisma.lessonConfirmation.update({
+        where: { id: conf.id },
+        data: {
+          status: newStatus,
+          responded_at: respondedAt,
+          response_message_id: input.incomingMessageId || null,
+          source: 'DAILY_MESSAGE',
+        },
+      });
+    }
 
     if (input.incomingMessageId) {
       await this.prisma.whatsappMessage.updateMany({
@@ -3127,7 +3144,7 @@ export class WhatsappService {
     }
 
     this.logger.log(
-      `[LESSONS] Resposta processada para ${this.formatStudentLog(input.student)} | status=${newStatus} | confirmation=${pending.id}`,
+      `[LESSONS] Resposta processada para ${this.formatStudentLog(input.student)} | status=${newStatus} | ${pendingConfirmations.length} confirmacao(oes)`,
     );
 
     return true;
@@ -3139,20 +3156,41 @@ export class WhatsappService {
     quotedMessageId?: string | null;
     teacherId?: string;
   }) {
-    if (!input.quotedMessageId || !input.teacherId) {
+    if (!input.teacherId) {
       this.logger.warn(
-        `[WEEKLY_SUMMARY] handleWeeklySummaryResponse: teacherId ou quotedMessageId ausente | teacherId=${input.teacherId} | quotedMessageId=${input.quotedMessageId}`,
+        `[WEEKLY_SUMMARY] teacherId ausente | aluno=${input.student.full_name}`,
       );
       return false;
     }
 
-    const quotedMsg = await this.prisma.whatsappMessage.findFirst({
-      where: { external_message_id: input.quotedMessageId, content_kind: 'WEEKLY_LESSON_SUMMARY' },
-      select: { id: true },
-    });
-    if (!quotedMsg) {
+    let weeklyMsg: { id: string } | null = null;
+
+    if (input.quotedMessageId) {
+      weeklyMsg = await this.prisma.whatsappMessage.findFirst({
+        where: { external_message_id: input.quotedMessageId, content_kind: 'WEEKLY_LESSON_SUMMARY' },
+        select: { id: true },
+      });
+    } else {
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      weeklyMsg = await this.prisma.whatsappMessage.findFirst({
+        where: {
+          student_id: input.student.id,
+          content_kind: 'WEEKLY_LESSON_SUMMARY',
+          created_at: { gte: startOfDay, lte: endOfDay },
+        },
+        select: { id: true },
+        orderBy: { created_at: 'desc' },
+      });
+    }
+
+    if (!weeklyMsg) {
       this.logger.warn(
-        `[WEEKLY_SUMMARY] Mensagem semanal citada não encontrada para quotedMessageId=${input.quotedMessageId} | aluno=${input.student.full_name}`,
+        `[WEEKLY_SUMMARY] Mensagem semanal não encontrada | quotedMessageId=${input.quotedMessageId} | aluno=${input.student.full_name}`,
       );
       return false;
     }
@@ -3164,7 +3202,7 @@ export class WhatsappService {
       teacherId: input.teacherId,
       studentId: input.student.id,
       referenceType: 'weekly_summary',
-      referenceId: quotedMsg.id,
+      referenceId: weeklyMsg.id,
       remoteJid: null,
       flowType: 'INCOMING',
       metadata: {
@@ -3183,8 +3221,8 @@ export class WhatsappService {
       await this.creditsService.deductCredits(input.teacherId, 'weekly_summary_process', 'lesson', input.student.id);
     } catch { }
 
-    await this.prisma.whatsappMessage.updateMany({
-      where: { external_message_id: input.quotedMessageId },
+    await this.prisma.whatsappMessage.update({
+      where: { id: weeklyMsg.id },
       data: {
         content_kind: decision === 'YES' ? 'WEEKLY_SUMMARY_CONFIRMED' : 'WEEKLY_SUMMARY_DECLINED',
       },
