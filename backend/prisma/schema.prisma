@@ -228,6 +228,7 @@ model LessonConfirmation {
   request_message_id  String?
   response_message_id String?
   responded_at        DateTime?
+  source              String       @default("DAILY_MESSAGE")
   created_at          DateTime     @default(now())
   updated_at          DateTime     @updatedAt
 

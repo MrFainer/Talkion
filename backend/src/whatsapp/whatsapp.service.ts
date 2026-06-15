@@ -3116,6 +3116,7 @@ export class WhatsappService {
         status: newStatus,
         responded_at: new Date(),
         response_message_id: input.incomingMessageId || null,
+        source: 'DAILY_MESSAGE',
       },
     });
 
@@ -3256,8 +3257,8 @@ export class WhatsappService {
 
         await this.prisma.lessonConfirmation.upsert({
           where: { lesson_id_occurrence_date: { lesson_id: lesson.id, occurrence_date: occurrenceDate } },
-          create: { lesson_id: lesson.id, occurrence_date: occurrenceDate, status: 'CONFIRMED' },
-          update: { status: 'CONFIRMED' },
+          create: { lesson_id: lesson.id, occurrence_date: occurrenceDate, status: 'CONFIRMED', source: 'WEEKLY_SUMMARY' },
+          update: { status: 'CONFIRMED', source: 'WEEKLY_SUMMARY' },
         });
         confirmedCount++;
       }

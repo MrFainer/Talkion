@@ -21,6 +21,7 @@ type LessonAgendaItem = {
   date: string;
   status: "PENDING" | "CONFIRMED" | "DECLINED";
   confirmationId: string | null;
+  source: string | null;
 };
 
 type AgendaResponse = {
@@ -40,6 +41,11 @@ const statusClass: Record<LessonAgendaItem["status"], string> = {
   PENDING: "bg-amber-100 text-amber-900",
   CONFIRMED: "bg-emerald-100 text-emerald-900",
   DECLINED: "bg-rose-100 text-rose-900",
+};
+
+const sourceLabel: Record<string, string> = {
+  DAILY_MESSAGE: "Confirmação Diária",
+  WEEKLY_SUMMARY: "Resumo Semanal",
 };
 
 const filterLabel: Record<StatusFilter, string> = {
@@ -233,7 +239,7 @@ export default function LessonsPage() {
                         </div>
                         <div className="mt-2 text-sm">{item.studentName}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
-                          {item.kind === "EXTRA" ? "Extra" : "Recorrente"}
+                          {sourceLabel[item.source ?? ""] || "-"}
                         </div>
                       </div>
                     ))}
@@ -246,7 +252,7 @@ export default function LessonsPage() {
                           <TableHead className="w-[120px]">Horário</TableHead>
                           <TableHead>Aluno</TableHead>
                           <TableHead className="w-[160px]">Status</TableHead>
-                          <TableHead className="w-[140px]">Tipo</TableHead>
+                          <TableHead className="w-[140px]">Origem</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -262,7 +268,7 @@ export default function LessonsPage() {
                               </span>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {item.kind === "EXTRA" ? "Extra" : "Recorrente"}
+                              {sourceLabel[item.source ?? ""] || "-"}
                             </TableCell>
                           </TableRow>
                         ))}

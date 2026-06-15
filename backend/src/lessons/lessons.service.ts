@@ -12,6 +12,7 @@ type AgendaItem = {
   date: string;
   status: 'PENDING' | 'CONFIRMED' | 'DECLINED';
   confirmationId: string | null;
+  source: string | null;
 };
 
 @Injectable()
@@ -125,13 +126,13 @@ export class LessonsService {
             lesson_id: { in: lessonIds },
             occurrence_date: occurrenceDate,
           },
-          select: { id: true, lesson_id: true, status: true },
+          select: { id: true, lesson_id: true, status: true, source: true },
         })
       : [];
 
-    const byLessonId = new Map<string, { id: string; status: any }>();
+    const byLessonId = new Map<string, { id: string; status: any; source: string | null }>();
     for (const c of confirmations) {
-      byLessonId.set(c.lesson_id, { id: c.id, status: c.status });
+      byLessonId.set(c.lesson_id, { id: c.id, status: c.status, source: c.source });
     }
 
     const items: AgendaItem[] = lessons
@@ -149,6 +150,7 @@ export class LessonsService {
           date: start.toISOString().slice(0, 10),
           status,
           confirmationId: confirmation?.id || null,
+          source: confirmation?.source || null,
         };
       })
       .sort((a, b) => (a.time === b.time ? a.studentName.localeCompare(b.studentName) : a.time.localeCompare(b.time)));
