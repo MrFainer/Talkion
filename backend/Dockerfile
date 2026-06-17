@@ -2,14 +2,16 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Instalar dependências (incluindo pacotes nativos para o Prisma caso necessário)
+# Instalar dependências sem executar postinstall ainda, porque o build do Nest
+# precisa dos arquivos do projeto que só são copiados na etapa seguinte.
 RUN apk add --no-cache openssl
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -21,8 +23,8 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV PORT 3001
+ENV NODE_ENV=production
+ENV PORT=3001
 
 # Adiciona o OpenSSL (necessário para o Prisma rodar no Alpine)
 RUN apk add --no-cache openssl
