@@ -59,6 +59,9 @@ type MessageSettingsPayload = {
   weekly_summary_time?: string;
   weekly_summary_enabled?: boolean;
   admin_weekly_summary_enabled?: boolean;
+  quick_tip_time?: string;
+  quick_tip_enabled?: boolean;
+  admin_quick_tip_enabled?: boolean;
   news_capture_enabled?: boolean;
   quiz_generation_enabled?: boolean;
   auto_send_enabled?: boolean;
@@ -106,6 +109,10 @@ export default function AutomationPage() {
   const [weeklySummaryEnabled, setWeeklySummaryEnabled] = useState(true);
   const [weeklySummarySaving, setWeeklySummarySaving] = useState(false);
   const [initialWeeklySummaryEnabled, setInitialWeeklySummaryEnabled] = useState(true);
+  const [quickTipTime, setQuickTipTime] = useState("12:00");
+  const [quickTipEnabled, setQuickTipEnabled] = useState(false);
+  const [quickTipSaving, setQuickTipSaving] = useState(false);
+  const [initialQuickTipEnabled, setInitialQuickTipEnabled] = useState(true);
   const [newsCaptureEnabled, setNewsCaptureEnabled] = useState(true);
   const [quizGenerationEnabled, setQuizGenerationEnabled] = useState(true);
   const [autoSendEnabled, setAutoSendEnabled] = useState(true);
@@ -116,6 +123,7 @@ export default function AutomationPage() {
   const [initialLessonsConfirmationEnabled, setInitialLessonsConfirmationEnabled] = useState(true);
   const [automationDays, setAutomationDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [lessonsConfirmationSaving, setLessonsConfirmationSaving] = useState(false);
+  const [sendingQuickTip, setSendingQuickTip] = useState(false);
   const [sendingWeeklySummary, setSendingWeeklySummary] = useState(false);
   const [sendingLessonConfirmations, setSendingLessonConfirmations] = useState(false);
   const [autoGroupTargets, setAutoGroupTargets] = useState<
@@ -327,6 +335,9 @@ export default function AutomationPage() {
       setWeeklySummaryTime(payload.weekly_summary_time || "08:00");
       setWeeklySummaryEnabled(payload.weekly_summary_enabled === true);
       setInitialWeeklySummaryEnabled(payload.admin_weekly_summary_enabled !== false);
+      setQuickTipTime(payload.quick_tip_time || "12:00");
+      setQuickTipEnabled(payload.quick_tip_enabled === true);
+      setInitialQuickTipEnabled(payload.admin_quick_tip_enabled !== false);
       setNewsCaptureEnabled(payload.news_capture_enabled !== false);
       setInitialNewsCaptureEnabled(payload.admin_news_capture_enabled !== false);
       setQuizGenerationEnabled(payload.quiz_generation_enabled !== false);
@@ -385,6 +396,8 @@ export default function AutomationPage() {
         lessons_confirmation_enabled: lessonsConfirmationEnabled,
         weekly_summary_time: weeklySummaryTime || "08:00",
         weekly_summary_enabled: weeklySummaryEnabled,
+        quick_tip_time: quickTipTime || "12:00",
+        quick_tip_enabled: quickTipEnabled,
         news_capture_enabled: newsCaptureEnabled,
         quiz_generation_enabled: quizGenerationEnabled,
         auto_send_enabled: autoSendEnabled,
@@ -458,6 +471,35 @@ export default function AutomationPage() {
     }
   };
 
+  const handleToggleQuickTip = async () => {
+    if (!user?.id) return;
+    if (scheduleLoading || scheduleSaving || quickTipSaving) return;
+
+    const nextValue = !quickTipEnabled;
+    const previousValue = quickTipEnabled;
+
+    setQuickTipEnabled(nextValue);
+    setQuickTipSaving(true);
+
+    try {
+      await api.put(`/message-settings/${user.id}`, {
+        quick_tip_enabled: nextValue,
+      });
+      if (nextValue) {
+        toast.success("Função de Quick Tip Ativada.");
+      } else {
+        toast("Função de Quick Tip Desativada.", {
+          icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        });
+      }
+    } catch (error: any) {
+      setQuickTipEnabled(previousValue);
+      toast.error(error.response?.data?.message || "Erro ao atualizar quick tip.");
+    } finally {
+      setQuickTipSaving(false);
+    }
+  };
+
   const handleSendWeeklySummary = async () => {
     if (!user?.id) return;
     setSendingWeeklySummary(true);
@@ -489,6 +531,20 @@ export default function AutomationPage() {
       toast.error(error.response?.data?.message || "Erro ao enviar confirmações de aula.", { id: toastId });
     } finally {
       setSendingLessonConfirmations(false);
+    }
+  };
+
+  const handleSendQuickTip = async () => {
+    if (!user?.id) return;
+    setSendingQuickTip(true);
+    const toastId = toast.loading("Gerando e enviando Quick Tip...");
+    try {
+      await api.post("/whatsapp/send-quick-tips", { teacherId: user.id });
+      toast.success("Quick Tip enviada com sucesso.", { id: toastId });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao enviar Quick Tip.", { id: toastId });
+    } finally {
+      setSendingQuickTip(false);
     }
   };
 
@@ -613,7 +669,7 @@ export default function AutomationPage() {
         {initialLessonsConfirmationEnabled && lessonsConfirmationEnabled && (
         <Card>
           <CardHeader>
-            <CardTitle>Confirmações de Aula Manual</CardTitle>
+            <CardTitle>Confirmações de Aula</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
@@ -622,6 +678,35 @@ export default function AutomationPage() {
             <Button onClick={handleSendLessonConfirmations} disabled={sendingLessonConfirmations} className="h-9 shrink-0">
               {sendingLessonConfirmations ? "Enviando..." : "Enviar Confirmações"}
             </Button>
+          </CardContent>
+        </Card>
+        )}
+
+        {initialQuickTipEnabled && quickTipEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Tip</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Gera e envia manualmente uma dica de inglês (Quick Tip) para os grupos configurados.
+            </p>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span>
+                    <Button onClick={handleSendQuickTip} disabled={sendingQuickTip || !hasAutoGroupsSelected} className="h-9 shrink-0">
+                      {sendingQuickTip ? "Enviando..." : "Enviar Quick Tip"}
+                    </Button>
+                  </span>
+                }
+              />
+              {!hasAutoGroupsSelected && (
+              <TooltipContent>
+                <p>Selecione pelo menos 1 grupo em "Grupos do envio automático".</p>
+              </TooltipContent>
+              )}
+            </Tooltip>
           </CardContent>
         </Card>
         )}
@@ -795,16 +880,53 @@ export default function AutomationPage() {
                 </Tooltip>
               </div>
               )}
+              {initialQuickTipEnabled && (
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="quick-tip-time" className="text-xs whitespace-nowrap">Quick Tip</Label>
+                <Input
+                  id="quick-tip-time"
+                  type="time"
+                  value={quickTipTime}
+                  onChange={(e) => setQuickTipTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleQuickTip}
+                        disabled={scheduleLoading || scheduleSaving || quickTipSaving}
+                        className={quickTipEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={quickTipEnabled ? "Desativar quick tip" : "Ativar quick tip"}
+                      >
+                        {quickTipEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>
+                    <p>{quickTipEnabled ? "Desativar Quick Tip" : "Ativar Quick Tip"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              )}
             </div>
 
-            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && user?.role !== "ADMIN" && (
+            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && !initialQuickTipEnabled && user?.role !== "ADMIN" && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 As funções de automação estão desativadas para a sua conta. Entre em contato com o administrador do
                 Talkion para mais informações.
               </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || user?.role === "ADMIN") && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Dias da semana (automático)</Label>
               <div className="flex flex-wrap gap-2">
@@ -825,7 +947,7 @@ export default function AutomationPage() {
             </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || user?.role === "ADMIN") && (
             <div className="space-y-3 rounded-lg border p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -986,7 +1108,7 @@ export default function AutomationPage() {
             </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || user?.role === "ADMIN") && (
             <div className="flex justify-end">
               <Button onClick={handleSaveSchedule} disabled={scheduleSaving || scheduleLoading}>
                 {scheduleSaving ? "Salvando..." : "Salvar"}

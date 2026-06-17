@@ -11,6 +11,8 @@ import { CreditsService } from '../credits/credits.service';
 import type { UsageTrackingContext } from '../ai/usage-cost.service';
 import { QuizService } from '../quiz/quiz.service';
 
+const { default: scdl } = require('soundcloud-downloader');
+
 type NewsProcessingStatus =
   | 'created'
   | 'skipped_same_day'
@@ -26,6 +28,7 @@ type NewsProcessingResult = {
   incomingTitle?: string;
   incomingContent?: string;
   incomingSourceUrl?: string;
+  incomingAudioUrl?: string;
 };
 
 type QuizProcessingResult = {
@@ -104,6 +107,34 @@ export class NewsService {
     }
   }
 
+  async cleanupAllNewsAudio() {
+    try {
+      await this.prisma.news.updateMany({
+        where: { audio_url: { not: null } },
+        data: { audio_url: null },
+      });
+      this.logger.log('audio_url limpos de todas as notícias');
+
+      const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+      let files: string[];
+      try {
+        files = await readdir(audioDir);
+      } catch {
+        return;
+      }
+      const mp3Files = files.filter(f => f.endsWith('.mp3'));
+      for (const file of mp3Files) {
+        const filePath = join(audioDir, file);
+        await unlink(filePath).catch(() => {});
+      }
+      if (mp3Files.length > 0) {
+        this.logger.log(`${mp3Files.length} arquivos de áudio removidos`);
+      }
+    } catch (error) {
+      this.logger.warn(`Erro ao limpar todos os áudios: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   async handleDailyNewsScraping() {
     this.logger.log('Iniciando captura diária de notícias e quizzes para todos os professores...');
     const activeTeachers = await this.prisma.user.findMany({
@@ -178,6 +209,8 @@ export class NewsService {
     tracking?: UsageTrackingContext,
   ): Promise<NewsProcessingResult[]> {
     const results: NewsProcessingResult[] = [];
+
+    await this.cleanupAllNewsAudio();
 
     try {
       const response = await axios.get(this.baseUrl);
@@ -337,6 +370,7 @@ export class NewsService {
 
       const title = this.extractTitle($, url);
       const content = this.extractContent(data, $, title);
+      const audioUrl = this.extractAudioUrl($);
 
       if (!title || !content) {
         this.logger.warn(
@@ -349,12 +383,17 @@ export class NewsService {
         };
       }
 
+      if (audioUrl) {
+        this.logger.log(`Áudio encontrado para [${level}]: ${audioUrl}`);
+      }
+
       const result = await this.saveNewsIfAllowed({
         title,
         content,
         level,
         sourceType: SourceType.SCRAPED,
         sourceUrl: url,
+        audioUrl: audioUrl || undefined,
       }, tracking);
 
       if (result.status === 'created') {
@@ -365,6 +404,7 @@ export class NewsService {
         incomingTitle: title,
         incomingContent: content,
         incomingSourceUrl: url,
+        incomingAudioUrl: audioUrl || undefined,
       };
     } catch (error) {
       this.logger.error(
@@ -430,6 +470,7 @@ export class NewsService {
     level: string;
     sourceType: SourceType;
     sourceUrl?: string;
+    audioUrl?: string;
   }, tracking?: UsageTrackingContext): Promise<NewsProcessingResult> {
     const { startOfDay, endOfDay } = this.getTodayRange();
 
@@ -549,6 +590,35 @@ export class NewsService {
       } catch (error) {
         this.logger.warn(
           `Falha ao gerar áudio para notícia [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    if (input.sourceType === SourceType.SCRAPED && input.audioUrl) {
+      try {
+        this.logger.log(`Baixando áudio SoundCloud (MP3) para [${input.level}]: ${input.audioUrl}`);
+        const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+        await mkdir(audioDir, { recursive: true });
+        const ext = '.mp3';
+        const filePath = join(audioDir, `${createdNews.id}${ext}`);
+
+        const stream = await scdl.downloadFormat(input.audioUrl, 'audio/mpeg');
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const audioBuffer = Buffer.concat(chunks);
+        await writeFile(filePath, audioBuffer);
+
+        const audioUrlPath = `/uploads/news-audio/${createdNews.id}${ext}`;
+        await this.prisma.news.update({
+          where: { id: createdNews.id },
+          data: { audio_url: audioUrlPath },
+        });
+        this.logger.log(`Áudio SoundCloud MP3 baixado para notícia: [${input.level}] ${input.title}`);
+      } catch (error) {
+        this.logger.warn(
+          `Falha ao baixar áudio SoundCloud para [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
@@ -740,6 +810,26 @@ export class NewsService {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, ' ');
+  }
+
+  private extractAudioUrl($: ReturnType<typeof cheerio.load>): string | null {
+    const iframe = $('iframe[src*="soundcloud.com"]').first();
+    const src = iframe.attr('src');
+    if (src) {
+      const match = src.match(/url=([^&]+)/);
+      if (match) {
+        try {
+          const decodedUrl = decodeURIComponent(match[1]);
+          const finalUrl = decodeURIComponent(decodedUrl);
+          return finalUrl;
+        } catch {
+          const fallbackLink = $('a[href*="soundcloud.com/newsinlevels/"]').first().attr('href');
+          return fallbackLink || null;
+        }
+      }
+    }
+    const directLink = $('a[href*="soundcloud.com/newsinlevels/"]').first().attr('href');
+    return directLink || null;
   }
 
   private extractContent(

@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { MailService } from '../auth/mail.service';
+import { getCreditActionCopy } from './credit-action-copy';
 
 @Injectable()
 export class CreditsService {
@@ -19,9 +20,22 @@ export class CreditsService {
   }
 
   async getAllCosts() {
-    return this.prisma.creditActionConfig.findMany({
+    const rows = await this.prisma.creditActionConfig.findMany({
       where: { category: { notIn: ['admin', 'whatsapp'] } },
-      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+      orderBy: [{ category: 'asc' }, { key: 'asc' }],
+    });
+
+    return rows.map((row) => {
+      const copy = getCreditActionCopy(row.key);
+      if (!copy) {
+        return row;
+      }
+
+      return {
+        ...row,
+        name: copy.name,
+        description: copy.description,
+      };
     });
   }
 
@@ -74,6 +88,7 @@ export class CreditsService {
     const newBalance = currentBalance - cost;
 
     const config = await this.prisma.creditActionConfig.findUnique({ where: { key: actionKey } });
+    const copy = getCreditActionCopy(actionKey);
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -86,7 +101,7 @@ export class CreditsService {
           type: 'DEBIT',
           amount: cost,
           balance_after: newBalance,
-          description: config?.name || actionKey,
+          description: copy?.name || config?.name || actionKey,
           action_key: actionKey,
           reference_type: referenceType,
           reference_id: referenceId,

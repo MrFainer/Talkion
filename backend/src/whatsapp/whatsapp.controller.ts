@@ -244,4 +244,15 @@ export class WhatsappController {
     const result = await this.whatsappService.sendTodayLessonConfirmations(body.teacherId);
     return result;
   }
+
+  @Post('send-quick-tips')
+  @HttpCode(HttpStatus.OK)
+  async sendQuickTips(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    await this.whatsappService.sendQuickTips(body.teacherId);
+    return { success: true };
+  }
 }

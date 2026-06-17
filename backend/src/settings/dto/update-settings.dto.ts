@@ -46,6 +46,9 @@ export class UpdateSettingsDto {
   admin_auto_send_enabled?: boolean;
   admin_group_send_enabled?: boolean;
   admin_lessons_confirmation_enabled?: boolean;
+  admin_quick_tip_enabled?: boolean;
+  quick_tip_time?: string;
+  quick_tip_enabled?: boolean;
   automation_days?: any;
   auto_group_targets?: any;
 

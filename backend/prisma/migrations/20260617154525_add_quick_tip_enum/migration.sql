@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "CostAction" ADD VALUE 'QUICK_TIP_GENERATION';

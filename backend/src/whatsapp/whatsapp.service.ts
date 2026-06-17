@@ -462,17 +462,31 @@ export class WhatsappService {
     tracking?: OutboundMessageTracking,
   ) {
     try {
-      const filePath = join(process.cwd(), audioUrl.replace(/^\//, ''));
-      const audioBuffer = await readFile(filePath);
-      const base64 = audioBuffer.toString('base64');
+      const isRemoteUrl = audioUrl.startsWith('http://') || audioUrl.startsWith('https://');
+      let media: string;
+      let mimetype: string;
+      let fileName: string;
+
+      if (isRemoteUrl) {
+        media = audioUrl;
+        mimetype = 'audio/mp4';
+        fileName = 'audio.m4a';
+      } else {
+        const filePath = join(process.cwd(), audioUrl.replace(/^\//, ''));
+        const audioBuffer = await readFile(filePath);
+        media = audioBuffer.toString('base64');
+        const ext = filePath.endsWith('.m4a') ? 'm4a' : 'mp3';
+        mimetype = ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg';
+        fileName = `audio.${ext}`;
+      }
 
       const instanceName = await this.resolveInstanceName(teacherId);
       const response = await this.http.post(`/message/sendMedia/${instanceName}`, {
         number: numberOrGroupId,
-        media: base64,
+        media,
         mediatype: 'audio',
-        mimetype: 'audio/mpeg',
-        fileName: 'audio.mp3',
+        mimetype,
+        fileName,
       });
 
       await this.saveOutgoingMessageToDb({
@@ -968,6 +982,49 @@ export class WhatsappService {
     return { sent, skipped: skipped + skippedDuplicates };
   }
 
+  async sendQuickTips(teacherId: string) {
+    const settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+      select: {
+        ai_model: true,
+        auto_group_targets: true,
+      },
+    });
+
+    if (!settings) return;
+
+    const targets = Array.isArray(settings.auto_group_targets) ? settings.auto_group_targets : [];
+    if (targets.length === 0) return;
+
+    await this.creditsService.requireCredits(teacherId, 'quick_tip_generation');
+
+    const groupIds = targets
+      .map((t: any) => String(t?.groupId || t?.id || '').trim())
+      .filter(Boolean);
+
+    const tip = await this.aiService.generateQuickTip({
+      teacherId,
+      model: settings.ai_model || undefined,
+    });
+
+    if (!tip) return;
+
+    for (const groupId of groupIds) {
+      try {
+        await this.sendMessage(teacherId, groupId, tip, {
+          remoteJid: groupId,
+          contentKind: 'TEXT',
+        });
+      } catch (error) {
+        this.logger.error(
+          `[QUICK_TIP] Falha ao enviar quick tip para grupo ${groupId} (teacherId=${teacherId}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    await this.creditsService.deductCredits(teacherId, 'quick_tip_generation', 'quick_tip', undefined);
+  }
+
   /**
    * Verifica se o número possui WhatsApp ativo
    */
@@ -1384,6 +1441,9 @@ export class WhatsappService {
         admin_group_send_enabled: boolean;
         admin_lessons_confirmation_enabled: boolean;
         admin_weekly_summary_enabled: boolean;
+        admin_quick_tip_enabled: boolean;
+        quick_tip_time: string;
+        quick_tip_enabled: boolean;
         automation_days: unknown;
         auto_group_targets: unknown;
       } | null;
@@ -1412,6 +1472,9 @@ export class WhatsappService {
               admin_group_send_enabled: true,
               admin_lessons_confirmation_enabled: true,
               admin_weekly_summary_enabled: true,
+              admin_quick_tip_enabled: true,
+              quick_tip_time: true,
+              quick_tip_enabled: true,
               automation_days: true,
               auto_group_targets: true,
             },
@@ -1436,6 +1499,7 @@ export class WhatsappService {
       groupDue: boolean;
       lessonsDue: boolean;
       weeklySummaryDue: boolean;
+      quickTipDue: boolean;
       generateQuiz: boolean;
       targets: Array<{ groupId: string; groupLevel?: string }>;
     }> = [];
@@ -1486,7 +1550,14 @@ export class WhatsappService {
         settings.weekly_summary_time &&
         settings.weekly_summary_time === hhmm;
 
-      if (!captureDue && !privateDue && !groupDue && !lessonsDue && !weeklySummaryDue) continue;
+      const quickTipDue =
+        isAutomationDay &&
+        settings.admin_quick_tip_enabled !== false &&
+        settings.quick_tip_enabled &&
+        settings.quick_tip_time &&
+        settings.quick_tip_time === hhmm;
+
+      if (!captureDue && !privateDue && !groupDue && !lessonsDue && !weeklySummaryDue && !quickTipDue) continue;
 
       dueJobs.push({
         teacherId: teacher.id,
@@ -1496,6 +1567,7 @@ export class WhatsappService {
         groupDue: Boolean(groupDue),
         lessonsDue: Boolean(lessonsDue),
         weeklySummaryDue: Boolean(weeklySummaryDue),
+        quickTipDue: Boolean(quickTipDue),
         generateQuiz: settings.admin_quiz_generation_enabled !== false && settings.quiz_generation_enabled !== false,
         targets: normalizedTargets,
       });
@@ -1503,7 +1575,7 @@ export class WhatsappService {
 
     const captureJobs = dueJobs.filter((job) => job.captureDue);
     const sendJobs = dueJobs.filter(
-      (job) => job.privateDue || job.groupDue || job.lessonsDue || job.weeklySummaryDue,
+      (job) => job.privateDue || job.groupDue || job.lessonsDue || job.weeklySummaryDue || job.quickTipDue,
     );
     const captureParallel = Math.min(this.automationParallelBase, captureJobs.length || 1);
     const sendParallel = Math.min(this.automationParallelBase, sendJobs.length || 1);
@@ -1702,6 +1774,18 @@ export class WhatsappService {
           this.sendTodayLessonConfirmations(job.teacherId).catch((error) => {
             this.logger.error(
               `[AUTO][${jobId}] Falha envio confirmações de aula teacherId=${job.teacherId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }),
+        );
+      }
+
+      if (job.quickTipDue) {
+        tasks.push(
+          this.sendQuickTips(job.teacherId).catch((error) => {
+            this.logger.error(
+              `[AUTO][${jobId}] Falha quick tip teacherId=${job.teacherId}: ${
                 error instanceof Error ? error.message : String(error)
               }`,
             );

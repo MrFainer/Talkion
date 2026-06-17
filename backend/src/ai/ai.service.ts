@@ -1571,4 +1571,60 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
       return text;
     }
   }
+
+  async generateQuickTip(input: {
+    teacherId: string;
+    model?: string;
+  }) {
+    const model = input.model || 'gpt-4o-mini';
+
+    const prompt = `Você é um professor de inglês criando uma "Quick Tip" para alunos brasileiros no WhatsApp.
+
+Gere uma dica rápida de inglês seguindo EXATAMENTE este formato:
+
+🇺🇸 News in English – Quick Tip
+
+📰 <TÍTULO DA DICA>
+
+<EXPLICAÇÃO EM PORTUGUÊS COM EXEMPLOS EM INGLÊS>
+
+✅ <FRASE CORRETA EM INGLÊS>
+(<TRADUÇÃO>)
+
+❌ <FRASE INCORRETA EM INGLÊS>
+(<TRADUÇÃO>)
+
+💡 <DICA FINAL EM PORTUGUÊS>
+
+Challenge: Complete a frase:
+👉 <FRASE PARA COMPLETAR EM INGLÊS>
+
+Regras:
+- Escolha um tópico diferente a cada dica (gramática, vocabulário, pronúncia, expressões, falsos cognatos, etc.)
+- A dica deve ser curta, didática e útil para alunos brasileiros
+- Use emojis moderadamente
+- NÃO use placeholders como {{variavel}}
+- NÃO inclua JSON
+
+Retorne APENAS o texto da dica, sem formatação adicional.`;
+
+    const response = await this.openai.chat.completions.create({
+      model,
+      temperature: 0.8,
+      messages: [{ role: 'system', content: prompt }],
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.QUICK_TIP_GENERATION,
+      modelName: model,
+      response,
+      tracking: {
+        referenceType: 'quick_tip_generation',
+        referenceId: input.teacherId,
+      },
+      metadata: { kind: 'quick_tip' },
+    });
+
+    return response.choices[0]?.message?.content?.trim() || null;
+  }
 }

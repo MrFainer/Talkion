@@ -44,6 +44,7 @@ enum CostAction {
   SPEAKING_TRANSCRIPTION
   SPEAKING_EVALUATION
   WHATSAPP_MESSAGE_GENERATION
+  QUICK_TIP_GENERATION
 }
 
 enum LessonStatus {
@@ -317,12 +318,16 @@ model MessageSettings {
   weekly_summary_time         String   @db.VarChar(5) @default("08:00")
   weekly_summary_enabled      Boolean  @default(true)
 
+  quick_tip_time              String   @db.VarChar(5) @default("12:00")
+  quick_tip_enabled           Boolean  @default(false)
+
   admin_news_capture_enabled        Boolean  @default(true)
   admin_quiz_generation_enabled     Boolean  @default(true)
   admin_auto_send_enabled           Boolean  @default(true)
   admin_group_send_enabled          Boolean  @default(true)
   admin_lessons_confirmation_enabled Boolean @default(true)
   admin_weekly_summary_enabled      Boolean  @default(true)
+  admin_quick_tip_enabled           Boolean  @default(true)
 
   news_capture_enabled        Boolean  @default(true)
   quiz_generation_enabled     Boolean  @default(true)
