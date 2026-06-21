@@ -3410,6 +3410,13 @@ export class WhatsappService {
     incomingMessageId?: string | null,
     quotedMessageId?: string | null,
   ) {
+    if (remoteJid.includes('@g.us')) {
+      this.logger.log(
+        `[AUDIO][IGNORADO] Audio ignorado de ${this.formatStudentLog(student)} | enviado em grupo, so processamos audio de conversas privadas.`
+      );
+      return;
+    }
+
     try {
       const mediaResponse = await this.http.post(
         `/chat/getBase64FromMediaMessage/${instanceName}`,
