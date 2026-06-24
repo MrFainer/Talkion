@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { MailService } from '../auth/mail.service';
 import { getCreditActionCopy } from './credit-action-copy';
@@ -40,9 +45,15 @@ export class CreditsService {
   }
 
   async updateCost(key: string, current_cost: number) {
-    const config = await this.prisma.creditActionConfig.findUnique({ where: { key } });
-    if (!config) throw new NotFoundException(`Configuração de crédito não encontrada: ${key}`);
-    if (current_cost < 0) throw new BadRequestException('O custo não pode ser negativo');
+    const config = await this.prisma.creditActionConfig.findUnique({
+      where: { key },
+    });
+    if (!config)
+      throw new NotFoundException(
+        `Configuração de crédito não encontrada: ${key}`,
+      );
+    if (current_cost < 0)
+      throw new BadRequestException('O custo não pode ser negativo');
     return this.prisma.creditActionConfig.update({
       where: { key },
       data: { current_cost },
@@ -57,7 +68,10 @@ export class CreditsService {
     return Math.floor(user?.credit_balance ?? 0);
   }
 
-  async checkBalance(userId: string, actionKey: string): Promise<{ sufficient: boolean; cost: number; balance: number }> {
+  async checkBalance(
+    userId: string,
+    actionKey: string,
+  ): Promise<{ sufficient: boolean; cost: number; balance: number }> {
     const cost = await this.getCost(actionKey);
     const balance = await this.getBalance(userId);
     return { sufficient: balance >= cost, cost, balance };
@@ -72,14 +86,21 @@ export class CreditsService {
     if (!userId) return { deducted: false, balance: 0, cost: 0 };
 
     const cost = await this.getCost(actionKey);
-    if (cost <= 0) return { deducted: true, balance: await this.getBalance(userId), cost: 0 };
+    if (cost <= 0)
+      return {
+        deducted: true,
+        balance: await this.getBalance(userId),
+        cost: 0,
+      };
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
     const currentBalance = Math.floor(user.credit_balance);
     if (currentBalance < cost) {
-      this.logger.warn(`Créditos insuficientes para ${userId}: tem ${currentBalance}, precisa ${cost}`);
+      this.logger.warn(
+        `Créditos insuficientes para ${userId}: tem ${currentBalance}, precisa ${cost}`,
+      );
       throw new BadRequestException(
         `Créditos insuficientes. Você tem ${currentBalance} créditos, precisa de ${cost}.`,
       );
@@ -87,7 +108,9 @@ export class CreditsService {
 
     const newBalance = currentBalance - cost;
 
-    const config = await this.prisma.creditActionConfig.findUnique({ where: { key: actionKey } });
+    const config = await this.prisma.creditActionConfig.findUnique({
+      where: { key: actionKey },
+    });
     const copy = getCreditActionCopy(actionKey);
 
     await this.prisma.$transaction([
@@ -109,7 +132,9 @@ export class CreditsService {
       }),
     ]);
 
-    this.logger.log(`Créditos debitados: ${userId} - ${cost} (${actionKey}) - saldo: ${newBalance}`);
+    this.logger.log(
+      `Créditos debitados: ${userId} - ${cost} (${actionKey}) - saldo: ${newBalance}`,
+    );
 
     await this.checkAndNotifyLowCredits(userId, newBalance);
 
@@ -123,7 +148,8 @@ export class CreditsService {
     referenceType?: string,
     referenceId?: string,
   ) {
-    if (amount <= 0) throw new BadRequestException('Quantidade deve ser positiva');
+    if (amount <= 0)
+      throw new BadRequestException('Quantidade deve ser positiva');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -148,7 +174,9 @@ export class CreditsService {
       }),
     ]);
 
-    this.logger.log(`Créditos resetados: ${userId} = ${amount} - saldo: ${newBalance}`);
+    this.logger.log(
+      `Créditos resetados: ${userId} = ${amount} - saldo: ${newBalance}`,
+    );
     return { balance: newBalance };
   }
 
@@ -159,7 +187,8 @@ export class CreditsService {
     referenceType?: string,
     referenceId?: string,
   ) {
-    if (amount <= 0) throw new BadRequestException('Quantidade deve ser positiva');
+    if (amount <= 0)
+      throw new BadRequestException('Quantidade deve ser positiva');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -185,7 +214,9 @@ export class CreditsService {
       }),
     ]);
 
-    this.logger.log(`Créditos adicionados: ${userId} +${amount} - saldo: ${newBalance}`);
+    this.logger.log(
+      `Créditos adicionados: ${userId} +${amount} - saldo: ${newBalance}`,
+    );
     return { balance: newBalance };
   }
 
@@ -215,7 +246,9 @@ export class CreditsService {
 
     const balance = Math.floor(user.credit_balance);
     if (balance < cost) {
-      this.logger.warn(`Créditos insuficientes para ${userId}: tem ${balance}, precisa ${cost}`);
+      this.logger.warn(
+        `Créditos insuficientes para ${userId}: tem ${balance}, precisa ${cost}`,
+      );
       throw new BadRequestException(
         `Créditos insuficientes. Você tem ${balance} créditos, precisa de ${cost} para esta ação.`,
       );
@@ -223,7 +256,7 @@ export class CreditsService {
   }
 
   async checkAndNotifyLowCredits(userId: string, balance?: number) {
-    const currentBalance = balance ?? await this.getBalance(userId);
+    const currentBalance = balance ?? (await this.getBalance(userId));
     const configs = await this.prisma.creditActionConfig.findMany({
       where: { current_cost: { gt: 0 } },
       orderBy: { current_cost: 'asc' },
@@ -239,7 +272,11 @@ export class CreditsService {
         select: { email: true, name: true },
       });
       if (user?.email) {
-        await this.mailService.sendLowCreditsEmail(user.email, user.name, currentBalance);
+        await this.mailService.sendLowCreditsEmail(
+          user.email,
+          user.name,
+          currentBalance,
+        );
       }
     }
   }

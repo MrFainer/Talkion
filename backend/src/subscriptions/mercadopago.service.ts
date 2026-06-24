@@ -10,10 +10,14 @@ export class MercadoPagoService {
   constructor() {
     const token = process.env.MERCADO_PAGO_ACCESS_TOKEN;
     if (!token) {
-      this.logger.warn('MERCADO_PAGO_ACCESS_TOKEN not set. MP integration disabled.');
+      this.logger.warn(
+        'MERCADO_PAGO_ACCESS_TOKEN not set. MP integration disabled.',
+      );
       return;
     }
-    this.logger.log(`Initializing MP API with token: ${token.substring(0, 20)}...`);
+    this.logger.log(
+      `Initializing MP API with token: ${token.substring(0, 20)}...`,
+    );
     this.api = axios.create({
       baseURL: 'https://api.mercadopago.com',
       timeout: 30000,
@@ -26,11 +30,19 @@ export class MercadoPagoService {
 
   private ensureConfigured() {
     if (!this.api) {
-      throw new Error('Mercado Pago não configurado. Defina MERCADO_PAGO_ACCESS_TOKEN.');
+      throw new Error(
+        'Mercado Pago não configurado. Defina MERCADO_PAGO_ACCESS_TOKEN.',
+      );
     }
   }
 
-  private async request(method: string, path: string, data?: any, params?: any, extraHeaders?: Record<string, string>) {
+  private async request(
+    method: string,
+    path: string,
+    data?: any,
+    params?: any,
+    extraHeaders?: Record<string, string>,
+  ) {
     this.ensureConfigured();
     const url = `https://api.mercadopago.com${path}`;
     this.logger.log(`MP API ${method} ${url}`);
@@ -57,17 +69,25 @@ export class MercadoPagoService {
   async testConnection(): Promise<string> {
     this.ensureConfigured();
     try {
-      const data = await this.request('GET', '/v1/customers/search', null, { limit: 1 });
+      const data = await this.request('GET', '/v1/customers/search', null, {
+        limit: 1,
+      });
       return `Conexão OK. Customers: ${JSON.stringify(data)}`;
     } catch (e: any) {
       return `Falha: ${e.message}`;
     }
   }
 
-  async findOrCreateCustomer(email: string, name: string, userId: string): Promise<string> {
+  async findOrCreateCustomer(
+    email: string,
+    name: string,
+    userId: string,
+  ): Promise<string> {
     try {
       this.logger.log(`Searching customer by email: ${email}`);
-      const data = await this.request('GET', '/v1/customers/search', null, { email });
+      const data = await this.request('GET', '/v1/customers/search', null, {
+        email,
+      });
       const existing = data?.results?.[0];
       if (existing?.id) {
         this.logger.log(`Customer found: ${existing.id} for ${email}`);
@@ -78,13 +98,19 @@ export class MercadoPagoService {
     }
 
     this.logger.log(`Creating customer: ${email}`);
-    const data = await this.request('POST', '/v1/customers', { email, first_name: name });
+    const data = await this.request('POST', '/v1/customers', {
+      email,
+      first_name: name,
+    });
     this.logger.log(`Customer created: ${data.id} for ${email}`);
     return data.id;
   }
 
   async getCard(customerId: string, cardId: string) {
-    const data = await this.request('GET', `/v1/customers/${customerId}/cards/${cardId}`);
+    const data = await this.request(
+      'GET',
+      `/v1/customers/${customerId}/cards/${cardId}`,
+    );
     return {
       cardId: data.id,
       lastFourDigits: data.last_four_digits || '',
@@ -102,21 +128,36 @@ export class MercadoPagoService {
     }));
   }
 
-  async createOneTimePaymentWithCardId(customerId: string, cardId: string, amount: number, description: string, userId: string, userEmail: string) {
+  async createOneTimePaymentWithCardId(
+    customerId: string,
+    cardId: string,
+    amount: number,
+    description: string,
+    userId: string,
+    userEmail: string,
+  ) {
     const idempotencyKey = crypto.randomUUID();
-    const data = await this.request('POST', '/v1/payments', {
-      transaction_amount: amount,
-      description,
-      installments: 1,
-      payer: {
-        email: userEmail,
-        id: customerId,
-        type: 'customer',
+    const data = await this.request(
+      'POST',
+      '/v1/payments',
+      {
+        transaction_amount: amount,
+        description,
+        installments: 1,
+        payer: {
+          email: userEmail,
+          id: customerId,
+          type: 'customer',
+        },
+        card_id: parseInt(cardId, 10),
+        external_reference: userId,
       },
-      card_id: parseInt(cardId, 10),
-      external_reference: userId,
-    }, null, { 'X-Idempotency-Key': idempotencyKey });
-    this.logger.log(`One-time payment (saved card) created: ${data.id} - ${data.status}`);
+      null,
+      { 'X-Idempotency-Key': idempotencyKey },
+    );
+    this.logger.log(
+      `One-time payment (saved card) created: ${data.id} - ${data.status}`,
+    );
     return {
       id: data.id,
       status: data.status,
@@ -125,7 +166,11 @@ export class MercadoPagoService {
 
   async associateCard(customerId: string, cardToken: string) {
     this.logger.log(`Associating card for customer ${customerId}`);
-    const data = await this.request('POST', `/v1/customers/${customerId}/cards`, { token: cardToken });
+    const data = await this.request(
+      'POST',
+      `/v1/customers/${customerId}/cards`,
+      { token: cardToken },
+    );
     this.logger.log(`Card associated: ${data.id} with customer ${customerId}`);
     return {
       cardId: data.id,
@@ -209,15 +254,24 @@ export class MercadoPagoService {
   }
 
   async cancelSubscription(mpSubscriptionId: string) {
-    return this.request('PUT', `/preapproval/${mpSubscriptionId}`, { status: 'cancelled' });
+    return this.request('PUT', `/preapproval/${mpSubscriptionId}`, {
+      status: 'cancelled',
+    });
   }
 
   async pauseSubscription(mpSubscriptionId: string) {
-    return this.request('PUT', `/preapproval/${mpSubscriptionId}`, { status: 'paused' });
+    return this.request('PUT', `/preapproval/${mpSubscriptionId}`, {
+      status: 'paused',
+    });
   }
 
-  async updateSubscriptionAmount(mpSubscriptionId: string, transactionAmount: number) {
-    this.logger.log(`Updating preapproval ${mpSubscriptionId} amount to ${transactionAmount}`);
+  async updateSubscriptionAmount(
+    mpSubscriptionId: string,
+    transactionAmount: number,
+  ) {
+    this.logger.log(
+      `Updating preapproval ${mpSubscriptionId} amount to ${transactionAmount}`,
+    );
     return this.request('PUT', `/preapproval/${mpSubscriptionId}`, {
       auto_recurring: {
         transaction_amount: transactionAmount,
@@ -229,20 +283,33 @@ export class MercadoPagoService {
     return this.request('GET', `/v1/payments/${mpPaymentId}`);
   }
 
-  async createOneTimePayment(customerId: string, cardToken: string, amount: number, description: string, userId: string, userEmail: string) {
+  async createOneTimePayment(
+    customerId: string,
+    cardToken: string,
+    amount: number,
+    description: string,
+    userId: string,
+    userEmail: string,
+  ) {
     const idempotencyKey = crypto.randomUUID();
-    const data = await this.request('POST', '/v1/payments', {
-      transaction_amount: amount,
-      description,
-      installments: 1,
-      token: cardToken,
-      payer: {
-        email: userEmail,
-        id: customerId,
-        type: 'customer',
+    const data = await this.request(
+      'POST',
+      '/v1/payments',
+      {
+        transaction_amount: amount,
+        description,
+        installments: 1,
+        token: cardToken,
+        payer: {
+          email: userEmail,
+          id: customerId,
+          type: 'customer',
+        },
+        external_reference: userId,
       },
-      external_reference: userId,
-    }, null, { 'X-Idempotency-Key': idempotencyKey });
+      null,
+      { 'X-Idempotency-Key': idempotencyKey },
+    );
     this.logger.log(`One-time payment created: ${data.id} - ${data.status}`);
     const card = data.card || {};
     return {
@@ -379,13 +446,30 @@ export class MercadoPagoService {
         back_url: 'https://www.mercadopago.com.br',
       };
       const created = await this.request('POST', '/preapproval', body6);
-      this.logger.log(`Test 6 created: ${created.id} with status ${created.status}`);
+      this.logger.log(
+        `Test 6 created: ${created.id} with status ${created.status}`,
+      );
       // Try to PUT to authorized
       try {
-        const updated = await this.request('PUT', `/preapproval/${created.id}`, { status: 'authorized' });
-        results.push({ test: 6, success: true, create: { id: created.id, status: created.status }, update: updated });
+        const updated = await this.request(
+          'PUT',
+          `/preapproval/${created.id}`,
+          { status: 'authorized' },
+        );
+        results.push({
+          test: 6,
+          success: true,
+          create: { id: created.id, status: created.status },
+          update: updated,
+        });
       } catch (e2: any) {
-        results.push({ test: 6, success: false, partial: true, create: { id: created.id, status: created.status }, error: e2.message });
+        results.push({
+          test: 6,
+          success: false,
+          partial: true,
+          create: { id: created.id, status: created.status },
+          error: e2.message,
+        });
       }
     } catch (e: any) {
       results.push({ test: 6, success: false, error: e.message });
@@ -422,13 +506,15 @@ export class MercadoPagoService {
     externalReference?: string;
   }): Promise<{ initPoint: string; preferenceId: string }> {
     const data = await this.request('POST', '/checkout/preferences', {
-      items: [{
-        id: paymentData.description,
-        title: paymentData.description,
-        quantity: 1,
-        unit_price: paymentData.amount,
-        currency_id: 'BRL',
-      }],
+      items: [
+        {
+          id: paymentData.description,
+          title: paymentData.description,
+          quantity: 1,
+          unit_price: paymentData.amount,
+          currency_id: 'BRL',
+        },
+      ],
       payer: { email: paymentData.userEmail },
       back_urls: {
         success: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions`,
@@ -441,7 +527,9 @@ export class MercadoPagoService {
 
     const initPoint = data.sandbox_init_point || data.init_point;
     if (!initPoint) {
-      throw new Error('Falha ao criar preferência: URL de pagamento não gerada');
+      throw new Error(
+        'Falha ao criar preferência: URL de pagamento não gerada',
+      );
     }
     return { initPoint, preferenceId: data.id };
   }

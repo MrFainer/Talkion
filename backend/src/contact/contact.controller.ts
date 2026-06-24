@@ -18,13 +18,18 @@ export class ContactController {
   private readonly turnstileSecret: string;
 
   constructor(private readonly mailService: MailService) {
-    this.turnstileSecret =
-      process.env.TURNSTILE_SECRET_KEY || '';
+    this.turnstileSecret = process.env.TURNSTILE_SECRET_KEY || '';
   }
 
   @Post()
   async sendContact(
-    @Body() body: { nome: string; email: string; mensagem: string; turnstileToken?: string },
+    @Body()
+    body: {
+      nome: string;
+      email: string;
+      mensagem: string;
+      turnstileToken?: string;
+    },
     @Req() req: Request,
   ) {
     const { nome, email, mensagem, turnstileToken } = body;
@@ -49,7 +54,10 @@ export class ContactController {
 
     if (this.turnstileSecret) {
       if (!turnstileToken) {
-        throw new HttpException('Token Turnstile ausente.', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Token Turnstile ausente.',
+          HttpStatus.BAD_REQUEST,
+        );
       }
       try {
         const verify = await axios.post(

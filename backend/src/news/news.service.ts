@@ -60,7 +60,10 @@ export class NewsService {
 
   async cleanupNewsAudio(newsId: string) {
     try {
-      const news = await this.prisma.news.findUnique({ where: { id: newsId }, select: { audio_url: true } });
+      const news = await this.prisma.news.findUnique({
+        where: { id: newsId },
+        select: { audio_url: true },
+      });
       if (!news?.audio_url) return;
 
       const filePath = join(process.cwd(), news.audio_url.replace(/^\//, ''));
@@ -71,7 +74,9 @@ export class NewsService {
       });
       this.logger.log(`Áudio deletado: ${newsId}`);
     } catch (error) {
-      this.logger.warn(`Erro ao deletar áudio ${newsId}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Erro ao deletar áudio ${newsId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -84,15 +89,15 @@ export class NewsService {
       } catch {
         return;
       }
-      const mp3Files = files.filter(f => f.endsWith('.mp3'));
+      const mp3Files = files.filter((f) => f.endsWith('.mp3'));
       if (mp3Files.length === 0) return;
 
-      const ids = mp3Files.map(f => parse(f).name);
+      const ids = mp3Files.map((f) => parse(f).name);
       const existing = await this.prisma.news.findMany({
         where: { id: { in: ids } },
         select: { id: true },
       });
-      const existingSet = new Set(existing.map(n => n.id));
+      const existingSet = new Set(existing.map((n) => n.id));
 
       for (const file of mp3Files) {
         const id = parse(file).name;
@@ -103,7 +108,9 @@ export class NewsService {
         }
       }
     } catch (error) {
-      this.logger.warn(`Erro ao limpar áudios órfãos: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Erro ao limpar áudios órfãos: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -122,7 +129,7 @@ export class NewsService {
       } catch {
         return;
       }
-      const mp3Files = files.filter(f => f.endsWith('.mp3'));
+      const mp3Files = files.filter((f) => f.endsWith('.mp3'));
       for (const file of mp3Files) {
         const filePath = join(audioDir, file);
         await unlink(filePath).catch(() => {});
@@ -131,19 +138,25 @@ export class NewsService {
         this.logger.log(`${mp3Files.length} arquivos de áudio removidos`);
       }
     } catch (error) {
-      this.logger.warn(`Erro ao limpar todos os áudios: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Erro ao limpar todos os áudios: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   async handleDailyNewsScraping() {
-    this.logger.log('Iniciando captura diária de notícias e quizzes para todos os professores...');
+    this.logger.log(
+      'Iniciando captura diária de notícias e quizzes para todos os professores...',
+    );
     const activeTeachers = await this.prisma.user.findMany({
       where: { role: 'TEACHER', active: true },
       select: { id: true },
     });
 
     if (activeTeachers.length === 0) {
-      this.logger.log('Nenhum professor ativo encontrado. Cron de notícias não executado.');
+      this.logger.log(
+        'Nenhum professor ativo encontrado. Cron de notícias não executado.',
+      );
       return;
     }
 
@@ -158,15 +171,23 @@ export class NewsService {
           },
         });
       } catch (error) {
-        this.logger.error(`Erro ao gerar notícia para o professor ${teacher.id}:`, error);
+        this.logger.error(
+          `Erro ao gerar notícia para o professor ${teacher.id}:`,
+          error,
+        );
       }
     }
   }
 
-  async runDailyNewsAndQuiz(tracking?: UsageTrackingContext, generateQuiz: boolean = true) {
+  async runDailyNewsAndQuiz(
+    tracking?: UsageTrackingContext,
+    generateQuiz: boolean = true,
+  ) {
     const teacherId = tracking?.teacherId;
     if (!teacherId) {
-      throw new BadRequestException('teacherId é obrigatório para gerar notícia e quiz.');
+      throw new BadRequestException(
+        'teacherId é obrigatório para gerar notícia e quiz.',
+      );
     }
 
     const teacher = await this.prisma.user.findUnique({
@@ -175,7 +196,9 @@ export class NewsService {
     });
 
     if (!teacher || !teacher.active || teacher.role !== 'TEACHER') {
-      throw new BadRequestException('Apenas professores ativos podem gerar notícia e quiz.');
+      throw new BadRequestException(
+        'Apenas professores ativos podem gerar notícia e quiz.',
+      );
     }
 
     const newsResults = await this.scrapeLatestNews(tracking);
@@ -187,21 +210,28 @@ export class NewsService {
       message: 'Processamento diário de notícias e quiz concluído.',
       news: {
         created: newsResults.filter((item) => item.status === 'created').length,
-        skippedSameDay: newsResults.filter((item) => item.status === 'skipped_same_day').length,
-        skippedSameNews: newsResults.filter((item) => item.status === 'skipped_same_news').length,
+        skippedSameDay: newsResults.filter(
+          (item) => item.status === 'skipped_same_day',
+        ).length,
+        skippedSameNews: newsResults.filter(
+          (item) => item.status === 'skipped_same_news',
+        ).length,
         errors: newsResults.filter((item) => item.status === 'error').length,
         items: newsResults,
       },
       quizzes: {
         created: quizResults.filter((item) => item.status === 'created').length,
-        existing: quizResults.filter((item) => item.status === 'existing').length,
+        existing: quizResults.filter((item) => item.status === 'existing')
+          .length,
         errors: quizResults.filter((item) => item.status === 'error').length,
         items: quizResults,
       },
     };
   }
 
-  async scrapeLatestNews(tracking?: UsageTrackingContext): Promise<NewsProcessingResult[]> {
+  async scrapeLatestNews(
+    tracking?: UsageTrackingContext,
+  ): Promise<NewsProcessingResult[]> {
     return this.scrapeLatestNewsFromSite(tracking);
   }
 
@@ -270,14 +300,19 @@ export class NewsService {
       this.logger.warn(
         'Alguns níveis falharam no scraping. Gerando fallback via IA para complementar...',
       );
-      const fallbackResults = await this.generateFallbackNewsForAllLevels(tracking, {
-        referenceType: 'news_scrape_error_fallback',
-        referenceId: new Date().toISOString().slice(0, 10),
-      });
+      const fallbackResults = await this.generateFallbackNewsForAllLevels(
+        tracking,
+        {
+          referenceType: 'news_scrape_error_fallback',
+          referenceId: new Date().toISOString().slice(0, 10),
+        },
+      );
 
       for (let i = 0; i < results.length; i++) {
         if (results[i].status === 'error') {
-          const fallbackItem = fallbackResults.find((fr) => fr.level === results[i].level);
+          const fallbackItem = fallbackResults.find(
+            (fr) => fr.level === results[i].level,
+          );
           if (fallbackItem) {
             results[i] = fallbackItem;
           }
@@ -308,12 +343,17 @@ export class NewsService {
         {
           ...tracking,
           referenceType:
-            options?.referenceType || tracking?.referenceType || 'news_fallback',
+            options?.referenceType ||
+            tracking?.referenceType ||
+            'news_fallback',
           referenceId:
             options?.referenceId || tracking?.referenceId || 'bundle',
           metadata: {
             ...(tracking?.metadata || {}),
-            trigger: options?.referenceType === 'news_duplicate_fallback' ? 'duplicate_fallback' : 'fallback',
+            trigger:
+              options?.referenceType === 'news_duplicate_fallback'
+                ? 'duplicate_fallback'
+                : 'fallback',
           },
         },
         options?.avoidByLevel,
@@ -332,7 +372,9 @@ export class NewsService {
         );
         results.push(result);
         if (result.status === 'created') {
-          this.logger.log(`Notícia Fallback salva via IA: [${level}] ${item.title}`);
+          this.logger.log(
+            `Notícia Fallback salva via IA: [${level}] ${item.title}`,
+          );
         }
       }
     } catch (err) {
@@ -387,14 +429,17 @@ export class NewsService {
         this.logger.log(`Áudio encontrado para [${level}]: ${audioUrl}`);
       }
 
-      const result = await this.saveNewsIfAllowed({
-        title,
-        content,
-        level,
-        sourceType: SourceType.SCRAPED,
-        sourceUrl: url,
-        audioUrl: audioUrl || undefined,
-      }, tracking);
+      const result = await this.saveNewsIfAllowed(
+        {
+          title,
+          content,
+          level,
+          sourceType: SourceType.SCRAPED,
+          sourceUrl: url,
+          audioUrl: audioUrl || undefined,
+        },
+        tracking,
+      );
 
       if (result.status === 'created') {
         this.logger.log(`Nova notícia salva: [${level}] ${title}`);
@@ -437,12 +482,15 @@ export class NewsService {
       }
 
       try {
-        const quizResult = await this.quizService.generateQuizForNews(item.newsId, {
-          ...tracking,
-          newsId: item.newsId,
-          referenceType: tracking?.referenceType || 'daily_news_quiz',
-          referenceId: tracking?.referenceId || item.newsId,
-        });
+        const quizResult = await this.quizService.generateQuizForNews(
+          item.newsId,
+          {
+            ...tracking,
+            newsId: item.newsId,
+            referenceType: tracking?.referenceType || 'daily_news_quiz',
+            referenceId: tracking?.referenceId || item.newsId,
+          },
+        );
 
         quizResults.push({
           level: item.level,
@@ -464,14 +512,17 @@ export class NewsService {
     return quizResults;
   }
 
-  private async saveNewsIfAllowed(input: {
-    title: string;
-    content: string;
-    level: string;
-    sourceType: SourceType;
-    sourceUrl?: string;
-    audioUrl?: string;
-  }, tracking?: UsageTrackingContext): Promise<NewsProcessingResult> {
+  private async saveNewsIfAllowed(
+    input: {
+      title: string;
+      content: string;
+      level: string;
+      sourceType: SourceType;
+      sourceUrl?: string;
+      audioUrl?: string;
+    },
+    tracking?: UsageTrackingContext,
+  ): Promise<NewsProcessingResult> {
     const { startOfDay, endOfDay } = this.getTodayRange();
 
     const existingToday = await this.prisma.news.findFirst({
@@ -513,12 +564,18 @@ export class NewsService {
 
     if (
       existingSameNews ||
-      (await this.hasEquivalentLatestNews(input.level, input.title, input.content, input.sourceUrl, tracking))
+      (await this.hasEquivalentLatestNews(
+        input.level,
+        input.title,
+        input.content,
+        input.sourceUrl,
+        tracking,
+      ))
     ) {
       const matchedNews =
         existingSameNews ||
         (await this.prisma.news.findFirst({
-          where: { 
+          where: {
             level: input.level,
             teacher_id: tracking?.teacherId || null,
           },
@@ -540,9 +597,10 @@ export class NewsService {
     }
 
     if (tracking?.teacherId) {
-      const actionKey = input.sourceType === SourceType.AI_GENERATED
-        ? 'news_ai_fallback'
-        : `news_capture_${input.level.toLowerCase().replace('level_', 'level_')}`;
+      const actionKey =
+        input.sourceType === SourceType.AI_GENERATED
+          ? 'news_ai_fallback'
+          : `news_capture_${input.level.toLowerCase().replace('level_', 'level_')}`;
       await this.creditsService.requireCredits(tracking.teacherId, actionKey);
     }
 
@@ -558,16 +616,25 @@ export class NewsService {
     });
 
     if (tracking?.teacherId) {
-      const actionKey = input.sourceType === SourceType.AI_GENERATED
-        ? 'news_ai_fallback'
-        : `news_capture_${input.level.toLowerCase().replace('level_', 'level_')}`;
-      await this.creditsService.deductCredits(tracking.teacherId, actionKey, 'news', createdNews.id);
+      const actionKey =
+        input.sourceType === SourceType.AI_GENERATED
+          ? 'news_ai_fallback'
+          : `news_capture_${input.level.toLowerCase().replace('level_', 'level_')}`;
+      await this.creditsService.deductCredits(
+        tracking.teacherId,
+        actionKey,
+        'news',
+        createdNews.id,
+      );
     }
 
     if (input.sourceType === SourceType.AI_GENERATED) {
       try {
         if (tracking?.teacherId) {
-          await this.creditsService.requireCredits(tracking.teacherId, 'news_tts');
+          await this.creditsService.requireCredits(
+            tracking.teacherId,
+            'news_tts',
+          );
         }
         const audioBuffer = await this.aiService.generateNewsAudio(
           input.content,
@@ -582,10 +649,17 @@ export class NewsService {
           where: { id: createdNews.id },
           data: { audio_url: audioUrl },
         });
-        this.logger.log(`Áudio gerado para notícia IA: [${input.level}] ${input.title}`);
+        this.logger.log(
+          `Áudio gerado para notícia IA: [${input.level}] ${input.title}`,
+        );
 
         if (tracking?.teacherId) {
-          await this.creditsService.deductCredits(tracking.teacherId, 'news_tts', 'news', createdNews.id);
+          await this.creditsService.deductCredits(
+            tracking.teacherId,
+            'news_tts',
+            'news',
+            createdNews.id,
+          );
         }
       } catch (error) {
         this.logger.warn(
@@ -596,7 +670,9 @@ export class NewsService {
 
     if (input.sourceType === SourceType.SCRAPED && input.audioUrl) {
       try {
-        this.logger.log(`Baixando áudio SoundCloud (MP3) para [${input.level}]: ${input.audioUrl}`);
+        this.logger.log(
+          `Baixando áudio SoundCloud (MP3) para [${input.level}]: ${input.audioUrl}`,
+        );
         const audioDir = join(process.cwd(), 'uploads', 'news-audio');
         await mkdir(audioDir, { recursive: true });
         const ext = '.mp3';
@@ -615,7 +691,9 @@ export class NewsService {
           where: { id: createdNews.id },
           data: { audio_url: audioUrlPath },
         });
-        this.logger.log(`Áudio SoundCloud MP3 baixado para notícia: [${input.level}] ${input.title}`);
+        this.logger.log(
+          `Áudio SoundCloud MP3 baixado para notícia: [${input.level}] ${input.title}`,
+        );
       } catch (error) {
         this.logger.warn(
           `Falha ao baixar áudio SoundCloud para [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,
@@ -639,7 +717,7 @@ export class NewsService {
     tracking?: UsageTrackingContext,
   ) {
     const latestSavedNews = await this.prisma.news.findFirst({
-      where: { 
+      where: {
         level,
         teacher_id: tracking?.teacherId || null,
       },
@@ -774,7 +852,10 @@ export class NewsService {
       incomingNews.source_url,
     );
 
-    if (normalizedExistingUrl && normalizedExistingUrl === normalizedIncomingUrl) {
+    if (
+      normalizedExistingUrl &&
+      normalizedExistingUrl === normalizedIncomingUrl
+    ) {
       return true;
     }
 
@@ -806,10 +887,7 @@ export class NewsService {
   }
 
   private normalizeComparableValue(value: string | null | undefined): string {
-    return (value || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ');
+    return (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
   private extractAudioUrl($: ReturnType<typeof cheerio.load>): string | null {
@@ -823,12 +901,16 @@ export class NewsService {
           const finalUrl = decodeURIComponent(decodedUrl);
           return finalUrl;
         } catch {
-          const fallbackLink = $('a[href*="soundcloud.com/newsinlevels/"]').first().attr('href');
+          const fallbackLink = $('a[href*="soundcloud.com/newsinlevels/"]')
+            .first()
+            .attr('href');
           return fallbackLink || null;
         }
       }
     }
-    const directLink = $('a[href*="soundcloud.com/newsinlevels/"]').first().attr('href');
+    const directLink = $('a[href*="soundcloud.com/newsinlevels/"]')
+      .first()
+      .attr('href');
     return directLink || null;
   }
 

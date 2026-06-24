@@ -102,9 +102,7 @@ export class WhatsappController {
   }
 
   @Post('groups/validate-title')
-  async validateGroupTitle(
-    @Body() body: { teacherId: string; title: string },
-  ) {
+  async validateGroupTitle(@Body() body: { teacherId: string; title: string }) {
     if (!body.teacherId) {
       throw new BadRequestException('teacherId is required');
     }
@@ -199,18 +197,29 @@ export class WhatsappController {
 
   @Post('send')
   @HttpCode(HttpStatus.OK)
-  async sendMessage(@Body() body: { teacherId: string; number: string; text: string }) {
+  async sendMessage(
+    @Body() body: { teacherId: string; number: string; text: string },
+  ) {
     if (!body.teacherId) {
       throw new BadRequestException('teacherId is required');
     }
-    await this.whatsappService.sendMessage(body.teacherId, body.number, body.text);
+    await this.whatsappService.sendMessage(
+      body.teacherId,
+      body.number,
+      body.text,
+    );
     return { message: 'Requisição de envio processada!' };
   }
 
   @Post('send-latest-news-quiz')
   @HttpCode(HttpStatus.OK)
   async sendLatestNewsAndQuiz(
-    @Body() body: { teacherId: string; number: string; mode?: 'GROUP' | 'PRIVATE' },
+    @Body()
+    body: {
+      teacherId: string;
+      number: string;
+      mode?: 'GROUP' | 'PRIVATE';
+    },
   ) {
     if (!body.teacherId) {
       throw new BadRequestException('teacherId is required');
@@ -219,7 +228,11 @@ export class WhatsappController {
       throw new BadRequestException('Phone number is required');
     }
 
-    const result = await this.whatsappService.sendLatestNewsAndQuiz(body.number, body.mode, body.teacherId);
+    const result = await this.whatsappService.sendLatestNewsAndQuiz(
+      body.number,
+      body.mode,
+      body.teacherId,
+    );
     return result;
   }
 
@@ -230,7 +243,9 @@ export class WhatsappController {
       throw new BadRequestException('teacherId is required');
     }
 
-    const result = await this.whatsappService.sendWeeklyLessonSummaries(body.teacherId);
+    const result = await this.whatsappService.sendWeeklyLessonSummaries(
+      body.teacherId,
+    );
     return result;
   }
 
@@ -241,7 +256,9 @@ export class WhatsappController {
       throw new BadRequestException('teacherId is required');
     }
 
-    const result = await this.whatsappService.sendTodayLessonConfirmations(body.teacherId);
+    const result = await this.whatsappService.sendTodayLessonConfirmations(
+      body.teacherId,
+    );
     return result;
   }
 

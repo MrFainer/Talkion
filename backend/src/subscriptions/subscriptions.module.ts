@@ -8,7 +8,12 @@ import { CreditsService } from '../credits/credits.service';
 
 @Module({
   controllers: [SubscriptionsController, WebhooksController],
-  providers: [SubscriptionsService, MercadoPagoService, MailService, CreditsService],
-  exports: [SubscriptionsService],
+  providers: [
+    SubscriptionsService,
+    MercadoPagoService,
+    MailService,
+    CreditsService,
+  ],
+  exports: [SubscriptionsService, MercadoPagoService],
 })
 export class SubscriptionsModule {}

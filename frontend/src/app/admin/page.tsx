@@ -9,9 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Settings2, Power, PowerOff, ChevronDown, ChevronRight } from "lucide-react";
+import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Settings2, Power, PowerOff, ChevronDown, ChevronRight, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import * as XLSX from "xlsx";
 
 export default function AdminPage() {
@@ -20,12 +23,22 @@ export default function AdminPage() {
   const [teachers, setTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
-  const [editingCredits, setEditingCredits] = useState<string | null>(null);
   const [creditValues, setCreditValues] = useState<Record<string, string>>({});
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [creditDialogTeacher, setCreditDialogTeacher] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
   const [teacherSettings, setTeacherSettings] = useState<Record<string, any>>({});
   const [settingsLoading, setSettingsLoading] = useState<Record<string, boolean>>({});
+
+  const [plans, setPlans] = useState<any[]>([]);
+  const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [planDialogTeacherId, setPlanDialogTeacherId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -69,6 +82,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     document.title = "Talkion - Administração";
+    api.get("/subscriptions/plans").then((res) => setPlans(res.data || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -135,12 +149,67 @@ export default function AdminPage() {
       return;
     }
     try {
-      await api.patch(`/admin/teachers/${teacherId}/credits`, { credit_balance: value });
+      await api.patch(`/admin/teachers/${teacherId}/credits`, { amount: value, mode: "set" });
       toast.success("Créditos atualizados com sucesso!");
-      setEditingCredits(null);
+      setCreditDialogOpen(false);
+      setCreditDialogTeacher(null);
       await fetchTeachers();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro ao atualizar créditos");
+    }
+  };
+
+  const CREDIT_ACTION_COPY: Record<string, { name: string; description: string }> = {
+    news_capture_level_1: { name: "Captura de notícia Nível 1", description: "" },
+    news_capture_level_2: { name: "Captura de notícia Nível 2", description: "" },
+    news_capture_level_3: { name: "Captura de notícia Nível 3", description: "" },
+    news_ai_fallback: { name: "Notícia gerada por IA (fallback)", description: "" },
+    news_tts: { name: "Áudio TTS da notícia", description: "" },
+    quiz_generation: { name: "Quiz gerado para um nível", description: "" },
+    quick_tip_generation: { name: "Geração de Quick Tip", description: "" },
+    news_quiz_group_send: { name: "Envio da notícia + quiz para grupo", description: "" },
+    quiz_response_received: { name: "Receber resposta do quiz", description: "" },
+    quiz_response_metrics: { name: "Salvar métricas da resposta", description: "" },
+    news_individual_send: { name: "Envio individual de notícia", description: "" },
+    speaking_transcription: { name: "Transcrição de áudio", description: "" },
+    speaking_feedback: { name: "Feedback da IA", description: "" },
+    lesson_confirmation_send: { name: "Envio de confirmação de aula", description: "" },
+    lesson_confirmation_process: { name: "Interpretação da resposta pela IA", description: "" },
+    weekly_summary_send: { name: "Envio de resumo semanal", description: "" },
+    weekly_summary_process: { name: "Processamento de resposta do resumo semanal", description: "" },
+    content_generation: { name: "Geração de conteúdo educacional", description: "" },
+    admin_adjustment: { name: "Ajuste manual (admin)", description: "" },
+    admin_plan_change: { name: "Troca de plano", description: "" },
+  };
+
+  const openCreditDialog = async (teacher: any) => {
+    setCreditDialogTeacher(teacher);
+    setCreditValues((prev) => ({ ...prev, [teacher.id]: String(teacher.creditBalance ?? 0) }));
+    setEditMode(false);
+    setCreditDialogOpen(true);
+    setTransactionsLoading(true);
+    try {
+      const res = await api.get(`/credits/transactions/${teacher.id}`);
+      setTransactions(res.data?.data || []);
+    } catch {
+      setTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const handleChangePlan = async () => {
+    if (!planDialogTeacherId || !selectedPlanId) return;
+    setSavingPlan(true);
+    try {
+      await api.patch(`/admin/teachers/${planDialogTeacherId}/plan`, { planId: selectedPlanId });
+      toast.success("Plano alterado com sucesso!");
+      setPlanDialogOpen(false);
+      await fetchTeachers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao alterar plano");
+    } finally {
+      setSavingPlan(false);
     }
   };
 
@@ -256,6 +325,7 @@ export default function AdminPage() {
                     <TableHead>Nome</TableHead>
                     <TableHead>E-mail</TableHead>
                     <TableHead>Cadastro</TableHead>
+                    <TableHead>Plano</TableHead>
                     <TableHead>Tokens Totais</TableHead>
                     <TableHead>Input</TableHead>
                     <TableHead>Output</TableHead>
@@ -286,6 +356,20 @@ export default function AdminPage() {
                         </TableCell>
                         <TableCell className="max-w-[240px] whitespace-normal break-words">{teacher.email}</TableCell>
                         <TableCell>{formatDate(teacher.created_at)}</TableCell>
+                        <TableCell>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPlanDialogTeacherId(teacher.id);
+                              setSelectedPlanId(teacher.subscription?.planId || "");
+                              setPlanDialogOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            {teacher.subscription?.planName || "Sem plano"}
+                          </button>
+                        </TableCell>
                         <TableCell>{teacher.totalTokens?.toLocaleString("pt-BR") || 0}</TableCell>
                         <TableCell>{teacher.inputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
                         <TableCell>{teacher.outputTokens?.toLocaleString("pt-BR") || 0}</TableCell>
@@ -293,47 +377,8 @@ export default function AdminPage() {
                         <TableCell>{teacher.audioSeconds?.toLocaleString("pt-BR") || 0}</TableCell>
                         <TableCell>{teacher.ttsCharacters?.toLocaleString("pt-BR") || 0}</TableCell>
                         <TableCell>
-                          {editingCredits === teacher.id ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={creditValues[teacher.id] ?? teacher.creditBalance ?? 0}
-                                onChange={(e) =>
-                                  setCreditValues((prev) => ({
-                                    ...prev,
-                                    [teacher.id]: e.target.value,
-                                  }))
-                                }
-                                className="h-8 w-20 text-xs"
-                              />
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 text-xs"
-                                onClick={() => handleSaveCredits(teacher.id)}
-                              >
-                                OK
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 text-xs"
-                                onClick={() => setEditingCredits(null)}
-                              >
-                                X
-                              </Button>
-                            </div>
-                          ) : (
                             <button
-                              onClick={() => {
-                                setEditingCredits(teacher.id);
-                                setCreditValues((prev) => ({
-                                  ...prev,
-                                  [teacher.id]: String(teacher.creditBalance ?? 0),
-                                }));
-                              }}
+                              onClick={() => openCreditDialog(teacher)}
                               className="inline-flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors"
                             >
                               <Coins className="h-3.5 w-3.5" />
@@ -342,7 +387,6 @@ export default function AdminPage() {
                                 maximumFractionDigits: 0,
                               })}
                             </button>
-                          )}
                         </TableCell>
                         <TableCell>
                           {teacher.active ? (
@@ -370,7 +414,7 @@ export default function AdminPage() {
                       </TableRow>
                       {expandedTeacherId === teacher.id && (
                         <TableRow>
-                          <TableCell colSpan={12} className="bg-muted/30 p-4">
+                          <TableCell colSpan={13} className="bg-muted/30 p-4">
                             {settingsLoading[teacher.id] ? (
                               <p className="text-sm text-muted-foreground">Carregando configurações...</p>
                             ) : teacherSettings[teacher.id] ? (
@@ -558,6 +602,139 @@ export default function AdminPage() {
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Plano</DialogTitle>
+            <DialogDescription>
+              Selecione o novo plano para este professor. Os créditos serão redefinidos para o valor do plano escolhido.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="plan-select">Plano</Label>
+              <Select value={selectedPlanId} onValueChange={(val) => setSelectedPlanId(val || "")}>
+                <SelectTrigger id="plan-select" className="w-full">
+                  <SelectValue placeholder="Selecione um plano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      {plan.name} — R$ {plan.price?.toFixed(2)} / {plan.credits?.toLocaleString("pt-BR")} créditos
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPlanDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleChangePlan} disabled={savingPlan || !selectedPlanId}>
+              {savingPlan ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={creditDialogOpen} onOpenChange={(open) => { setCreditDialogOpen(open); if (!open) setCreditDialogTeacher(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {creditDialogTeacher?.name || "Professor"} — Créditos
+            </DialogTitle>
+            <DialogDescription>
+              Saldo atual: <strong>{Number(creditDialogTeacher?.creditBalance ?? 0).toLocaleString("pt-BR")}</strong> créditos
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-2">
+              <Button variant={editMode ? "default" : "outline"} size="sm" onClick={() => setEditMode(true)}>
+                Ajustar saldo
+              </Button>
+              <Button variant={!editMode ? "default" : "outline"} size="sm" onClick={() => setEditMode(false)}>
+                Histórico
+              </Button>
+            </div>
+
+            {editMode ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Defina um novo saldo de créditos para este professor.</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={creditValues[creditDialogTeacher?.id] ?? creditDialogTeacher?.creditBalance ?? 0}
+                    onChange={(e) =>
+                      setCreditValues((prev) => ({
+                        ...prev,
+                        [creditDialogTeacher?.id]: e.target.value,
+                      }))
+                    }
+                    className="w-40"
+                  />
+                  <Button onClick={() => handleSaveCredits(creditDialogTeacher?.id)}>
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Últimas transações de crédito deste professor.</p>
+                {transactionsLoading ? (
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                ) : transactions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma transação encontrada.</p>
+                ) : (
+                  <div className="max-h-80 overflow-y-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted sticky top-0">
+                        <tr>
+                          <th className="text-left p-2 font-medium">Data</th>
+                          <th className="text-left p-2 font-medium">Ação</th>
+                          <th className="text-right p-2 font-medium">Valor</th>
+                          <th className="text-right p-2 font-medium">Saldo após</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transactions.map((tx: any) => {
+                          const copy = CREDIT_ACTION_COPY[tx.action_key];
+                          return (
+                            <tr key={tx.id} className="border-t">
+                              <td className="p-2 text-muted-foreground whitespace-nowrap">
+                                {new Date(tx.created_at).toLocaleDateString("pt-BR")}
+                              </td>
+                              <td className="p-2">
+                                {copy?.name || tx.action_key || tx.description || tx.reference_type || "—"}
+                              </td>
+                              <td className={`p-2 text-right font-medium ${tx.type === "CREDIT" ? "text-green-600" : "text-red-600"}`}>
+                                {tx.type === "CREDIT" ? "+" : "-"}{tx.amount}
+                              </td>
+                              <td className="p-2 text-right text-muted-foreground">
+                                {tx.balance_after?.toLocaleString("pt-BR")}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCreditDialogOpen(false); setCreditDialogTeacher(null); }}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -754,11 +754,12 @@ export default function LandingPage() {
                 className="rounded-2xl border-2 border-slate-200 bg-white px-6 py-4 text-center transition hover:border-blue-100 hover:shadow-md"
               >
                 <div className="flex items-center gap-2">
-                  <img
+                  <Image
                     src={flagUrl(lang.flag)}
                     alt={lang.name}
+                    width={28}
+                    height={20}
                     className="h-5 w-7 rounded-[2px] object-cover shadow-sm"
-                    loading="lazy"
                   />
                   <span className="text-sm font-semibold text-slate-700">
                     {lang.name}

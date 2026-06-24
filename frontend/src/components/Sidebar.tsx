@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -23,6 +24,7 @@ import {
   Link2,
   CalendarDays,
   Coins,
+  FileText,
 } from "lucide-react";
 
 const normalizeWhatsappStatus = (value: unknown) => {
@@ -87,7 +89,7 @@ function SidebarNav({
       <div className="border-b px-6 py-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <img src={logoSrc} alt="Talkion" className="h-8 w-8 shrink-0 object-contain" />
+            <Image src={logoSrc} alt="Talkion" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" unoptimized />
             <span className="text-2xl font-semibold leading-none tracking-tight text-[#18181b] truncate">
               Talkion
             </span>
@@ -362,6 +364,7 @@ export function Sidebar() {
     { href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard },
     { href: "/students", label: "Alunos", icon: Users },
     ...(admin_lessons_confirmation_enabled !== false ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
+    { href: "/content", label: "Conteúdo", icon: FileText },
     { href: "/automation", label: "Automação", icon: Bot },
   ];
   const adminLink =
@@ -454,10 +457,13 @@ export function Sidebar() {
 
       <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <div className="flex items-center gap-2">
-          <img
+          <Image
             src={logoSrc}
             alt="Talkion"
+            width={28}
+            height={28}
             className="h-7 w-7 shrink-0 object-contain"
+            unoptimized
           />
           <span className="text-lg font-semibold leading-none tracking-tight text-[#18181b]">
             Talkion

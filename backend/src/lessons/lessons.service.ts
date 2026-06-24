@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 
@@ -50,7 +55,12 @@ export class LessonsService {
 
     const lessons = await this.prisma.lesson.findMany({
       where: { student_id: studentId },
-      orderBy: [{ kind: 'asc' as any }, { weekday: 'asc' as any }, { date: 'asc' as any }, { time: 'asc' as any }],
+      orderBy: [
+        { kind: 'asc' as any },
+        { weekday: 'asc' as any },
+        { date: 'asc' as any },
+        { time: 'asc' as any },
+      ],
     });
 
     return lessons;
@@ -130,9 +140,16 @@ export class LessonsService {
         })
       : [];
 
-    const byLessonId = new Map<string, { id: string; status: any; source: string | null }>();
+    const byLessonId = new Map<
+      string,
+      { id: string; status: any; source: string | null }
+    >();
     for (const c of confirmations) {
-      byLessonId.set(c.lesson_id, { id: c.id, status: c.status, source: c.source });
+      byLessonId.set(c.lesson_id, {
+        id: c.id,
+        status: c.status,
+        source: c.source,
+      });
     }
 
     const items: AgendaItem[] = lessons
@@ -153,7 +170,11 @@ export class LessonsService {
           source: confirmation?.source || null,
         };
       })
-      .sort((a, b) => (a.time === b.time ? a.studentName.localeCompare(b.studentName) : a.time.localeCompare(b.time)));
+      .sort((a, b) =>
+        a.time === b.time
+          ? a.studentName.localeCompare(b.studentName)
+          : a.time.localeCompare(b.time),
+      );
 
     return { date: start.toISOString().slice(0, 10), items };
   }
@@ -175,7 +196,9 @@ export class LessonsService {
       throw new NotFoundException('Aluno não encontrado.');
     }
 
-    const kind = String(body?.kind || 'RECURRING').trim().toUpperCase();
+    const kind = String(body?.kind || 'RECURRING')
+      .trim()
+      .toUpperCase();
     const time = this.normalizeTime(body?.time);
 
     if (kind === 'EXTRA') {
@@ -197,7 +220,9 @@ export class LessonsService {
 
     const weekdayRaw = Number(body?.weekday);
     if (!Number.isInteger(weekdayRaw) || weekdayRaw < 0 || weekdayRaw > 6) {
-      throw new BadRequestException('weekday must be between 0 (Sunday) and 6 (Saturday)');
+      throw new BadRequestException(
+        'weekday must be between 0 (Sunday) and 6 (Saturday)',
+      );
     }
 
     return this.prisma.lesson.create({

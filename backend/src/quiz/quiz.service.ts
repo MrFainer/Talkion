@@ -19,7 +19,10 @@ export class QuizService {
    */
   async generateQuizForNews(newsId: string, tracking?: UsageTrackingContext) {
     if (tracking?.teacherId) {
-      await this.creditsService.requireCredits(tracking.teacherId, 'quiz_generation');
+      await this.creditsService.requireCredits(
+        tracking.teacherId,
+        'quiz_generation',
+      );
     }
     try {
       const news = await this.prisma.news.findUnique({
@@ -47,7 +50,7 @@ export class QuizService {
       }
 
       this.logger.log(`Gerando novo quiz para a notícia ${newsId}...`);
-      
+
       const questions = await this.aiService.generateQuiz(news.content, {
         ...tracking,
         newsId: tracking?.newsId || news.id,
@@ -70,14 +73,18 @@ export class QuizService {
       this.logger.log(`Quiz criado com sucesso para a notícia ${newsId}`);
 
       if (tracking?.teacherId) {
-        await this.creditsService.deductCredits(tracking.teacherId, 'quiz_generation', 'quiz', newQuiz.id);
+        await this.creditsService.deductCredits(
+          tracking.teacherId,
+          'quiz_generation',
+          'quiz',
+          newQuiz.id,
+        );
       }
 
       return {
         quiz: newQuiz,
         created: true,
       };
-
     } catch (error) {
       this.logger.error(`Erro ao gerar quiz para notícia ${newsId}`, error);
       throw error;
@@ -87,7 +94,12 @@ export class QuizService {
   /**
    * Submete a resposta do aluno a uma pergunta e valida se está correta.
    */
-  async submitAnswer(studentId: string, quizId: string, questionId: string, selectedAnswer: string) {
+  async submitAnswer(
+    studentId: string,
+    quizId: string,
+    questionId: string,
+    selectedAnswer: string,
+  ) {
     try {
       const quiz = await this.prisma.quiz.findUnique({
         where: { id: quizId },
@@ -100,13 +112,13 @@ export class QuizService {
       // Assumindo que a IA pode não retornar um ID único, usaremos a própria string da pergunta ou um índice.
       // O ideal é a IA gerar IDs ou usarmos o índice do array.
       // Neste mock, consideramos que questionId é a própria string da pergunta ou o índice convertido para string
-      
+
       let isCorrect = false;
       const questionIndex = parseInt(questionId, 10);
-      
+
       if (!isNaN(questionIndex) && questionsArray[questionIndex]) {
-         const questionObj = questionsArray[questionIndex];
-         isCorrect = questionObj.correct_answer === selectedAnswer;
+        const questionObj = questionsArray[questionIndex];
+        isCorrect = questionObj.correct_answer === selectedAnswer;
       }
 
       const answerRecord = await this.prisma.quizAnswer.create({

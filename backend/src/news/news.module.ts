@@ -8,6 +8,6 @@ import { QuizModule } from '../quiz/quiz.module';
   imports: [AiModule, QuizModule],
   providers: [NewsService],
   controllers: [NewsController],
-  exports: [NewsService]
+  exports: [NewsService],
 })
 export class NewsModule {}

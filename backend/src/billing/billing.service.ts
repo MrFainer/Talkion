@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { CostAction, CostProvider, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
@@ -54,7 +58,9 @@ export class BillingService {
       models: this.buildModelSummary(events),
       students: this.buildStudentSummary(events, students),
       daily: this.buildDailySummary(events),
-      recentEvents: events.slice(0, 20).map((event) => this.serializeEvent(event)),
+      recentEvents: events
+        .slice(0, 20)
+        .map((event) => this.serializeEvent(event)),
     };
   }
 
@@ -406,17 +412,26 @@ export class BillingService {
 
   private sumCostFields(events: Array<any>) {
     const usd = this.roundNumber(
-      events.reduce((total, event) => total + Number(event.estimated_cost_usd || 0), 0),
+      events.reduce(
+        (total, event) => total + Number(event.estimated_cost_usd || 0),
+        0,
+      ),
     );
     const brl = this.roundNumber(
-      events.reduce((total, event) => total + Number(event.estimated_cost_brl || 0), 0),
+      events.reduce(
+        (total, event) => total + Number(event.estimated_cost_brl || 0),
+        0,
+      ),
     );
 
     return { usd, brl };
   }
 
   private sumNumber(events: Array<any>, field: string) {
-    return events.reduce((total, event) => total + Number(event[field] || 0), 0);
+    return events.reduce(
+      (total, event) => total + Number(event[field] || 0),
+      0,
+    );
   }
 
   private roundNumber(value: number) {

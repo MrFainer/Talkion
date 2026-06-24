@@ -45,6 +45,21 @@ enum CostAction {
   SPEAKING_EVALUATION
   WHATSAPP_MESSAGE_GENERATION
   QUICK_TIP_GENERATION
+  CONTENT_GENERATION
+}
+
+enum ContentType {
+  VOCABULARY
+  TIPS
+  QUIZ
+  INFORMATIVE
+  CURIOSITY
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
 enum LessonStatus {
@@ -81,6 +96,7 @@ model User {
   usageCostEvents UsageCostEvent[] @relation("TeacherUsageCostEvents")
   news            News[]           @relation("TeacherNews")
   quizzes         Quiz[]           @relation("TeacherQuizzes")
+  content         Content[]        @relation("TeacherContent")
   messageSettings        MessageSettings?         @relation("TeacherMessageSettings")
   messageSettingsHistory MessageSettingsHistory[] @relation("TeacherMessageSettingsHistory")
   subscriptions          Subscription[]
@@ -158,6 +174,46 @@ model QuizAnswer {
 
   student Student @relation(fields: [student_id], references: [id], onDelete: Cascade)
   quiz    Quiz    @relation(fields: [quiz_id], references: [id])
+}
+
+model Content {
+  id              String        @id @default(uuid())
+  teacher_id      String
+
+  title           String
+  type            ContentType
+  status          ContentStatus @default(DRAFT)
+
+  trend_topic     String?
+  trend_area      String?
+
+  prompt_used     String?       @db.Text
+  ai_model        String?
+  generation_metadata Json?
+
+  single_post     String?       @db.Text
+  carousel        Json          @default("[]")
+  description     String?       @db.Text
+
+  quiz_questions  Json?
+
+  tags            Json          @default("[]")
+  favorite        Boolean       @default(false)
+
+  source          String        @default("trend")
+  version         Int           @default(1)
+
+  deleted_at      DateTime?
+
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  teacher User @relation("TeacherContent", fields: [teacher_id], references: [id], onDelete: Cascade)
+
+  @@index([teacher_id, status, deleted_at])
+  @@index([teacher_id, type])
+  @@index([teacher_id, favorite])
+  @@index([teacher_id, created_at])
 }
 
 model WhatsappMessage {

@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { readFile } from 'node:fs/promises';
@@ -102,7 +107,10 @@ export class WhatsappService {
   private readonly qrCodeCache = new Map<string, QrCodeCacheEntry>();
   private readonly qrCodeTtlMs = 30_000;
   private readonly syncStateByTeacher = new Map<string, WhatsappSyncState>();
-  private readonly teacherNameCache = new Map<string, { name: string | null; updatedAt: number }>();
+  private readonly teacherNameCache = new Map<
+    string,
+    { name: string | null; updatedAt: number }
+  >();
   private readonly automationInFlightByTeacher = new Map<
     string,
     { startedAt: number; hhmm: string; jobId: string }
@@ -111,13 +119,17 @@ export class WhatsappService {
     const cpuCount = Math.max(1, cpus()?.length || 1);
     const defaultParallel = Math.min(50, Math.max(8, cpuCount * 4));
     const parsed = Number(process.env.WHATSAPP_AUTOMATION_MAX_PARALLEL || '');
-    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : defaultParallel;
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.floor(parsed)
+      : defaultParallel;
   })();
   private readonly groupSendParallelBase = (() => {
     const cpuCount = Math.max(1, cpus()?.length || 1);
     const defaultParallel = Math.min(10, Math.max(2, cpuCount * 2));
     const parsed = Number(process.env.WHATSAPP_GROUP_SEND_MAX_PARALLEL || '');
-    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : defaultParallel;
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.floor(parsed)
+      : defaultParallel;
   })();
 
   constructor(
@@ -163,9 +175,9 @@ export class WhatsappService {
 
   async resolveInstanceName(teacherId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({
-      where: { id: teacherId }
+      where: { id: teacherId },
     });
-    
+
     if (!user) {
       throw new BadRequestException('Professor não encontrado.');
     }
@@ -177,7 +189,7 @@ export class WhatsappService {
     const newInstanceName = `talkion_prof_${teacherId.substring(0, 8)}`;
     await this.prisma.user.update({
       where: { id: teacherId },
-      data: { whatsapp_instance_name: newInstanceName }
+      data: { whatsapp_instance_name: newInstanceName },
     });
 
     return newInstanceName;
@@ -192,7 +204,14 @@ export class WhatsappService {
 
     if (existingInstance) {
       if (this.getWebhookUrl()) {
-        try { await this.setWebhook(instanceName); } catch (e) { this.logger.error(`[WEBHOOK] Falha ao configurar webhook para ${instanceName}`, e); }
+        try {
+          await this.setWebhook(instanceName);
+        } catch (e) {
+          this.logger.error(
+            `[WEBHOOK] Falha ao configurar webhook para ${instanceName}`,
+            e,
+          );
+        }
       }
       return this.normalizeInstance(existingInstance, instanceName);
     }
@@ -260,7 +279,8 @@ export class WhatsappService {
           `/instance/connect/${instanceName}`,
         );
         const qrCode =
-          this.extractQrCode(response.data) || this.getCachedQrCode(instanceName);
+          this.extractQrCode(response.data) ||
+          this.getCachedQrCode(instanceName);
 
         if (qrCode) {
           this.setCachedQrCode(instanceName, qrCode);
@@ -402,6 +422,9 @@ export class WhatsappService {
     }
 
     this.qrCodeCache.delete(instanceName);
+    this.resetAllSyncStates('idle', 'WhatsApp desconectado.'); // Optional: maybe only reset for this teacher?
+
+    // Better to reset only for this teacher
     this.updateSyncState(teacherId, {
       stage: 'idle',
       progress: 0,
@@ -475,10 +498,13 @@ export class WhatsappService {
   ) {
     try {
       const instanceName = await this.resolveInstanceName(teacherId);
-      const response = await this.http.post(`/message/sendText/${instanceName}`, {
-        number: numberOrGroupId,
-        text,
-      });
+      const response = await this.http.post(
+        `/message/sendText/${instanceName}`,
+        {
+          number: numberOrGroupId,
+          text,
+        },
+      );
 
       await this.saveOutgoingMessageToDb({
         studentId: tracking?.studentId || null,
@@ -494,7 +520,9 @@ export class WhatsappService {
         content: text,
       });
 
-      this.logger.log(`[SAIDA] Mensagem WhatsApp enviada para ${numberOrGroupId}`);
+      this.logger.log(
+        `[SAIDA] Mensagem WhatsApp enviada para ${numberOrGroupId}`,
+      );
       return response.data;
     } catch (error) {
       this.logger.error(
@@ -512,7 +540,8 @@ export class WhatsappService {
     tracking?: OutboundMessageTracking,
   ) {
     try {
-      const isRemoteUrl = audioUrl.startsWith('http://') || audioUrl.startsWith('https://');
+      const isRemoteUrl =
+        audioUrl.startsWith('http://') || audioUrl.startsWith('https://');
       let media: string;
       let mimetype: string;
       let fileName: string;
@@ -531,13 +560,16 @@ export class WhatsappService {
       }
 
       const instanceName = await this.resolveInstanceName(teacherId);
-      const response = await this.http.post(`/message/sendMedia/${instanceName}`, {
-        number: numberOrGroupId,
-        media,
-        mediatype: 'audio',
-        mimetype,
-        fileName,
-      });
+      const response = await this.http.post(
+        `/message/sendMedia/${instanceName}`,
+        {
+          number: numberOrGroupId,
+          media,
+          mediatype: 'audio',
+          mimetype,
+          fileName,
+        },
+      );
 
       await this.saveOutgoingMessageToDb({
         studentId: tracking?.studentId || null,
@@ -570,9 +602,16 @@ export class WhatsappService {
     student: { id: string; full_name: string; whatsapp_number: string };
     lessonTime: string;
     occurrenceDate: Date;
-    teacherSettings?: { private_lesson_confirmation_idea?: string | null; ai_model?: string | null; ai_temperature?: number | null } | null;
+    teacherSettings?: {
+      private_lesson_confirmation_idea?: string | null;
+      ai_model?: string | null;
+      ai_temperature?: number | null;
+    } | null;
   }) {
-    await this.creditsService.requireCredits(input.teacherId, 'lesson_confirmation_send');
+    await this.creditsService.requireCredits(
+      input.teacherId,
+      'lesson_confirmation_send',
+    );
     const studentName = String(input.student.full_name || '').trim();
     const dateLabel = input.occurrenceDate.toISOString().slice(0, 10);
 
@@ -682,13 +721,19 @@ export class WhatsappService {
         contentKind: 'LESSON_CONFIRMATION_REQUEST',
       },
     );
-    const externalMessageId = fallbackRes?.key?.id || fallbackRes?.data?.key?.id || null;
+    const externalMessageId =
+      fallbackRes?.key?.id || fallbackRes?.data?.key?.id || null;
     this.logger.log(
-      `[LESSONS] Confirmação enviada (texto) para ${this.formatStudentLog(input.student as any)} | ${dateLabel} ${input.lessonTime}`,
+      `[LESSONS] Confirmação enviada (texto) para ${this.formatStudentLog(input.student)} | ${dateLabel} ${input.lessonTime}`,
     );
 
     if (input.teacherId) {
-      await this.creditsService.deductCredits(input.teacherId, 'lesson_confirmation_send', 'lesson', input.student.id);
+      await this.creditsService.deductCredits(
+        input.teacherId,
+        'lesson_confirmation_send',
+        'lesson',
+        input.student.id,
+      );
     }
 
     return {
@@ -705,18 +750,31 @@ export class WhatsappService {
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
     const timeStr = new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false, timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone,
     }).format(now);
     const [h, min, sec] = timeStr.split(':').map(Number);
-    const startOfDay = new Date(now.getTime() - h * 3600000 - min * 60000 - sec * 1000);
+    const startOfDay = new Date(
+      now.getTime() - h * 3600000 - min * 60000 - sec * 1000,
+    );
     startOfDay.setMilliseconds(0);
     const endOfDay = new Date(startOfDay.getTime() + 24 * 3600000 - 1);
     const weekdayName = new Intl.DateTimeFormat('en-US', {
       weekday: 'long',
       timeZone,
     }).format(now);
-    const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const weekdayNames = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ];
     const weekday = weekdayNames.indexOf(weekdayName.toLowerCase());
 
     const settings = await this.prisma.messageSettings.findUnique({
@@ -818,15 +876,22 @@ export class WhatsappService {
   async sendWeeklyLessonSummaries(teacherId: string) {
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
-    const dayOfWeek = new Date(new Date().toLocaleString('en-US', { timeZone })).getDay();
+    const dayOfWeek = new Date(
+      new Date().toLocaleString('en-US', { timeZone }),
+    ).getDay();
     if (dayOfWeek !== 1) {
-      this.logger.warn(`[LESSONS] Resumo semanal ignorado: hoje não é segunda-feira (teacherId=${teacherId}).`);
+      this.logger.warn(
+        `[LESSONS] Resumo semanal ignorado: hoje não é segunda-feira (teacherId=${teacherId}).`,
+      );
       return { sent: 0, skipped: 0 };
     }
 
     const timeStr = new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false, timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone,
     }).format(now);
     const [h, min] = timeStr.split(':').map(Number);
     const todayStart = new Date(now.getTime() - h * 3600000 - min * 60000);
@@ -836,7 +901,15 @@ export class WhatsappService {
       weekday: 'long',
       timeZone,
     }).format(now);
-    const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const weekdayNames = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ];
     const todayWeekday = weekdayNames.indexOf(weekdayName.toLowerCase());
 
     const mondayOffset = todayWeekday === 0 ? -6 : 1 - todayWeekday;
@@ -847,7 +920,15 @@ export class WhatsappService {
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
 
-    const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const weekdayLabels = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
 
     const settings = await this.prisma.messageSettings.findUnique({
       where: { teacher_id: teacherId },
@@ -859,7 +940,12 @@ export class WhatsappService {
     });
 
     const hour = Number(h);
-    const period = hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening';
+    const period =
+      hour >= 5 && hour < 12
+        ? 'morning'
+        : hour >= 12 && hour < 18
+          ? 'afternoon'
+          : 'evening';
 
     const lessons = await this.prisma.lesson.findMany({
       where: {
@@ -869,7 +955,11 @@ export class WhatsappService {
           whatsapp_valid: true,
         },
         OR: [
-          { kind: 'RECURRING', recurring: true, weekday: { in: [1, 2, 3, 4, 5, 6, 0] } },
+          {
+            kind: 'RECURRING',
+            recurring: true,
+            weekday: { in: [1, 2, 3, 4, 5, 6, 0] },
+          },
           { kind: 'EXTRA', date: { gte: monday, lte: sunday } },
         ],
       },
@@ -889,10 +979,13 @@ export class WhatsappService {
       return { sent: 0, skipped: 0 };
     }
 
-    const byStudent = new Map<string, {
-      student: { id: string; full_name: string; whatsapp_number: string };
-      lessons: Array<{ weekday: number | null; time: string }>;
-    }>();
+    const byStudent = new Map<
+      string,
+      {
+        student: { id: string; full_name: string; whatsapp_number: string };
+        lessons: Array<{ weekday: number | null; time: string }>;
+      }
+    >();
 
     for (const lesson of lessons) {
       let lessonWeekday: number | null = null;
@@ -911,7 +1004,9 @@ export class WhatsappService {
           lessons: [],
         });
       }
-      byStudent.get(key)!.lessons.push({ weekday: lessonWeekday, time: lesson.time });
+      byStudent
+        .get(key)!
+        .lessons.push({ weekday: lessonWeekday, time: lesson.time });
     }
 
     let sent = 0;
@@ -921,23 +1016,30 @@ export class WhatsappService {
 
     // Check which students already received the weekly summary today
     const studentIds = students.map((s) => s.student.id);
-    const alreadySentToday = studentIds.length > 0
-      ? await this.prisma.whatsappMessage.findMany({
-          where: {
-            student_id: { in: studentIds },
-            direction: 'OUTGOING',
-            content_kind: 'WEEKLY_LESSON_SUMMARY',
-            created_at: { gte: todayStart, lte: sunday },
-          },
-          select: { student_id: true },
-          distinct: ['student_id'],
-        })
-      : [];
-    const alreadySentIds = new Set(alreadySentToday.map((m) => m.student_id).filter(Boolean) as string[]);
-    const studentsToSend = students.filter((s) => !alreadySentIds.has(s.student.id));
+    const alreadySentToday =
+      studentIds.length > 0
+        ? await this.prisma.whatsappMessage.findMany({
+            where: {
+              student_id: { in: studentIds },
+              direction: 'OUTGOING',
+              content_kind: 'WEEKLY_LESSON_SUMMARY',
+              created_at: { gte: todayStart, lte: sunday },
+            },
+            select: { student_id: true },
+            distinct: ['student_id'],
+          })
+        : [];
+    const alreadySentIds = new Set(
+      alreadySentToday.map((m) => m.student_id).filter(Boolean) as string[],
+    );
+    const studentsToSend = students.filter(
+      (s) => !alreadySentIds.has(s.student.id),
+    );
     const skippedDuplicates = students.length - studentsToSend.length;
     if (skippedDuplicates > 0) {
-      this.logger.log(`[LESSONS] ${skippedDuplicates} aluno(s) já receberam o resumo semanal hoje. Ignorando para evitar duplicidade.`);
+      this.logger.log(
+        `[LESSONS] ${skippedDuplicates} aluno(s) já receberam o resumo semanal hoje. Ignorando para evitar duplicidade.`,
+      );
     }
 
     const defaultIdea =
@@ -962,7 +1064,10 @@ export class WhatsappService {
       studentsToSend,
       Math.min(this.groupSendParallelBase, studentsToSend.length || 1),
       async (entry) => {
-        entry.lessons.sort((a, b) => (a.weekday ?? 7) - (b.weekday ?? 7) || a.time.localeCompare(b.time));
+        entry.lessons.sort(
+          (a, b) =>
+            (a.weekday ?? 7) - (b.weekday ?? 7) || a.time.localeCompare(b.time),
+        );
 
         const lines = entry.lessons
           .filter((l) => l.weekday !== null)
@@ -980,7 +1085,10 @@ export class WhatsappService {
         const scheduleText = lines.join('\n');
 
         try {
-          await this.creditsService.requireCredits(teacherId, 'weekly_summary_send');
+          await this.creditsService.requireCredits(
+            teacherId,
+            'weekly_summary_send',
+          );
         } catch {
           this.logger.warn(
             `[LESSONS] Créditos insuficientes para resumo semanal de ${studentName}`,
@@ -1018,7 +1126,12 @@ export class WhatsappService {
         });
 
         if (sendResult) {
-          await this.creditsService.deductCredits(teacherId, 'weekly_summary_send', 'lesson', entry.student.id);
+          await this.creditsService.deductCredits(
+            teacherId,
+            'weekly_summary_send',
+            'lesson',
+            entry.student.id,
+          );
           sent += 1;
           this.logger.log(
             `[LESSONS] Resumo semanal enviado para ${entry.student.full_name} | ${lines.length} aula(s)`,
@@ -1043,7 +1156,9 @@ export class WhatsappService {
 
     if (!settings) return;
 
-    const targets = Array.isArray(settings.auto_group_targets) ? settings.auto_group_targets : [];
+    const targets = Array.isArray(settings.auto_group_targets)
+      ? settings.auto_group_targets
+      : [];
     if (targets.length === 0) return;
 
     await this.creditsService.requireCredits(teacherId, 'quick_tip_generation');
@@ -1072,7 +1187,12 @@ export class WhatsappService {
       }
     }
 
-    await this.creditsService.deductCredits(teacherId, 'quick_tip_generation', 'quick_tip', undefined);
+    await this.creditsService.deductCredits(
+      teacherId,
+      'quick_tip_generation',
+      'quick_tip',
+      undefined,
+    );
   }
 
   /**
@@ -1111,7 +1231,10 @@ export class WhatsappService {
 
       return false;
     } catch (error) {
-      this.logger.error(`Erro ao verificar o número ${number}`, this.describeError(error));
+      this.logger.error(
+        `Erro ao verificar o número ${number}`,
+        this.describeError(error),
+      );
       // Só insere no banco como true se realmente for validado pela API. Se der erro/timeout, fica false.
       return false;
     }
@@ -1269,7 +1392,10 @@ export class WhatsappService {
   async getNewsGroupSettings(teacherId: string, title?: string) {
     const configuredTitle =
       title?.trim() || (await this.getTeacherNewsGroupTitle(teacherId));
-    const target = await this.getConfiguredNewsGroup(teacherId, configuredTitle);
+    const target = await this.getConfiguredNewsGroup(
+      teacherId,
+      configuredTitle,
+    );
 
     return {
       teacherId,
@@ -1339,7 +1465,8 @@ export class WhatsappService {
       return {
         success: true,
         skipped: true,
-        message: 'Este grupo já recebeu o quiz hoje. Envio ignorado para evitar duplicidade.',
+        message:
+          'Este grupo já recebeu o quiz hoje. Envio ignorado para evitar duplicidade.',
         configuredTitle: target.configuredTitle,
         group: resolvedGroup,
         matchedExactly: Boolean(target.exactMatch),
@@ -1350,7 +1477,7 @@ export class WhatsappService {
       resolvedGroup.id,
       'GROUP',
       teacherId,
-      options?.groupLevel
+      options?.groupLevel,
     );
 
     return {
@@ -1398,8 +1525,11 @@ export class WhatsappService {
         try {
           result.private = await this.broadcastPrivate(teacherId);
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          this.logger.error(`[DISPATCH][${jobId}] Falha no privado: ${message}`);
+          const message =
+            error instanceof Error ? error.message : String(error);
+          this.logger.error(
+            `[DISPATCH][${jobId}] Falha no privado: ${message}`,
+          );
           result.errors?.push({ scope: 'private', message });
           result.success = false;
         }
@@ -1413,7 +1543,8 @@ export class WhatsappService {
             groupLevel: options?.groupLevel,
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           this.logger.error(`[DISPATCH][${jobId}] Falha no grupo: ${message}`);
           result.errors?.push({ scope: 'group', message });
           result.success = false;
@@ -1440,7 +1571,9 @@ export class WhatsappService {
         }
         await this.newsService.cleanupOrphanedAudioFiles();
       } catch (error) {
-        this.logger.warn(`[DISPATCH][${jobId}] Erro ao limpar áudios: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.warn(
+          `[DISPATCH][${jobId}] Erro ao limpar áudios: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       this.logger.log(
@@ -1453,7 +1586,8 @@ export class WhatsappService {
     return {
       success: true,
       jobId,
-      message: 'Disparo iniciado. As mensagens serão enviadas em segundo plano.',
+      message:
+        'Disparo iniciado. As mensagens serão enviadas em segundo plano.',
     };
   }
 
@@ -1469,7 +1603,9 @@ export class WhatsappService {
       timeZone,
     }).format(new Date());
 
-    const dayOfWeek = new Date(new Date().toLocaleString('en-US', { timeZone })).getDay();
+    const dayOfWeek = new Date(
+      new Date().toLocaleString('en-US', { timeZone }),
+    ).getDay();
 
     let teachers: Array<{
       id: string;
@@ -1558,23 +1694,29 @@ export class WhatsappService {
       const settings = teacher.messageSettings;
       if (!settings) continue;
 
-      const days = Array.isArray(settings.automation_days) ? settings.automation_days : [0, 1, 2, 3, 4, 5, 6];
+      const days = Array.isArray(settings.automation_days)
+        ? settings.automation_days
+        : [0, 1, 2, 3, 4, 5, 6];
       const isAutomationDay = days.includes(dayOfWeek);
 
       const targetsRaw = settings.auto_group_targets;
       const targets = Array.isArray(targetsRaw) ? targetsRaw : [];
-      const normalizedTargets: Array<{ groupId: string; groupLevel?: string }> = targets
-        .map((item: any) => ({
-          groupId: String(item?.groupId || item?.id || '').trim(),
-          groupLevel: item?.groupLevel ? String(item.groupLevel).trim() : undefined,
-        }))
-        .filter((item: any) => Boolean(item.groupId));
+      const normalizedTargets: Array<{ groupId: string; groupLevel?: string }> =
+        targets
+          .map((item: any) => ({
+            groupId: String(item?.groupId || item?.id || '').trim(),
+            groupLevel: item?.groupLevel
+              ? String(item.groupLevel).trim()
+              : undefined,
+          }))
+          .filter((item: any) => Boolean(item.groupId));
 
       const captureDue =
         isAutomationDay &&
         settings.admin_news_capture_enabled !== false &&
         settings.news_capture_enabled !== false &&
-        settings.news_capture_time && settings.news_capture_time === hhmm;
+        settings.news_capture_time &&
+        settings.news_capture_time === hhmm;
       const privateDue =
         isAutomationDay &&
         settings.admin_auto_send_enabled !== false &&
@@ -1607,7 +1749,15 @@ export class WhatsappService {
         settings.quick_tip_time &&
         settings.quick_tip_time === hhmm;
 
-      if (!captureDue && !privateDue && !groupDue && !lessonsDue && !weeklySummaryDue && !quickTipDue) continue;
+      if (
+        !captureDue &&
+        !privateDue &&
+        !groupDue &&
+        !lessonsDue &&
+        !weeklySummaryDue &&
+        !quickTipDue
+      )
+        continue;
 
       dueJobs.push({
         teacherId: teacher.id,
@@ -1618,17 +1768,30 @@ export class WhatsappService {
         lessonsDue: Boolean(lessonsDue),
         weeklySummaryDue: Boolean(weeklySummaryDue),
         quickTipDue: Boolean(quickTipDue),
-        generateQuiz: settings.admin_quiz_generation_enabled !== false && settings.quiz_generation_enabled !== false,
+        generateQuiz:
+          settings.admin_quiz_generation_enabled !== false &&
+          settings.quiz_generation_enabled !== false,
         targets: normalizedTargets,
       });
     }
 
     const captureJobs = dueJobs.filter((job) => job.captureDue);
     const sendJobs = dueJobs.filter(
-      (job) => job.privateDue || job.groupDue || job.lessonsDue || job.weeklySummaryDue || job.quickTipDue,
+      (job) =>
+        job.privateDue ||
+        job.groupDue ||
+        job.lessonsDue ||
+        job.weeklySummaryDue ||
+        job.quickTipDue,
     );
-    const captureParallel = Math.min(this.automationParallelBase, captureJobs.length || 1);
-    const sendParallel = Math.min(this.automationParallelBase, sendJobs.length || 1);
+    const captureParallel = Math.min(
+      this.automationParallelBase,
+      captureJobs.length || 1,
+    );
+    const sendParallel = Math.min(
+      this.automationParallelBase,
+      sendJobs.length || 1,
+    );
 
     const tryAcquireTeacherLock = (teacherId: string, hhmm: string) => {
       const nowMs = Date.now();
@@ -1651,52 +1814,59 @@ export class WhatsappService {
     const getTeacherJobId = (teacherId: string) =>
       this.automationInFlightByTeacher.get(teacherId)?.jobId || null;
 
-    await this.runWithConcurrencyLimit(captureJobs, captureParallel, async (job) => {
-      const existing = this.automationInFlightByTeacher.get(job.teacherId);
-      if (existing && Date.now() - existing.startedAt < 20 * 60 * 1000) {
-        this.logger.warn(
-          `[AUTO][${existing.jobId}] Ignorando captura (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução (hhmm=${existing.hhmm}).`,
-        );
-        return;
-      }
-
-      const jobId = tryAcquireTeacherLock(job.teacherId, job.hhmm);
-      if (!jobId) {
-        const current = getTeacherJobId(job.teacherId);
-        if (current) {
+    await this.runWithConcurrencyLimit(
+      captureJobs,
+      captureParallel,
+      async (job) => {
+        const existing = this.automationInFlightByTeacher.get(job.teacherId);
+        if (existing && Date.now() - existing.startedAt < 20 * 60 * 1000) {
           this.logger.warn(
-            `[AUTO][${current}] Ignorando captura (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução.`,
+            `[AUTO][${existing.jobId}] Ignorando captura (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução (hhmm=${existing.hhmm}).`,
           );
+          return;
         }
-        return;
-      }
 
-      this.logger.log(
-        `[AUTO][${jobId}] Captura ${job.hhmm} | teacherId=${job.teacherId}`,
-      );
+        const jobId = tryAcquireTeacherLock(job.teacherId, job.hhmm);
+        if (!jobId) {
+          const current = getTeacherJobId(job.teacherId);
+          if (current) {
+            this.logger.warn(
+              `[AUTO][${current}] Ignorando captura (teacherId=${job.teacherId}, hhmm=${job.hhmm}) pois já existe um job em execução.`,
+            );
+          }
+          return;
+        }
 
-      try {
-        await this.newsService.runDailyNewsAndQuiz({
-          teacherId: job.teacherId,
-          referenceType: 'news_automation_capture',
-          referenceId: `${new Date().toISOString()}:${jobId}`,
-          metadata: { trigger: 'automation' },
-        }, job.generateQuiz);
-      } catch (error) {
-        this.logger.error(
-          `[AUTO][${jobId}] Falha captura teacherId=${job.teacherId}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+        this.logger.log(
+          `[AUTO][${jobId}] Captura ${job.hhmm} | teacherId=${job.teacherId}`,
         );
-      } finally {
-        if (!(job.privateDue || job.groupDue || job.lessonsDue)) {
-          const current = this.automationInFlightByTeacher.get(job.teacherId);
-          if (current?.jobId === jobId) {
-            this.automationInFlightByTeacher.delete(job.teacherId);
+
+        try {
+          await this.newsService.runDailyNewsAndQuiz(
+            {
+              teacherId: job.teacherId,
+              referenceType: 'news_automation_capture',
+              referenceId: `${new Date().toISOString()}:${jobId}`,
+              metadata: { trigger: 'automation' },
+            },
+            job.generateQuiz,
+          );
+        } catch (error) {
+          this.logger.error(
+            `[AUTO][${jobId}] Falha captura teacherId=${job.teacherId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        } finally {
+          if (!(job.privateDue || job.groupDue || job.lessonsDue)) {
+            const current = this.automationInFlightByTeacher.get(job.teacherId);
+            if (current?.jobId === jobId) {
+              this.automationInFlightByTeacher.delete(job.teacherId);
+            }
           }
         }
-      }
-    });
+      },
+    );
 
     await this.runWithConcurrencyLimit(sendJobs, sendParallel, async (job) => {
       const existing = this.automationInFlightByTeacher.get(job.teacherId);
@@ -1753,51 +1923,60 @@ export class WhatsappService {
               job.targets.length || 1,
             );
 
-            await this.runWithConcurrencyLimit(job.targets, groupParallel, async (target) => {
-              const remoteJid = this.normalizeRemoteJid(target.groupId);
-              const alreadySent = await this.prisma.whatsappMessage.findFirst({
-                where: {
-                  direction: 'OUTGOING',
-                  remote_jid: remoteJid,
-                  content_kind: 'QUIZ',
-                  created_at: { gte: startOfDay, lte: endOfDay },
-                },
-                select: { id: true },
-                orderBy: { created_at: 'desc' },
-              });
-
-              if (alreadySent) {
-                this.logger.log(
-                  `[AUTO][${jobId}] Grupo ${remoteJid} já recebeu o quiz hoje. Ignorando para evitar duplicidade.`,
+            await this.runWithConcurrencyLimit(
+              job.targets,
+              groupParallel,
+              async (target) => {
+                const remoteJid = this.normalizeRemoteJid(target.groupId);
+                const alreadySent = await this.prisma.whatsappMessage.findFirst(
+                  {
+                    where: {
+                      direction: 'OUTGOING',
+                      remote_jid: remoteJid,
+                      content_kind: 'QUIZ',
+                      created_at: { gte: startOfDay, lte: endOfDay },
+                    },
+                    select: { id: true },
+                    orderBy: { created_at: 'desc' },
+                  },
                 );
-                return;
-              }
 
-              const maxRetries = 3;
-              const retryDelayMs = 5000;
-              let lastError: Error | null = null;
-              for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                try {
-                  await this.sendLatestNewsAndQuiz(
-                    target.groupId,
-                    'GROUP',
-                    job.teacherId,
-                    target.groupLevel,
+                if (alreadySent) {
+                  this.logger.log(
+                    `[AUTO][${jobId}] Grupo ${remoteJid} já recebeu o quiz hoje. Ignorando para evitar duplicidade.`,
                   );
-                  lastError = null;
-                  break;
-                } catch (error) {
-                  lastError = error instanceof Error ? error : new Error(String(error));
-                  if (attempt < maxRetries) {
-                    this.logger.warn(
-                      `[AUTO][${jobId}] Tentativa ${attempt}/${maxRetries} falhou para grupo ${remoteJid}. Reintentando em ${retryDelayMs}ms...`,
+                  return;
+                }
+
+                const maxRetries = 3;
+                const retryDelayMs = 5000;
+                let lastError: Error | null = null;
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                  try {
+                    await this.sendLatestNewsAndQuiz(
+                      target.groupId,
+                      'GROUP',
+                      job.teacherId,
+                      target.groupLevel,
                     );
-                    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+                    lastError = null;
+                    break;
+                  } catch (error) {
+                    lastError =
+                      error instanceof Error ? error : new Error(String(error));
+                    if (attempt < maxRetries) {
+                      this.logger.warn(
+                        `[AUTO][${jobId}] Tentativa ${attempt}/${maxRetries} falhou para grupo ${remoteJid}. Reintentando em ${retryDelayMs}ms...`,
+                      );
+                      await new Promise((resolve) =>
+                        setTimeout(resolve, retryDelayMs),
+                      );
+                    }
                   }
                 }
-              }
-              if (lastError) throw lastError;
-            });
+                if (lastError) throw lastError;
+              },
+            );
           })().catch((error) => {
             this.logger.error(
               `[AUTO][${jobId}] Falha envio grupo teacherId=${job.teacherId}: ${
@@ -1865,7 +2044,9 @@ export class WhatsappService {
         }
         await this.newsService.cleanupOrphanedAudioFiles();
       } catch (error) {
-        this.logger.warn(`[AUTO][${jobId}] Erro ao limpar áudios: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.warn(
+          `[AUTO][${jobId}] Erro ao limpar áudios: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       const current = this.automationInFlightByTeacher.get(job.teacherId);
@@ -1876,7 +2057,9 @@ export class WhatsappService {
   }
 
   async broadcastPrivate(teacherId: string) {
-    this.logger.log(`[BROADCAST] Iniciando disparo privado para alunos do professor ${teacherId}`);
+    this.logger.log(
+      `[BROADCAST] Iniciando disparo privado para alunos do professor ${teacherId}`,
+    );
     await this.creditsService.requireCredits(teacherId, 'news_individual_send');
     const students = await this.prisma.student.findMany({
       where: {
@@ -1892,7 +2075,9 @@ export class WhatsappService {
       },
     });
 
-    this.logger.log(`[BROADCAST] Alunos encontrados para disparo: ${students.length}`);
+    this.logger.log(
+      `[BROADCAST] Alunos encontrados para disparo: ${students.length}`,
+    );
 
     if (students.length === 0) {
       return {
@@ -1910,15 +2095,16 @@ export class WhatsappService {
       const defaultPrivateGreeting = 'Good {{period}}, {{nome}}! 🎉🎉';
       const defaultGroupGreeting = 'Good {{period}}! 🎉🎉';
       const defaultSpeakingIntro =
-        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
-      const defaultNewsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+        '*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*';
+      const defaultNewsIntro =
+        '📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*';
       const defaultGroupNewsIntro = defaultNewsIntro;
       const defaultGroupQuizHeader =
-        "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
+        '📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀';
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
       const defaultGroupQuizFooter =
-        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
+        '📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!';
 
       settings = await this.prisma.messageSettings.create({
         data: {
@@ -1972,7 +2158,8 @@ export class WhatsappService {
         success: true,
         count: 0,
         skipped: skippedCount,
-        message: 'Todos os alunos já receberam a notícia hoje. Envio ignorado para evitar duplicidade.',
+        message:
+          'Todos os alunos já receberam a notícia hoje. Envio ignorado para evitar duplicidade.',
       };
     }
 
@@ -1987,7 +2174,16 @@ export class WhatsappService {
         orderBy: { created_at: 'desc' },
       });
 
-      const byLevel = new Map<string, { title: string; content: string; level: string; sourceUrl?: string; audioUrl?: string }>();
+      const byLevel = new Map<
+        string,
+        {
+          title: string;
+          content: string;
+          level: string;
+          sourceUrl?: string;
+          audioUrl?: string;
+        }
+      >();
       for (const item of records) {
         if (!byLevel.has(item.level)) {
           byLevel.set(item.level, {
@@ -2108,12 +2304,17 @@ export class WhatsappService {
       generated = [];
     }
 
-    const studentsByWhatsapp = new Map<string, (typeof studentsToSend)[number]>();
+    const studentsByWhatsapp = new Map<
+      string,
+      (typeof studentsToSend)[number]
+    >();
     for (const student of studentsToSend) {
       studentsByWhatsapp.set(student.whatsapp_number, student);
     }
 
-    const fallbackBlocksForStudent = (student: (typeof studentsToSend)[number]) => {
+    const fallbackBlocksForStudent = (
+      student: (typeof studentsToSend)[number],
+    ) => {
       const selectedNews =
         (student.english_level === 'LEVEL_1' ? newsByLevel.LEVEL_1 : null) ||
         (student.english_level === 'LEVEL_2' ? newsByLevel.LEVEL_2 : null) ||
@@ -2124,10 +2325,15 @@ export class WhatsappService {
 
       const greeting = `Good ${period}, ${student.full_name}! 🎉🎉`;
       const challenge =
-        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
-      const newsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+        '*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*';
+      const newsIntro =
+        '📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*';
       const newsBody = selectedNews
-        ? this.formatNewsBodyForWhatsapp(selectedNews.title, selectedNews.content, selectedNews.sourceUrl)
+        ? this.formatNewsBodyForWhatsapp(
+            selectedNews.title,
+            selectedNews.content,
+            selectedNews.sourceUrl,
+          )
         : '';
 
       return [
@@ -2138,7 +2344,9 @@ export class WhatsappService {
       ];
     };
 
-    const getAudioUrlForStudent = (student: (typeof studentsToSend)[number]) => {
+    const getAudioUrlForStudent = (
+      student: (typeof studentsToSend)[number],
+    ) => {
       const selectedNews =
         (student.english_level === 'LEVEL_1' ? newsByLevel.LEVEL_1 : null) ||
         (student.english_level === 'LEVEL_2' ? newsByLevel.LEVEL_2 : null) ||
@@ -2149,7 +2357,12 @@ export class WhatsappService {
       return selectedNews?.audioUrl || null;
     };
 
-    const requiredOrder = ['GREETING', 'SPEAKING_INTRO', 'NEWS_INTRO', 'NEWS'] as const;
+    const requiredOrder = [
+      'GREETING',
+      'SPEAKING_INTRO',
+      'NEWS_INTRO',
+      'NEWS',
+    ] as const;
 
     let count = 0;
     const processed = new Set<string>();
@@ -2183,7 +2396,9 @@ export class WhatsappService {
           const text =
             tipo === 'NEWS'
               ? String(fallbackByType.get('NEWS') || '').trim()
-              : String(byType.get(tipo) || fallbackByType.get(tipo) || '').trim();
+              : String(
+                  byType.get(tipo) || fallbackByType.get(tipo) || '',
+                ).trim();
           if (!text) continue;
 
           await this.sendMessage(teacherId, student.whatsapp_number, text, {
@@ -2197,17 +2412,27 @@ export class WhatsappService {
 
         const audioUrl = getAudioUrlForStudent(student);
         if (audioUrl) {
-          await this.sendAudioMessage(teacherId, student.whatsapp_number, audioUrl, {
-            studentId: student.id,
-            relatedNewsId: null,
-            contentKind: 'PRIVATE_BROADCAST_AUDIO',
-          });
+          await this.sendAudioMessage(
+            teacherId,
+            student.whatsapp_number,
+            audioUrl,
+            {
+              studentId: student.id,
+              relatedNewsId: null,
+              contentKind: 'PRIVATE_BROADCAST_AUDIO',
+            },
+          );
           count++;
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
 
         if (teacherId) {
-          await this.creditsService.deductCredits(teacherId, 'news_individual_send', 'whatsapp', student.id);
+          await this.creditsService.deductCredits(
+            teacherId,
+            'news_individual_send',
+            'whatsapp',
+            student.id,
+          );
         }
       } catch (error) {
         this.logger.error(
@@ -2216,7 +2441,9 @@ export class WhatsappService {
       }
     }
 
-    const missingStudents = studentsToSend.filter((s) => !processed.has(s.whatsapp_number));
+    const missingStudents = studentsToSend.filter(
+      (s) => !processed.has(s.whatsapp_number),
+    );
     if (missingStudents.length > 0) {
       this.logger.warn(
         `[BROADCAST][IA] ${missingStudents.length} aluno(s) ficaram sem retorno da IA. Enviando fallback por blocos.`,
@@ -2238,17 +2465,27 @@ export class WhatsappService {
 
           const audioUrl = getAudioUrlForStudent(student);
           if (audioUrl) {
-            await this.sendAudioMessage(teacherId, student.whatsapp_number, audioUrl, {
-              studentId: student.id,
-              relatedNewsId: null,
-              contentKind: 'PRIVATE_BROADCAST_FALLBACK_AUDIO',
-            });
+            await this.sendAudioMessage(
+              teacherId,
+              student.whatsapp_number,
+              audioUrl,
+              {
+                studentId: student.id,
+                relatedNewsId: null,
+                contentKind: 'PRIVATE_BROADCAST_FALLBACK_AUDIO',
+              },
+            );
             count++;
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
 
           if (teacherId) {
-            await this.creditsService.deductCredits(teacherId, 'news_individual_send', 'whatsapp', student.id);
+            await this.creditsService.deductCredits(
+              teacherId,
+              'news_individual_send',
+              'whatsapp',
+              student.id,
+            );
           }
         } catch (error) {
           this.logger.error(
@@ -2258,7 +2495,12 @@ export class WhatsappService {
       }
     }
 
-    return { success: true, count, skipped: skippedCount, message: 'Disparo finalizado.' };
+    return {
+      success: true,
+      count,
+      skipped: skippedCount,
+      message: 'Disparo finalizado.',
+    };
   }
 
   async sendLatestNewsAndQuiz(
@@ -2267,8 +2509,10 @@ export class WhatsappService {
     providedTeacherId?: string,
     providedGroupLevel?: string,
   ) {
-    this.logger.log(`[OUTBOUND] Iniciando fluxo de envio de notícia e quiz para ${numberOrGroupId} (Modo: ${mode})`);
-    
+    this.logger.log(
+      `[OUTBOUND] Iniciando fluxo de envio de notícia e quiz para ${numberOrGroupId} (Modo: ${mode})`,
+    );
+
     const targetNumber = numberOrGroupId;
     const isGroupTarget =
       mode === 'GROUP' ||
@@ -2284,22 +2528,23 @@ export class WhatsappService {
 
     // Busca as configurações de mensagens do professor, ou cria se não existir
     let settings = await this.prisma.messageSettings.findUnique({
-      where: { teacher_id: teacherId }
+      where: { teacher_id: teacherId },
     });
 
     if (!settings) {
       const defaultPrivateGreeting = 'Good {{period}}, {{nome}}! 🎉🎉';
       const defaultGroupGreeting = 'Good {{period}}! 🎉🎉';
       const defaultSpeakingIntro =
-        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
-      const defaultNewsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+        '*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*';
+      const defaultNewsIntro =
+        '📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*';
       const defaultGroupNewsIntro = defaultNewsIntro;
       const defaultGroupQuizHeader =
-        "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
+        '📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀';
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
       const defaultGroupQuizFooter =
-        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
+        '📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!';
 
       settings = await this.prisma.messageSettings.create({
         data: {
@@ -2318,17 +2563,23 @@ export class WhatsappService {
           group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
           group_quiz_footer_idea: `Você pode montar o rodapé do quiz com base nesse modelo aqui:\n\n${defaultGroupQuizFooter}`,
           group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
-        }
+        },
       });
     }
 
     // Configura um tracking opcional para a busca da notícia
     const baseTracking = { teacherId };
-    
+
     // Se for grupo e tiver level, usamos o level fornecido, senão usamos o level do aluno (se for privado)
-    const targetLevel = (isGroupTarget && providedGroupLevel) ? providedGroupLevel : student?.english_level;
-    
-    const latestNews = await this.findLatestNewsForTarget(targetLevel, baseTracking);
+    const targetLevel =
+      isGroupTarget && providedGroupLevel
+        ? providedGroupLevel
+        : student?.english_level;
+
+    const latestNews = await this.findLatestNewsForTarget(
+      targetLevel,
+      baseTracking,
+    );
 
     if (!latestNews) {
       throw new Error('Nenhuma notícia disponível para envio.');
@@ -2344,7 +2595,7 @@ export class WhatsappService {
       timeZone,
     }).format(new Date());
     const hour = Number(hourStr);
-    const period =
+    const period: 'morning' | 'afternoon' | 'evening' =
       hour >= 5 && hour < 12
         ? 'morning'
         : hour >= 12 && hour < 18
@@ -2360,7 +2611,7 @@ export class WhatsappService {
         hour: '2-digit',
         minute: '2-digit',
       }),
-      period: period as 'morning' | 'afternoon' | 'evening',
+      period: period,
     };
 
     const renderVars = (text: string) => {
@@ -2435,7 +2686,7 @@ export class WhatsappService {
           newsIntroIdea,
         },
         variables,
-        templates: templates as any,
+        templates: templates,
         content: {
           newsTitle: latestNews.title,
           newsText: latestNews.content,
@@ -2488,7 +2739,8 @@ export class WhatsappService {
         );
       }
 
-      const answerKeyLevel = providedGroupLevel || latestNews.level || undefined;
+      const answerKeyLevel =
+        providedGroupLevel || latestNews.level || undefined;
       const previousQuiz = await this.findPreviousQuizForAnswerKey({
         teacherId,
         level: answerKeyLevel,
@@ -2523,21 +2775,25 @@ export class WhatsappService {
       }
 
       const greetingMessage =
-        byKind.get('GROUP_GREETING') || renderVars(settings.group_greeting_message);
+        byKind.get('GROUP_GREETING') ||
+        renderVars(settings.group_greeting_message);
       const answerKeyHeaderMessage =
         byKind.get('ANSWER_KEY_HEADER') ||
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
       const newsIntroMessage =
-        byKind.get('NEWS_INTRO') || renderVars(settings.group_news_intro_message);
+        byKind.get('NEWS_INTRO') ||
+        renderVars(settings.group_news_intro_message);
       const newsMessage = this.formatNewsBodyForWhatsapp(
         latestNews.title,
         latestNews.content,
         latestNews.source_url,
       );
       const quizHeaderMessage =
-        byKind.get('QUIZ_HEADER') || renderVars(settings.group_quiz_header_message);
+        byKind.get('QUIZ_HEADER') ||
+        renderVars(settings.group_quiz_header_message);
       const quizFooterMessage =
-        byKind.get('QUIZ_FOOTER') || renderVars(settings.group_quiz_footer_message);
+        byKind.get('QUIZ_FOOTER') ||
+        renderVars(settings.group_quiz_footer_message);
       const quizMessage =
         byKind.get('QUIZ') || this.formatQuizBodyForWhatsapp(quizQuestions, '');
 
@@ -2569,12 +2825,17 @@ export class WhatsappService {
 
       if (shouldSendAnswerKey && answerKeyMessage) {
         if (!sentKinds.has('ANSWER_KEY_HEADER')) {
-          await this.sendMessage(teacherId, targetNumber, answerKeyHeaderMessage, {
-            studentId: student?.id || null,
-            relatedNewsId: previousQuiz?.news_id || null,
-            relatedQuizId: previousQuiz?.id || null,
-            contentKind: 'ANSWER_KEY_HEADER',
-          });
+          await this.sendMessage(
+            teacherId,
+            targetNumber,
+            answerKeyHeaderMessage,
+            {
+              studentId: student?.id || null,
+              relatedNewsId: previousQuiz?.news_id || null,
+              relatedQuizId: previousQuiz?.id || null,
+              contentKind: 'ANSWER_KEY_HEADER',
+            },
+          );
           sentKinds.add('ANSWER_KEY_HEADER');
         }
         if (!sentKinds.has('ANSWER_KEY')) {
@@ -2605,11 +2866,16 @@ export class WhatsappService {
         sentKinds.add('NEWS');
       }
       if (latestNews.audio_url && !sentKinds.has('AUDIO')) {
-        await this.sendAudioMessage(teacherId, targetNumber, latestNews.audio_url, {
-          studentId: student?.id || null,
-          relatedNewsId: latestNews.id,
-          contentKind: 'AUDIO',
-        });
+        await this.sendAudioMessage(
+          teacherId,
+          targetNumber,
+          latestNews.audio_url,
+          {
+            studentId: student?.id || null,
+            relatedNewsId: latestNews.id,
+            contentKind: 'AUDIO',
+          },
+        );
         sentKinds.add('AUDIO');
       }
       if (!sentKinds.has('QUIZ_HEADER')) {
@@ -2630,10 +2896,7 @@ export class WhatsappService {
         });
         sentKinds.add('QUIZ');
       }
-      if (
-        quizFooterMessage?.trim() &&
-        !sentKinds.has('QUIZ_FOOTER')
-      ) {
+      if (quizFooterMessage?.trim() && !sentKinds.has('QUIZ_FOOTER')) {
         await this.sendMessage(teacherId, targetNumber, quizFooterMessage, {
           studentId: student?.id || null,
           relatedNewsId: latestNews.id,
@@ -2662,9 +2925,11 @@ export class WhatsappService {
       }
 
       const greetingMessage =
-        byKind.get('PRIVATE_GREETING') || renderVars(settings.private_greeting_message);
+        byKind.get('PRIVATE_GREETING') ||
+        renderVars(settings.private_greeting_message);
       const speakingIntroMessage =
-        byKind.get('SPEAKING_INTRO') || renderVars(settings.speaking_intro_message);
+        byKind.get('SPEAKING_INTRO') ||
+        renderVars(settings.speaking_intro_message);
       const newsIntroMessage =
         byKind.get('NEWS_INTRO') || renderVars(settings.news_intro_message);
       const newsMessage = this.formatNewsBodyForWhatsapp(
@@ -2694,16 +2959,26 @@ export class WhatsappService {
         contentKind: 'NEWS',
       });
       if (latestNews.audio_url) {
-        await this.sendAudioMessage(teacherId, targetNumber, latestNews.audio_url, {
-          studentId: student?.id || null,
-          relatedNewsId: latestNews.id,
-          contentKind: 'AUDIO',
-        });
+        await this.sendAudioMessage(
+          teacherId,
+          targetNumber,
+          latestNews.audio_url,
+          {
+            studentId: student?.id || null,
+            relatedNewsId: latestNews.id,
+            contentKind: 'AUDIO',
+          },
+        );
       }
     }
 
     if (teacherId) {
-      await this.creditsService.deductCredits(teacherId, 'news_quiz_group_send', 'whatsapp', quizId || undefined);
+      await this.creditsService.deductCredits(
+        teacherId,
+        'news_quiz_group_send',
+        'whatsapp',
+        quizId || undefined,
+      );
     }
 
     return {
@@ -2719,13 +2994,19 @@ export class WhatsappService {
 
   private extractInstanceNameFromPayload(payload: any): string | null {
     if (typeof payload?.instanceName === 'string') return payload.instanceName;
-    if (typeof payload?.data?.instanceName === 'string') return payload.data.instanceName;
+    if (typeof payload?.data?.instanceName === 'string')
+      return payload.data.instanceName;
     if (typeof payload?.instance === 'string') return payload.instance;
-    if (typeof payload?.data?.instance === 'string') return payload.data.instance;
-    if (typeof payload?.instance?.instanceName === 'string') return payload.instance.instanceName;
-    if (typeof payload?.data?.instance?.instanceName === 'string') return payload.data.instance.instanceName;
-    if (typeof payload?.instanceData?.instanceName === 'string') return payload.instanceData.instanceName;
-    if (typeof payload?.instanceData?.name === 'string') return payload.instanceData.name;
+    if (typeof payload?.data?.instance === 'string')
+      return payload.data.instance;
+    if (typeof payload?.instance?.instanceName === 'string')
+      return payload.instance.instanceName;
+    if (typeof payload?.data?.instance?.instanceName === 'string')
+      return payload.data.instance.instanceName;
+    if (typeof payload?.instanceData?.instanceName === 'string')
+      return payload.instanceData.instanceName;
+    if (typeof payload?.instanceData?.name === 'string')
+      return payload.instanceData.name;
     return null;
   }
 
@@ -2757,7 +3038,10 @@ export class WhatsappService {
 
       if (connectionStatus === 'open') {
         this.qrCodeCache.delete(instanceName);
-        this.resetAllSyncStates('idle', 'WhatsApp conectado. Sincronize os grupos manualmente.');
+        this.resetAllSyncStates(
+          'idle',
+          'WhatsApp conectado. Sincronize os grupos manualmente.',
+        );
       } else {
         this.resetAllSyncStates(
           'waiting_connection',
@@ -2794,10 +3078,13 @@ export class WhatsappService {
     const messageData = data?.message;
     const remoteJid = data?.key?.remoteJid;
     const fromMe = data?.key?.fromMe;
-    const isGroup = typeof remoteJid === 'string' && remoteJid.includes('@g.us');
+    const isGroup =
+      typeof remoteJid === 'string' && remoteJid.includes('@g.us');
     const senderJidRaw = isGroup ? data?.key?.participant : remoteJid;
 
-    this.logger.log(`[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | participantAlt=${data?.key?.participantAlt} | pushName=${data?.pushName}`);
+    this.logger.log(
+      `[WEBHOOK] processSingleMessage | instance=${instanceName} | remoteJid=${remoteJid} | isGroup=${isGroup} | participant=${data?.key?.participant} | participantAlt=${data?.key?.participantAlt} | pushName=${data?.pushName}`,
+    );
 
     const textContent = this.extractTextContent(messageData);
     const hasAudio = Boolean(messageData?.audioMessage);
@@ -2805,7 +3092,9 @@ export class WhatsappService {
     const quotedMessageId = this.extractQuotedMessageId(data);
 
     if (!messageData || typeof remoteJid !== 'string') {
-      this.logger.warn(`[WEBHOOK] Mensagem ignorada - messageData: ${!!messageData}, remoteJid: ${remoteJid}`);
+      this.logger.warn(
+        `[WEBHOOK] Mensagem ignorada - messageData: ${!!messageData}, remoteJid: ${remoteJid}`,
+      );
       return;
     }
 
@@ -2824,7 +3113,9 @@ export class WhatsappService {
       if (typeof alt === 'string' && alt.includes('@s.whatsapp.net')) {
         senderJid = alt;
       } else {
-        this.logger.warn(`[ENTRADA][IGNORADA] SenderJid com @lid sem participantAlt: ${senderJid}`);
+        this.logger.warn(
+          `[ENTRADA][IGNORADA] SenderJid com @lid sem participantAlt: ${senderJid}`,
+        );
         return;
       }
     }
@@ -2849,12 +3140,14 @@ export class WhatsappService {
 
     if (student.active === false) {
       this.logger.warn(
-        `[ENTRADA][IGNORADA] Aluno inativo: ${this.formatStudentLog(student as any)}.`,
+        `[ENTRADA][IGNORADA] Aluno inativo: ${this.formatStudentLog(student)}.`,
       );
       return;
     }
 
-    const isPossibleQuiz = textContent ? this.isPossibleQuizAnswer(textContent) : false;
+    const isPossibleQuiz = textContent
+      ? this.isPossibleQuizAnswer(textContent)
+      : false;
     const identifiedType = hasAudio
       ? 'audio'
       : isPossibleQuiz
@@ -2896,7 +3189,7 @@ export class WhatsappService {
 
     if (textContent) {
       const handledLesson = await this.handleLessonConfirmationResponse({
-        student: student as any,
+        student: student,
         remoteJid,
         text: textContent,
         incomingMessageId,
@@ -2907,7 +3200,7 @@ export class WhatsappService {
       }
 
       const handledWeekly = await this.handleWeeklySummaryResponse({
-        student: student as any,
+        student: student,
         text: textContent,
         quotedMessageId,
         teacherId: student.teacher_id || undefined,
@@ -2939,9 +3232,7 @@ export class WhatsappService {
       return false;
     }
 
-    return parts.every(
-      (p) => /^\d*[A-E]$/.test(p) || /^[A-E]$/.test(p),
-    );
+    return parts.every((p) => /^\d*[A-E]$/.test(p) || /^[A-E]$/.test(p));
   }
 
   private async isConfiguredGroup(
@@ -2981,7 +3272,10 @@ export class WhatsappService {
     const isGroup = remoteJid.includes('@g.us');
 
     if (isGroup && student.teacher_id) {
-      const configured = await this.isConfiguredGroup(student.teacher_id, remoteJid);
+      const configured = await this.isConfiguredGroup(
+        student.teacher_id,
+        remoteJid,
+      );
       if (!configured) {
         this.logger.log(
           `[QUIZ][GRUPO] Resposta ignorada de ${this.formatStudentLog(student)} | grupo nao configurado para automacao.`,
@@ -2991,8 +3285,18 @@ export class WhatsappService {
     }
 
     if (student.teacher_id) {
-      try { await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_received'); } catch { }
-      try { await this.creditsService.requireCredits(student.teacher_id, 'quiz_response_metrics'); } catch { }
+      try {
+        await this.creditsService.requireCredits(
+          student.teacher_id,
+          'quiz_response_received',
+        );
+      } catch {}
+      try {
+        await this.creditsService.requireCredits(
+          student.teacher_id,
+          'quiz_response_metrics',
+        );
+      } catch {}
     }
 
     let parsedAnswers = preParsedAnswers;
@@ -3018,7 +3322,8 @@ export class WhatsappService {
           );
           parsedAnswers = aiAnswers.map((a) => ({
             questionIndex: a.questionIndex,
-            selectedAnswer: a.selectedAnswer as ParsedQuizAnswer['selectedAnswer'],
+            selectedAnswer:
+              a.selectedAnswer as ParsedQuizAnswer['selectedAnswer'],
           }));
         }
       }
@@ -3026,7 +3331,8 @@ export class WhatsappService {
 
     if (!parsedAnswers || parsedAnswers.length === 0) return;
 
-    const referencedMessage = await this.resolveReferencedMessage(quotedMessageId);
+    const referencedMessage =
+      await this.resolveReferencedMessage(quotedMessageId);
     let quizResolutionSource = 'fallback';
     let latestQuiz = referencedMessage?.related_quiz_id
       ? await this.prisma.quiz.findUnique({
@@ -3057,7 +3363,14 @@ export class WhatsappService {
     }
 
     if (latestQuiz && student?.teacher_id) {
-      try { await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_received', 'quiz', latestQuiz.id); } catch { }
+      try {
+        await this.creditsService.deductCredits(
+          student.teacher_id,
+          'quiz_response_received',
+          'quiz',
+          latestQuiz.id,
+        );
+      } catch {}
     }
 
     this.logger.log(
@@ -3115,7 +3428,9 @@ export class WhatsappService {
 
     if (correctLetters.includes('-')) return;
 
-    const normalizedAnswers = new Array<string>(questionsArray.length).fill('-');
+    const normalizedAnswers = new Array<string>(questionsArray.length).fill(
+      '-',
+    );
     const usedQuestionIndexes = new Set<number>();
 
     for (const parsedAnswer of parsedAnswers) {
@@ -3161,7 +3476,14 @@ export class WhatsappService {
     });
 
     if (student.teacher_id) {
-      try { await this.creditsService.deductCredits(student.teacher_id, 'quiz_response_metrics', 'quiz', latestQuiz.id); } catch { }
+      try {
+        await this.creditsService.deductCredits(
+          student.teacher_id,
+          'quiz_response_metrics',
+          'quiz',
+          latestQuiz.id,
+        );
+      } catch {}
     }
 
     this.logger.log(
@@ -3185,15 +3507,27 @@ export class WhatsappService {
     const endOfDay = new Date(now);
     endOfDay.setHours(23, 59, 59, 999);
 
-    let pending: { id: string; status: any; lesson_id: string; request_message_id: string | null } | null = null;
+    const pending: {
+      id: string;
+      status: any;
+      lesson_id: string;
+      request_message_id: string | null;
+    } | null = null;
 
     let pendingConfirmations: Array<{ id: string; lesson_id: string }> = [];
 
     if (input.quotedMessageId) {
-      const confirmationByQuote = await this.prisma.lessonConfirmation.findFirst({
-        where: { request_message_id: input.quotedMessageId },
-        select: { id: true, status: true, lesson_id: true, request_message_id: true, occurrence_date: true },
-      });
+      const confirmationByQuote =
+        await this.prisma.lessonConfirmation.findFirst({
+          where: { request_message_id: input.quotedMessageId },
+          select: {
+            id: true,
+            status: true,
+            lesson_id: true,
+            request_message_id: true,
+            occurrence_date: true,
+          },
+        });
 
       if (!confirmationByQuote) {
         return false;
@@ -3253,7 +3587,14 @@ export class WhatsappService {
 
     for (const conf of pendingConfirmations) {
       if (input.student?.teacher_id) {
-        try { await this.creditsService.deductCredits(input.student.teacher_id, 'lesson_confirmation_process', 'lesson', conf.lesson_id); } catch { }
+        try {
+          await this.creditsService.deductCredits(
+            input.student.teacher_id,
+            'lesson_confirmation_process',
+            'lesson',
+            conf.lesson_id,
+          );
+        } catch {}
       }
 
       await this.prisma.lessonConfirmation.update({
@@ -3301,7 +3642,10 @@ export class WhatsappService {
 
     if (input.quotedMessageId) {
       weeklyMsg = await this.prisma.whatsappMessage.findFirst({
-        where: { external_message_id: input.quotedMessageId, content_kind: 'WEEKLY_LESSON_SUMMARY' },
+        where: {
+          external_message_id: input.quotedMessageId,
+          content_kind: 'WEEKLY_LESSON_SUMMARY',
+        },
         select: { id: true },
       });
     } else {
@@ -3352,18 +3696,30 @@ export class WhatsappService {
     }
 
     try {
-      await this.creditsService.deductCredits(input.teacherId, 'weekly_summary_process', 'lesson', input.student.id);
-    } catch { }
+      await this.creditsService.deductCredits(
+        input.teacherId,
+        'weekly_summary_process',
+        'lesson',
+        input.student.id,
+      );
+    } catch {}
 
     await this.prisma.whatsappMessage.update({
       where: { id: weeklyMsg.id },
       data: {
-        content_kind: decision === 'YES' ? 'WEEKLY_SUMMARY_CONFIRMED' : 'WEEKLY_SUMMARY_DECLINED',
+        content_kind:
+          decision === 'YES'
+            ? 'WEEKLY_SUMMARY_CONFIRMED'
+            : 'WEEKLY_SUMMARY_DECLINED',
       },
     });
 
     if (decision === 'YES') {
-      await this.confirmWeeklyLessons(input.teacherId, input.student, input.quotedMessageId);
+      await this.confirmWeeklyLessons(
+        input.teacherId,
+        input.student,
+        input.quotedMessageId,
+      );
     }
 
     this.logger.log(
@@ -3382,15 +3738,29 @@ export class WhatsappService {
       const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
       const now = new Date();
       const timeStr = new Intl.DateTimeFormat('en-US', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false, timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone,
       }).format(now);
       const [h] = timeStr.split(':').map(Number);
       const todayStart = new Date(now.getTime() - h * 3600000);
       todayStart.setMinutes(0, 0, 0);
 
-      const weekdayName = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone }).format(now);
-      const weekdayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const weekdayName = new Intl.DateTimeFormat('en-US', {
+        weekday: 'long',
+        timeZone,
+      }).format(now);
+      const weekdayNames = [
+        'sunday',
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+      ];
       const todayWeekday = weekdayNames.indexOf(weekdayName.toLowerCase());
       const mondayOffset = todayWeekday === 0 ? -6 : 1 - todayWeekday;
       const monday = new Date(todayStart);
@@ -3416,16 +3786,28 @@ export class WhatsappService {
         if (lesson.kind === 'EXTRA' && lesson.date) {
           occurrenceDate = lesson.date;
         } else {
-          const dayDiff = lesson.weekday !== null ? lesson.weekday - todayWeekday : 0;
+          const dayDiff =
+            lesson.weekday !== null ? lesson.weekday - todayWeekday : 0;
           occurrenceDate = new Date(todayStart);
           occurrenceDate.setDate(todayStart.getDate() + dayDiff);
-          if (occurrenceDate < monday) occurrenceDate.setDate(occurrenceDate.getDate() + 7);
+          if (occurrenceDate < monday)
+            occurrenceDate.setDate(occurrenceDate.getDate() + 7);
         }
         if (occurrenceDate < monday || occurrenceDate > sunday) continue;
 
         await this.prisma.lessonConfirmation.upsert({
-          where: { lesson_id_occurrence_date: { lesson_id: lesson.id, occurrence_date: occurrenceDate } },
-          create: { lesson_id: lesson.id, occurrence_date: occurrenceDate, status: 'CONFIRMED', source: 'WEEKLY_SUMMARY' },
+          where: {
+            lesson_id_occurrence_date: {
+              lesson_id: lesson.id,
+              occurrence_date: occurrenceDate,
+            },
+          },
+          create: {
+            lesson_id: lesson.id,
+            occurrence_date: occurrenceDate,
+            status: 'CONFIRMED',
+            source: 'WEEKLY_SUMMARY',
+          },
           update: { status: 'CONFIRMED', source: 'WEEKLY_SUMMARY' },
         });
         confirmedCount++;
@@ -3436,19 +3818,24 @@ export class WhatsappService {
       );
 
       try {
-        const msg = confirmedCount > 0
-          ? `✅ *Agenda da semana confirmada!* ${confirmedCount} aula(s) confirmada(s). Tenha uma ótima semana! 🚀`
-          : `✅ *Agenda da semana confirmada!* Nenhuma aula encontrada para essa semana.`;
+        const msg =
+          confirmedCount > 0
+            ? `✅ *Agenda da semana confirmada!* ${confirmedCount} aula(s) confirmada(s). Tenha uma ótima semana! 🚀`
+            : `✅ *Agenda da semana confirmada!* Nenhuma aula encontrada para essa semana.`;
         await this.sendMessage(teacherId, student.whatsapp_number, msg, {
           studentId: student.id,
           relatedNewsId: null,
           contentKind: 'WEEKLY_SUMMARY_CONFIRMED',
         });
       } catch (err) {
-        this.logger.error(`[WEEKLY_SUMMARY] Erro ao enviar confirmacao para ${student.full_name}: ${err?.message || err}`);
+        this.logger.error(
+          `[WEEKLY_SUMMARY] Erro ao enviar confirmacao para ${student.full_name}: ${err?.message || err}`,
+        );
       }
     } catch (error) {
-      this.logger.error(`[WEEKLY_SUMMARY] Erro ao confirmar aulas: ${error?.message || error}`);
+      this.logger.error(
+        `[WEEKLY_SUMMARY] Erro ao confirmar aulas: ${error?.message || error}`,
+      );
     }
   }
 
@@ -3462,7 +3849,7 @@ export class WhatsappService {
   ) {
     if (remoteJid.includes('@g.us')) {
       this.logger.log(
-        `[AUDIO][IGNORADO] Audio ignorado de ${this.formatStudentLog(student)} | enviado em grupo, so processamos audio de conversas privadas.`
+        `[AUDIO][IGNORADO] Audio ignorado de ${this.formatStudentLog(student)} | enviado em grupo, so processamos audio de conversas privadas.`,
       );
       return;
     }
@@ -3481,12 +3868,15 @@ export class WhatsappService {
       let latestNews = null as any;
 
       if (quotedMessageId) {
-        const referencedMessage = await this.resolveReferencedMessage(quotedMessageId);
+        const referencedMessage =
+          await this.resolveReferencedMessage(quotedMessageId);
         const referencedNewsId = referencedMessage?.related_news_id || null;
         const referencedCreatedAt = referencedMessage?.created_at || null;
 
         latestNews = referencedNewsId
-          ? await this.prisma.news.findUnique({ where: { id: referencedNewsId } })
+          ? await this.prisma.news.findUnique({
+              where: { id: referencedNewsId },
+            })
           : null;
 
         if (!latestNews && referencedCreatedAt && student.teacher_id) {
@@ -3507,18 +3897,20 @@ export class WhatsappService {
           });
         }
       } else {
-        const lastSentNewsMessage = await this.prisma.whatsappMessage.findFirst({
-          where: {
-            student_id: student.id,
-            direction: 'OUTGOING',
-            content_kind: 'NEWS',
+        const lastSentNewsMessage = await this.prisma.whatsappMessage.findFirst(
+          {
+            where: {
+              student_id: student.id,
+              direction: 'OUTGOING',
+              content_kind: 'NEWS',
+            },
+            select: {
+              related_news_id: true,
+              created_at: true,
+            },
+            orderBy: { created_at: 'desc' },
           },
-          select: {
-            related_news_id: true,
-            created_at: true,
-          },
-          orderBy: { created_at: 'desc' },
-        });
+        );
 
         if (lastSentNewsMessage?.related_news_id) {
           latestNews = await this.prisma.news.findUnique({
@@ -3555,20 +3947,19 @@ export class WhatsappService {
       }
 
       if (quotedMessageId) {
-        const existingAudioForQuotedMessage =
-          incomingMessageId
-            ? await this.prisma.whatsappMessage.findFirst({
-                where: {
-                  student_id: student.id,
-                  direction: 'INCOMING',
-                  quoted_message_id: quotedMessageId,
-                  content_kind: { in: ['AUDIO', 'SPEAKING_AUDIO'] },
-                  external_message_id: { not: incomingMessageId },
-                },
-                select: { id: true, created_at: true },
-                orderBy: { created_at: 'desc' },
-              })
-            : null;
+        const existingAudioForQuotedMessage = incomingMessageId
+          ? await this.prisma.whatsappMessage.findFirst({
+              where: {
+                student_id: student.id,
+                direction: 'INCOMING',
+                quoted_message_id: quotedMessageId,
+                content_kind: { in: ['AUDIO', 'SPEAKING_AUDIO'] },
+                external_message_id: { not: incomingMessageId },
+              },
+              select: { id: true, created_at: true },
+              orderBy: { created_at: 'desc' },
+            })
+          : null;
 
         if (existingAudioForQuotedMessage) {
           this.logger.log(
@@ -3577,19 +3968,20 @@ export class WhatsappService {
           return;
         }
       } else {
-        const existingSubmissionForNews = await this.prisma.audioSubmission.findFirst({
-          where: {
-            student_id: student.id,
-            news_id: latestNews.id,
-          },
-          orderBy: {
-            created_at: 'desc',
-          },
-          select: {
-            id: true,
-            created_at: true,
-          },
-        });
+        const existingSubmissionForNews =
+          await this.prisma.audioSubmission.findFirst({
+            where: {
+              student_id: student.id,
+              news_id: latestNews.id,
+            },
+            orderBy: {
+              created_at: 'desc',
+            },
+            select: {
+              id: true,
+              created_at: true,
+            },
+          });
 
         if (existingSubmissionForNews) {
           this.logger.log(
@@ -3628,7 +4020,7 @@ export class WhatsappService {
           news_id: latestNews.id,
           audio_url: base64Audio,
           transcription: feedback.transcription,
-        }
+        },
       });
 
       if (incomingMessageId) {
@@ -3648,7 +4040,7 @@ export class WhatsappService {
           score: feedback.score || 0,
           feedback: feedback.feedback || 'Sem feedback',
           mistakes: feedback.mistakes || [],
-        }
+        },
       });
 
       const strengthsText = feedback.strengths?.length
@@ -3683,18 +4075,22 @@ export class WhatsappService {
         '🔎 *Palavras ou trechos para corrigir:*',
         mistakesText,
       ].join('\n');
-      await this.sendMessage(student.teacher_id as string, remoteJid, replyText, {
-        studentId: student.id,
+      await this.sendMessage(
+        student.teacher_id as string,
         remoteJid,
-        relatedNewsId: latestNews.id,
-        contentKind: 'SPEAKING_FEEDBACK',
-        quotedMessageId: quotedMessageId || null,
-      });
+        replyText,
+        {
+          studentId: student.id,
+          remoteJid,
+          relatedNewsId: latestNews.id,
+          contentKind: 'SPEAKING_FEEDBACK',
+          quotedMessageId: quotedMessageId || null,
+        },
+      );
 
       this.logger.log(
         `[AUDIO][SAIDA] Feedback de speaking enviado para ${this.formatStudentLog(student)} | noticia ${latestNews.id} | nota: ${feedback.score}/10`,
       );
-
     } catch (error) {
       this.logger.error(
         `[AUDIO][ERRO] Falha ao processar audio de ${this.formatStudentLog(student)}`,
@@ -3752,10 +4148,13 @@ export class WhatsappService {
           related_news_id: metadata?.relatedNewsId || null,
           related_quiz_id: metadata?.relatedQuizId || null,
           content_kind: metadata?.contentKind || null,
-        }
+        },
       });
     } catch (error) {
-      this.logger.error('[DB][ERRO] Falha ao salvar mensagem no banco de dados', error);
+      this.logger.error(
+        '[DB][ERRO] Falha ao salvar mensagem no banco de dados',
+        error,
+      );
     }
   }
 
@@ -3784,7 +4183,9 @@ export class WhatsappService {
       await this.prisma.whatsappMessage.create({
         data: {
           student_id: input.studentId,
-          message_type: input.remoteJid?.includes('@g.us') ? 'GROUP' : 'PRIVATE',
+          message_type: input.remoteJid?.includes('@g.us')
+            ? 'GROUP'
+            : 'PRIVATE',
           direction: 'OUTGOING',
           content: input.content,
           media_url: input.mediaUrl || null,
@@ -3810,18 +4211,27 @@ export class WhatsappService {
   // private formatPrivateSpeakingIntroForWhatsapp()
   // private formatTodayNewsIntroForWhatsapp()
 
-  private formatNewsBodyForWhatsapp(title: string, content: string, sourceUrl?: string | null) {
+  private formatNewsBodyForWhatsapp(
+    title: string,
+    content: string,
+    sourceUrl?: string | null,
+  ) {
     const cleanTitle = title.replace(/\s*[-–—]\s*level\s*\d+\s*$/i, '').trim();
     const markerMatches = [
       ...String(content || '').matchAll(/\bDifficult\s+words\s*:/gi),
     ];
     const markerMatch =
       markerMatches.length > 0 ? markerMatches[markerMatches.length - 1] : null;
-    const markerIdx = typeof markerMatch?.index === 'number' ? markerMatch.index : -1;
+    const markerIdx =
+      typeof markerMatch?.index === 'number' ? markerMatch.index : -1;
     const markerLen = markerMatch?.[0]?.length || 0;
 
     const difficultWordsRaw =
-      markerIdx >= 0 ? String(content).slice(markerIdx + markerLen).trim() : '';
+      markerIdx >= 0
+        ? String(content)
+            .slice(markerIdx + markerLen)
+            .trim()
+        : '';
     const newsBody =
       markerIdx >= 0
         ? String(content).slice(0, markerIdx).trim()
@@ -3841,21 +4251,37 @@ export class WhatsappService {
 
     const appearsInBody = (term: string) => {
       const termPattern = this.buildWordVariantPattern(term);
-      const regex = new RegExp(`(^|[^A-Za-z])(${termPattern})(?=$|[^A-Za-z])`, 'i');
+      const regex = new RegExp(
+        `(^|[^A-Za-z])(${termPattern})(?=$|[^A-Za-z])`,
+        'i',
+      );
       return regex.test(newsBody);
     };
 
-    const filteredWords = uniqueWords.filter((entry) => appearsInBody(entry.term));
-    const highlightedNewsBody = this.boldDifficultWordsInText(newsBody, filteredWords);
+    const filteredWords = uniqueWords.filter((entry) =>
+      appearsInBody(entry.term),
+    );
+    const highlightedNewsBody = this.boldDifficultWordsInText(
+      newsBody,
+      filteredWords,
+    );
     const difficultWordsSection = filteredWords.length
       ? [
           '*Difficult Words:*',
           '',
-          ...filteredWords.map((entry) => `- *${entry.term}*: ${entry.definition}`),
+          ...filteredWords.map(
+            (entry) => `- *${entry.term}*: ${entry.definition}`,
+          ),
         ].join('\n')
       : '*Difficult Words:*';
 
-    const parts = [`📰 ${cleanTitle}`, '', highlightedNewsBody, '', difficultWordsSection];
+    const parts = [
+      `📰 ${cleanTitle}`,
+      '',
+      highlightedNewsBody,
+      '',
+      difficultWordsSection,
+    ];
 
     if (sourceUrl) {
       parts.push('', `🔗 ${sourceUrl}`);
@@ -3868,10 +4294,7 @@ export class WhatsappService {
 
   private formatQuizBodyForWhatsapp(questions: QuizQuestion[], footer: string) {
     const blocks = questions.map((question) =>
-      [
-        question.question,
-        ...question.options,
-      ].join('\n'),
+      [question.question, ...question.options].join('\n'),
     );
 
     return [
@@ -3962,13 +4385,11 @@ export class WhatsappService {
   }
 
   private formatAnswerKeyForWhatsapp(
-    quiz:
-      | {
-          id: string;
-          news?: { title?: string | null } | null;
-          questions: unknown;
-        }
-      | null,
+    quiz: {
+      id: string;
+      news?: { title?: string | null } | null;
+      questions: unknown;
+    } | null,
   ) {
     if (!quiz || !Array.isArray(quiz.questions)) {
       return null;
@@ -3983,7 +4404,8 @@ export class WhatsappService {
       title.replace(/\s*[-–—]\s*level\s*\d+\s*$/i, '').trim();
 
     const answerLines = questions.map((question, index) => {
-      const answer = question.correct_answer?.trim() || 'Sem resposta cadastrada';
+      const answer =
+        question.correct_answer?.trim() || 'Sem resposta cadastrada';
       return `${index + 1}. ${answer}`;
     });
 
@@ -4165,8 +4587,7 @@ export class WhatsappService {
           | undefined;
         const message = responseData?.response?.message;
         const hasInvalidIntegration =
-          Array.isArray(message) &&
-          message.includes('Invalid integration');
+          Array.isArray(message) && message.includes('Invalid integration');
 
         if (hasInvalidIntegration) {
           const fallbackResponse = await this.http.post('/instance/create', {
@@ -4260,7 +4681,9 @@ export class WhatsappService {
 
     return {
       instanceName:
-        instanceData.instanceName || instance?.instanceName || fallbackInstanceName,
+        instanceData.instanceName ||
+        instance?.instanceName ||
+        fallbackInstanceName,
       status,
       owner:
         instanceData.ownerJid ||
@@ -4272,7 +4695,9 @@ export class WhatsappService {
   }
 
   private normalizeConnectionStatus(value: unknown) {
-    const raw = String(value || '').trim().toLowerCase();
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase();
 
     if (['open', 'connected', 'online'].includes(raw)) {
       return 'open';
@@ -4406,7 +4831,10 @@ export class WhatsappService {
     const contextInfo = this.findContextInfo(payload);
     const stanzaIdFromContext = contextInfo?.stanzaId;
 
-    if (typeof stanzaIdFromContext === 'string' && stanzaIdFromContext.length > 0) {
+    if (
+      typeof stanzaIdFromContext === 'string' &&
+      stanzaIdFromContext.length > 0
+    ) {
       return stanzaIdFromContext;
     }
 
@@ -4432,7 +4860,10 @@ export class WhatsappService {
     return null;
   }
 
-  private findNestedStringValue(value: any, candidateKeys: string[]): string | null {
+  private findNestedStringValue(
+    value: any,
+    candidateKeys: string[],
+  ): string | null {
     if (!value || typeof value !== 'object') {
       return null;
     }
@@ -4446,7 +4877,10 @@ export class WhatsappService {
         return nestedValue;
       }
 
-      const nestedResult = this.findNestedStringValue(nestedValue, candidateKeys);
+      const nestedResult = this.findNestedStringValue(
+        nestedValue,
+        candidateKeys,
+      );
       if (nestedResult) {
         return nestedResult;
       }
@@ -4563,8 +4997,13 @@ export class WhatsappService {
         creation: typeof group?.creation === 'number' ? group.creation : null,
         desc: typeof group?.desc === 'string' ? group.desc : null,
       }))
-      .filter((group: EvolutionGroup) => group.id.endsWith('@g.us') && group.subject.length > 0)
-      .sort((a: EvolutionGroup, b: EvolutionGroup) => a.subject.localeCompare(b.subject, 'pt-BR'));
+      .filter(
+        (group: EvolutionGroup) =>
+          group.id.endsWith('@g.us') && group.subject.length > 0,
+      )
+      .sort((a: EvolutionGroup, b: EvolutionGroup) =>
+        a.subject.localeCompare(b.subject, 'pt-BR'),
+      );
   }
 
   private normalizeGroupTitle(value: string) {
@@ -4617,7 +5056,10 @@ export class WhatsappService {
     return next;
   }
 
-  private resetAllSyncStates(stage: WhatsappSyncStage = 'idle', message?: string) {
+  private resetAllSyncStates(
+    stage: WhatsappSyncStage = 'idle',
+    message?: string,
+  ) {
     for (const teacherId of this.syncStateByTeacher.keys()) {
       this.updateSyncState(teacherId, {
         stage,
@@ -4765,7 +5207,10 @@ export class WhatsappService {
     });
   }
 
-  private async fetchGroupsFromEvolution(teacherId: string, timeout = 60000): Promise<EvolutionGroup[]> {
+  private async fetchGroupsFromEvolution(
+    teacherId: string,
+    timeout = 60000,
+  ): Promise<EvolutionGroup[]> {
     const instanceName = await this.resolveInstanceName(teacherId);
     const response = await this.http.get(
       `/group/fetchAllGroups/${instanceName}`,
@@ -4868,7 +5313,9 @@ export class WhatsappService {
     return (
       this.isAxiosError(error) &&
       (error.code === 'ECONNABORTED' ||
-        String(error.message || '').toLowerCase().includes('timeout'))
+        String(error.message || '')
+          .toLowerCase()
+          .includes('timeout'))
     );
   }
 

@@ -1,4 +1,11 @@
-import { Controller, Get, Patch, Param, Body, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Body,
+  BadRequestException,
+} from '@nestjs/common';
 import { CreditsService } from './credits.service';
 
 @Controller('credits')
@@ -11,9 +18,14 @@ export class CreditsController {
   }
 
   @Patch('config/:key')
-  async updateCost(@Param('key') key: string, @Body() body: { current_cost: number }) {
+  async updateCost(
+    @Param('key') key: string,
+    @Body() body: { current_cost: number },
+  ) {
     if (body.current_cost == null || body.current_cost < 0) {
-      throw new BadRequestException('current_cost é obrigatório e deve ser >= 0');
+      throw new BadRequestException(
+        'current_cost é obrigatório e deve ser >= 0',
+      );
     }
     return this.service.updateCost(key, body.current_cost);
   }
@@ -30,7 +42,10 @@ export class CreditsController {
   }
 
   @Get('check/:userId/:actionKey')
-  async checkBalance(@Param('userId') userId: string, @Param('actionKey') actionKey: string) {
+  async checkBalance(
+    @Param('userId') userId: string,
+    @Param('actionKey') actionKey: string,
+  ) {
     return this.service.checkBalance(userId, actionKey);
   }
 }
