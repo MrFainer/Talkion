@@ -200,7 +200,7 @@ export class WhatsappService {
     await this.createInstance(instanceName);
 
     if (this.getWebhookUrl()) {
-      await this.setWebhook(instanceName);
+      try { await this.setWebhook(instanceName); } catch (e) { this.logger.error(`[WEBHOOK] Falha ao configurar webhook para ${instanceName}`, e); }
     }
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
