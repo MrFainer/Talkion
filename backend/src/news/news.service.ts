@@ -706,7 +706,7 @@ export class NewsService {
             );
             await this.creditsService.requireCredits(
               tracking.teacherId,
-              'news_tts',
+              'news_tts_fallback',
             );
             const audioBuffer = await this.aiService.generateNewsAudio(
               input.content,
@@ -727,7 +727,7 @@ export class NewsService {
 
             await this.creditsService.deductCredits(
               tracking.teacherId,
-              'news_tts',
+              'news_tts_fallback',
               'news',
               createdNews.id,
             );
