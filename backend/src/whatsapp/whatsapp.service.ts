@@ -392,11 +392,17 @@ export class WhatsappService {
    */
   async logout(teacherId: string) {
     const instanceName = await this.resolveInstanceName(teacherId);
-    await this.http.delete(`/instance/delete/${instanceName}`);
+
+    try {
+      await this.http.delete(`/instance/delete/${instanceName}`);
+    } catch (error) {
+      this.logger.warn(
+        `[LOGOUT] Erro ao deletar instância ${instanceName} na Evolution API (provavelmente já foi removida)`,
+        this.describeError(error),
+      );
+    }
+
     this.qrCodeCache.delete(instanceName);
-    this.resetAllSyncStates('idle', 'WhatsApp desconectado.'); // Optional: maybe only reset for this teacher?
-    
-    // Better to reset only for this teacher
     this.updateSyncState(teacherId, {
       stage: 'idle',
       progress: 0,
