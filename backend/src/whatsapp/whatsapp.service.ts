@@ -425,7 +425,7 @@ export class WhatsappService {
       await this.http.post(`/instance/logout/${instanceName}`);
       this.logger.log(`[LOGOUT] WhatsApp desconectado para ${instanceName}`);
     } catch {
-      // Se não existir o endpoint de logout, ignora
+      this.logger.warn(`[LOGOUT] POST /instance/logout/${instanceName} não disponível (pode não existir nesta versão da API)`);
     }
 
     // Tenta DELETE convencional
@@ -449,10 +449,13 @@ export class WhatsappService {
 
   private async clearInstanceName(teacherId: string) {
     try {
+      const suffix = Date.now().toString(36).slice(-6);
+      const newName = `talkion_prof_${teacherId.substring(0, 8)}_${suffix}`;
       await this.prisma.user.update({
         where: { id: teacherId },
-        data: { whatsapp_instance_name: null },
+        data: { whatsapp_instance_name: newName },
       });
+      this.logger.log(`[LOGOUT] Nova instância reservada: ${newName}`);
     } catch (error) {
       this.logger.error(
         `[LOGOUT] Erro ao limpar instance_name do professor ${teacherId}`,
