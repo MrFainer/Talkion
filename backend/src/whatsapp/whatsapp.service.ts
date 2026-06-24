@@ -2450,6 +2450,10 @@ export class WhatsappService {
           );
           count++;
           await new Promise((resolve) => setTimeout(resolve, 2000));
+        } else {
+          this.logger.warn(
+            `[BROADCAST] Áudio não encontrado para ${student.whatsapp_number} (nível ${student.english_level}) — notícia sem audio_url.`,
+          );
         }
 
         if (teacherId) {
@@ -2503,6 +2507,10 @@ export class WhatsappService {
             );
             count++;
             await new Promise((resolve) => setTimeout(resolve, 2000));
+          } else {
+            this.logger.warn(
+              `[BROADCAST][FALLBACK] Áudio não encontrado para ${student.whatsapp_number} (nível ${student.english_level}) — notícia sem audio_url.`,
+            );
           }
 
           if (teacherId) {

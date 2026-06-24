@@ -698,6 +698,45 @@ export class NewsService {
         this.logger.warn(
           `Falha ao baixar áudio SoundCloud para [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,
         );
+
+        if (tracking?.teacherId) {
+          try {
+            this.logger.log(
+              `Gerando áudio via TTS (fallback) para [${input.level}] ${input.title}...`,
+            );
+            await this.creditsService.requireCredits(
+              tracking.teacherId,
+              'news_tts',
+            );
+            const audioBuffer = await this.aiService.generateNewsAudio(
+              input.content,
+              { ...tracking, newsId: createdNews.id },
+            );
+            const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+            await mkdir(audioDir, { recursive: true });
+            const filePath = join(audioDir, `${createdNews.id}.mp3`);
+            await writeFile(filePath, audioBuffer);
+            const audioUrlPath = `/uploads/news-audio/${createdNews.id}.mp3`;
+            await this.prisma.news.update({
+              where: { id: createdNews.id },
+              data: { audio_url: audioUrlPath },
+            });
+            this.logger.log(
+              `Áudio TTS gerado (fallback SoundCloud) para: [${input.level}] ${input.title}`,
+            );
+
+            await this.creditsService.deductCredits(
+              tracking.teacherId,
+              'news_tts',
+              'news',
+              createdNews.id,
+            );
+          } catch (ttsError) {
+            this.logger.warn(
+              `Falha também no TTS fallback para [${input.level}] ${input.title}: ${ttsError instanceof Error ? ttsError.message : String(ttsError)}`,
+            );
+          }
+        }
       }
     }
 
