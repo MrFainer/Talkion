@@ -392,14 +392,13 @@ export class WhatsappService {
    */
   async logout(teacherId: string) {
     const instanceName = await this.resolveInstanceName(teacherId);
+    const deleted = await this.deleteEvolutionInstance(instanceName);
 
-    try {
-      await this.http.delete(`/instance/delete/${instanceName}`);
-    } catch (error) {
+    if (!deleted) {
       this.logger.warn(
-        `[LOGOUT] Erro ao deletar instância ${instanceName} na Evolution API (provavelmente já foi removida)`,
-        this.describeError(error),
+        `[LOGOUT] Não foi possível deletar a instância ${instanceName} na Evolution API. Limpando referência local para permitir recriação.`,
       );
+      await this.clearInstanceName(teacherId);
     }
 
     this.qrCodeCache.delete(instanceName);
@@ -418,6 +417,48 @@ export class WhatsappService {
     });
 
     return { success: true };
+  }
+
+  private async deleteEvolutionInstance(instanceName: string): Promise<boolean> {
+    // Tenta logout primeiro (desconectar WhatsApp antes de deletar)
+    try {
+      await this.http.post(`/instance/logout/${instanceName}`);
+      this.logger.log(`[LOGOUT] WhatsApp desconectado para ${instanceName}`);
+    } catch {
+      // Se não existir o endpoint de logout, ignora
+    }
+
+    // Tenta DELETE convencional
+    try {
+      await this.http.delete(`/instance/delete/${instanceName}`);
+      return true;
+    } catch {
+      this.logger.warn(`[LOGOUT] DELETE /instance/delete falhou para ${instanceName}, tentando POST...`);
+    }
+
+    // Tenta POST /instance/delete com body (algumas versões da API usam esse formato)
+    try {
+      await this.http.post('/instance/delete', { instanceName });
+      return true;
+    } catch {
+      this.logger.warn(`[LOGOUT] POST /instance/delete falhou para ${instanceName}`);
+    }
+
+    return false;
+  }
+
+  private async clearInstanceName(teacherId: string) {
+    try {
+      await this.prisma.user.update({
+        where: { id: teacherId },
+        data: { whatsapp_instance_name: null },
+      });
+    } catch (error) {
+      this.logger.error(
+        `[LOGOUT] Erro ao limpar instance_name do professor ${teacherId}`,
+        this.describeError(error),
+      );
+    }
   }
 
   /**
