@@ -14,6 +14,6 @@ import { CreditsService } from '../credits/credits.service';
     MailService,
     CreditsService,
   ],
-  exports: [SubscriptionsService, MercadoPagoService],
+  exports: [SubscriptionsService],
 })
 export class SubscriptionsModule {}

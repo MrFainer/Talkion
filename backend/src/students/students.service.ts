@@ -193,7 +193,7 @@ export class StudentsService {
       const workbook = xlsx.read(file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows = xlsx.utils.sheet_to_json(sheet);
+      const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, unknown>[];
 
       if (rows.length === 0) {
         throw new BadRequestException('A planilha está vazia.');
@@ -216,27 +216,15 @@ export class StudentsService {
       let skippedDuplicatedInFileCount = 0;
 
       for (const [index, row] of rows.entries()) {
-        const r = row as Record<string, string>;
-        const name =
-          r['Nome'] ||
-          r['nome'] ||
-          r['Name'] ||
-          r['name'] ||
-          r['NOME'];
-        let phone =
-          r['WhatsApp'] ||
-          r['whatsapp'] ||
-          r['Telefone'] ||
-          r['telefone'] ||
-          r['Phone'] ||
-          r['WHATSAPP'];
-        const levelRaw =
-          r['Nível'] ||
-          r['nivel'] ||
-          r['Level'] ||
-          r['level'] ||
-          r['NÍVEL'] ||
-          r['NIVEL'];
+        const name = String(
+          row['Nome'] ?? row['nome'] ?? row['Name'] ?? row['name'] ?? row['NOME'] ?? '',
+        );
+        let phone = String(
+          row['WhatsApp'] ?? row['whatsapp'] ?? row['Telefone'] ?? row['telefone'] ?? row['Phone'] ?? row['WHATSAPP'] ?? '',
+        );
+        const levelRaw = String(
+          row['Nível'] ?? row['nivel'] ?? row['Level'] ?? row['level'] ?? row['NÍVEL'] ?? row['NIVEL'] ?? '',
+        );
         const rowNumber = index + 2;
 
         if (!name || !phone) {
@@ -314,15 +302,10 @@ export class StudentsService {
         if (existingNumbers.has(student.whatsapp_number)) {
           failedRows.push({
             rowNumber:
-              rows.findIndex((_row) => {
-                const r = _row as Record<string, string>;
-                const phone =
-                  r['WhatsApp'] ||
-                  r['whatsapp'] ||
-                  r['Telefone'] ||
-                  r['telefone'] ||
-                  r['Phone'] ||
-                  r['WHATSAPP'];
+              rows.findIndex((row) => {
+                const phone = String(
+                  row['WhatsApp'] ?? row['whatsapp'] ?? row['Telefone'] ?? row['telefone'] ?? row['Phone'] ?? row['WHATSAPP'] ?? '',
+                );
                 return (
                   this.normalizeWhatsappNumber(phone) ===
                   student.whatsapp_number
