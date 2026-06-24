@@ -4197,8 +4197,6 @@ export class WhatsappService {
       };
     }
 
-    this.logger.log(`[WEBHOOK] Configurando webhook para ${instanceName} -> ${webhookUrl}`);
-
     const payload = {
       webhook: {
         enabled: true,
@@ -4215,8 +4213,6 @@ export class WhatsappService {
       `/webhook/set/${instanceName}`,
       payload,
     );
-
-    this.logger.log(`[WEBHOOK] Configurado com sucesso para ${instanceName}`);
 
     return {
       configured: true,
