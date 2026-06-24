@@ -703,7 +703,7 @@ export default function AutomationPage() {
               />
               {!hasAutoGroupsSelected && (
               <TooltipContent>
-                <p>Selecione pelo menos 1 grupo em "Grupos do envio automático".</p>
+                <p>Selecione pelo menos 1 grupo em &ldquo;Grupos do envio automático&rdquo;.</p>
               </TooltipContent>
               )}
             </Tooltip>

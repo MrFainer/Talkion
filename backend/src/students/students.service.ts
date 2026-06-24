@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import * as xlsx from 'xlsx';
@@ -64,7 +68,10 @@ export class StudentsService {
     let level: any = 'LEVEL_1';
     if (normalizedLevel.includes('2') || normalizedLevel === 'intermediario') {
       level = 'LEVEL_2';
-    } else if (normalizedLevel.includes('3') || normalizedLevel === 'avancado') {
+    } else if (
+      normalizedLevel.includes('3') ||
+      normalizedLevel === 'avancado'
+    ) {
       level = 'LEVEL_3';
     }
 
@@ -127,14 +134,20 @@ export class StudentsService {
         'Este número de WhatsApp já está cadastrado para outro aluno.',
       );
     }
-    
+
     // Verifica limite de alunos da assinatura
     const subscription = await this.prisma.subscription.findFirst({
-      where: { user_id: teacherId, status: { in: ['active', 'pending', 'paused'] } },
+      where: {
+        user_id: teacherId,
+        status: { in: ['active', 'pending', 'paused'] },
+      },
     });
     if (subscription) {
-      const totalLimit = subscription.max_students + subscription.additional_students;
-      const currentCount = await this.prisma.student.count({ where: { teacher_id: teacherId } });
+      const totalLimit =
+        subscription.max_students + subscription.additional_students;
+      const currentCount = await this.prisma.student.count({
+        where: { teacher_id: teacherId },
+      });
       if (currentCount >= totalLimit) {
         throw new BadRequestException(
           'Você atingiu o limite de alunos do seu plano. Acesse a página de assinatura para contratar vagas adicionais.',
@@ -143,7 +156,10 @@ export class StudentsService {
     }
 
     // Verifica se o número existe no WhatsApp
-    const isValid = await this.whatsappService.checkNumber(teacherId, rawNumber);
+    const isValid = await this.whatsappService.checkNumber(
+      teacherId,
+      rawNumber,
+    );
 
     const student = await this.prisma.student.create({
       data: {
@@ -159,7 +175,9 @@ export class StudentsService {
   }
 
   async updateLevel(teacherId: string, studentId: string, level: any) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+    });
     if (!student || student.teacher_id !== teacherId) {
       throw new NotFoundException('Aluno não encontrado.');
     }
@@ -175,7 +193,7 @@ export class StudentsService {
       const workbook = xlsx.read(file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows = xlsx.utils.sheet_to_json(sheet) as any[];
+      const rows = xlsx.utils.sheet_to_json(sheet);
 
       if (rows.length === 0) {
         throw new BadRequestException('A planilha está vazia.');
@@ -198,9 +216,27 @@ export class StudentsService {
       let skippedDuplicatedInFileCount = 0;
 
       for (const [index, row] of rows.entries()) {
-        const name = row['Nome'] || row['nome'] || row['Name'] || row['name'] || row['NOME'];
-        let phone = row['WhatsApp'] || row['whatsapp'] || row['Telefone'] || row['telefone'] || row['Phone'] || row['WHATSAPP'];
-        const levelRaw = row['Nível'] || row['nivel'] || row['Level'] || row['level'] || row['NÍVEL'] || row['NIVEL'];
+        const r = row as Record<string, string>;
+        const name =
+          r['Nome'] ||
+          r['nome'] ||
+          r['Name'] ||
+          r['name'] ||
+          r['NOME'];
+        let phone =
+          r['WhatsApp'] ||
+          r['whatsapp'] ||
+          r['Telefone'] ||
+          r['telefone'] ||
+          r['Phone'] ||
+          r['WHATSAPP'];
+        const levelRaw =
+          r['Nível'] ||
+          r['nivel'] ||
+          r['Level'] ||
+          r['level'] ||
+          r['NÍVEL'] ||
+          r['NIVEL'];
         const rowNumber = index + 2;
 
         if (!name || !phone) {
@@ -271,21 +307,25 @@ export class StudentsService {
         },
       });
 
-      const existingNumbers = new Set(existingStudents.map((student) => student.whatsapp_number));
+      const existingNumbers = new Set(
+        existingStudents.map((student) => student.whatsapp_number),
+      );
       const studentsToValidate = parsedStudents.filter((student) => {
         if (existingNumbers.has(student.whatsapp_number)) {
           failedRows.push({
             rowNumber:
-              rows.findIndex((row) => {
+              rows.findIndex((_row) => {
+                const r = _row as Record<string, string>;
                 const phone =
-                  row['WhatsApp'] ||
-                  row['whatsapp'] ||
-                  row['Telefone'] ||
-                  row['telefone'] ||
-                  row['Phone'] ||
-                  row['WHATSAPP'];
+                  r['WhatsApp'] ||
+                  r['whatsapp'] ||
+                  r['Telefone'] ||
+                  r['telefone'] ||
+                  r['Phone'] ||
+                  r['WHATSAPP'];
                 return (
-                  this.normalizeWhatsappNumber(phone) === student.whatsapp_number
+                  this.normalizeWhatsappNumber(phone) ===
+                  student.whatsapp_number
                 );
               }) + 2,
             fullName: student.full_name,
@@ -297,7 +337,8 @@ export class StudentsService {
 
         return true;
       });
-      const skippedExistingCount = parsedStudents.length - studentsToValidate.length;
+      const skippedExistingCount =
+        parsedStudents.length - studentsToValidate.length;
 
       const studentsToCreate = [];
       for (const student of studentsToValidate) {
@@ -314,15 +355,21 @@ export class StudentsService {
 
       if (studentsToCreate.length > 0) {
         const subscription = await this.prisma.subscription.findFirst({
-          where: { user_id: teacherId, status: { in: ['active', 'pending', 'paused'] } },
+          where: {
+            user_id: teacherId,
+            status: { in: ['active', 'pending', 'paused'] },
+          },
         });
         if (subscription) {
-          const totalLimit = subscription.max_students + subscription.additional_students;
-          const currentCount = await this.prisma.student.count({ where: { teacher_id: teacherId } });
+          const totalLimit =
+            subscription.max_students + subscription.additional_students;
+          const currentCount = await this.prisma.student.count({
+            where: { teacher_id: teacherId },
+          });
           if (currentCount + studentsToCreate.length > totalLimit) {
             throw new BadRequestException(
               `A importação excede o limite de ${totalLimit} alunos do seu plano. ` +
-              `Acesse a página de assinatura para contratar vagas adicionais.`,
+                `Acesse a página de assinatura para contratar vagas adicionais.`,
             );
           }
         }
@@ -346,7 +393,9 @@ export class StudentsService {
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException('Erro ao processar a planilha. Verifique se o formato é válido (.xlsx, .xls).');
+      throw new BadRequestException(
+        'Erro ao processar a planilha. Verifique se o formato é válido (.xlsx, .xls).',
+      );
     }
   }
 
@@ -361,15 +410,20 @@ export class StudentsService {
 
     // Verifica se já existe um aluno com esse número
     const existing = await this.prisma.student.findUnique({
-      where: { whatsapp_number: normalizedNumber }
+      where: { whatsapp_number: normalizedNumber },
     });
 
     if (existing && existing.id !== studentId) {
-      throw new BadRequestException('Este número de WhatsApp já está cadastrado para outro aluno.');
+      throw new BadRequestException(
+        'Este número de WhatsApp já está cadastrado para outro aluno.',
+      );
     }
 
     // Verifica se o novo número existe no WhatsApp
-    const isValid = await this.whatsappService.checkNumber(teacherId, normalizedNumber);
+    const isValid = await this.whatsappService.checkNumber(
+      teacherId,
+      normalizedNumber,
+    );
 
     return this.prisma.student.update({
       where: {
@@ -401,23 +455,26 @@ export class StudentsService {
 
   async validateNumber(teacherId: string, studentId: string) {
     const student = await this.prisma.student.findUnique({
-      where: { id: studentId }
+      where: { id: studentId },
     });
 
     if (!student || student.teacher_id !== teacherId) {
       throw new NotFoundException('Aluno não encontrado.');
     }
 
-    const isValid = await this.whatsappService.checkNumber(teacherId, student.whatsapp_number);
+    const isValid = await this.whatsappService.checkNumber(
+      teacherId,
+      student.whatsapp_number,
+    );
 
     const updatedStudent = await this.prisma.student.update({
       where: { id: studentId },
       data: { whatsapp_valid: isValid },
     });
 
-    return { 
-      isValid, 
-      student: updatedStudent 
+    return {
+      isValid,
+      student: updatedStudent,
     };
   }
 }

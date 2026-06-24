@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StudentsService } from './students.service';
 
@@ -30,26 +41,30 @@ export class StudentsController {
 
   @Patch('teacher/:teacherId/:studentId/level')
   async updateLevel(
-    @Param('teacherId') teacherId: string, 
+    @Param('teacherId') teacherId: string,
     @Param('studentId') studentId: string,
-    @Body('level') level: string
+    @Body('level') level: string,
   ) {
     return this.studentsService.updateLevel(teacherId, studentId, level);
   }
 
   @Patch('teacher/:teacherId/:studentId/number')
   async updateNumber(
-    @Param('teacherId') teacherId: string, 
+    @Param('teacherId') teacherId: string,
     @Param('studentId') studentId: string,
-    @Body('whatsappNumber') whatsappNumber: string
+    @Body('whatsappNumber') whatsappNumber: string,
   ) {
-    return this.studentsService.updateNumber(teacherId, studentId, whatsappNumber);
+    return this.studentsService.updateNumber(
+      teacherId,
+      studentId,
+      whatsappNumber,
+    );
   }
 
   @Post('teacher/:teacherId/:studentId/validate-number')
   async validateNumber(
-    @Param('teacherId') teacherId: string, 
-    @Param('studentId') studentId: string
+    @Param('teacherId') teacherId: string,
+    @Param('studentId') studentId: string,
   ) {
     return this.studentsService.validateNumber(teacherId, studentId);
   }

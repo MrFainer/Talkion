@@ -47,7 +47,9 @@ export class MailService {
       this.logger.log(`E-mail enviado: ${info.messageId}`);
       // Para Ethereal, podemos logar a URL de preview:
       if (info.messageId && process.env.SMTP_HOST === undefined) {
-        this.logger.log(`Preview do e-mail: ${nodemailer.getTestMessageUrl(info)}`);
+        this.logger.log(
+          `Preview do e-mail: ${nodemailer.getTestMessageUrl(info)}`,
+        );
       }
     } catch (error) {
       this.logger.error('Erro ao enviar e-mail de verificação', error);
@@ -78,11 +80,15 @@ export class MailService {
       });
       this.logger.log(`E-mail de redefinição enviado: ${info.messageId}`);
       if (info.messageId && process.env.SMTP_HOST === undefined) {
-        this.logger.log(`Preview do e-mail: ${nodemailer.getTestMessageUrl(info)}`);
+        this.logger.log(
+          `Preview do e-mail: ${nodemailer.getTestMessageUrl(info)}`,
+        );
       }
     } catch (error) {
       this.logger.error('Erro ao enviar e-mail de redefinição', error);
-      this.logger.warn(`Fallback: O código de redefinição para ${to} é ${token}`);
+      this.logger.warn(
+        `Fallback: O código de redefinição para ${to} é ${token}`,
+      );
     }
   }
 
@@ -114,7 +120,13 @@ export class MailService {
     }
   }
 
-  async sendInsufficientCreditsEmail(to: string, name: string, balance: number, cost: number, actionName: string) {
+  async sendInsufficientCreditsEmail(
+    to: string,
+    name: string,
+    balance: number,
+    cost: number,
+    actionName: string,
+  ) {
     try {
       const info = await this.transporter.sendMail({
         from: this.from,
@@ -136,13 +148,24 @@ export class MailService {
           </div>
         `,
       });
-      this.logger.log(`E-mail de créditos insuficientes enviado: ${info.messageId}`);
+      this.logger.log(
+        `E-mail de créditos insuficientes enviado: ${info.messageId}`,
+      );
     } catch (error) {
-      this.logger.error('Erro ao enviar e-mail de créditos insuficientes', error);
+      this.logger.error(
+        'Erro ao enviar e-mail de créditos insuficientes',
+        error,
+      );
     }
   }
 
-  async sendPaymentApprovedEmail(to: string, name: string, planName: string, amount: number, credits: number) {
+  async sendPaymentApprovedEmail(
+    to: string,
+    name: string,
+    planName: string,
+    amount: number,
+    credits: number,
+  ) {
     try {
       const info = await this.transporter.sendMail({
         from: this.from,
@@ -162,13 +185,20 @@ export class MailService {
           </div>
         `,
       });
-      this.logger.log(`E-mail de pagamento aprovado enviado: ${info.messageId}`);
+      this.logger.log(
+        `E-mail de pagamento aprovado enviado: ${info.messageId}`,
+      );
     } catch (error) {
       this.logger.error('Erro ao enviar e-mail de pagamento aprovado', error);
     }
   }
 
-  async sendPaymentRejectedEmail(to: string, name: string, planName: string, amount: number) {
+  async sendPaymentRejectedEmail(
+    to: string,
+    name: string,
+    planName: string,
+    amount: number,
+  ) {
     try {
       const info = await this.transporter.sendMail({
         from: this.from,
@@ -192,7 +222,9 @@ export class MailService {
           </div>
         `,
       });
-      this.logger.log(`E-mail de pagamento recusado enviado: ${info.messageId}`);
+      this.logger.log(
+        `E-mail de pagamento recusado enviado: ${info.messageId}`,
+      );
     } catch (error) {
       this.logger.error('Erro ao enviar e-mail de pagamento recusado', error);
     }

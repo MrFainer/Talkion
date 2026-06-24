@@ -1,13 +1,34 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { MercadoPagoService } from './mercadopago.service';
 import { MailService } from '../auth/mail.service';
 import { CreditsService } from '../credits/credits.service';
 
 const TOP_UP_PLANS = [
-  { id: 'topup_5000', name: '5.000 Créditos Extras', price: 29.90, credits: 5000 },
-  { id: 'topup_10000', name: '10.000 Créditos Extras', price: 49.90, credits: 10000 },
-  { id: 'topup_20000', name: '20.000 Créditos Extras', price: 89.90, credits: 20000 },
+  {
+    id: 'topup_5000',
+    name: '5.000 Créditos Extras',
+    price: 29.9,
+    credits: 5000,
+  },
+  {
+    id: 'topup_10000',
+    name: '10.000 Créditos Extras',
+    price: 49.9,
+    credits: 10000,
+  },
+  {
+    id: 'topup_20000',
+    name: '20.000 Créditos Extras',
+    price: 89.9,
+    credits: 20000,
+  },
 ];
 
 const ADDITIONAL_STUDENT_PRICE = 2.99;
@@ -30,7 +51,13 @@ export class SubscriptionsService {
     });
   }
 
-  async createPlan(data: { name: string; description?: string; price: number; credits: number; max_students?: number }) {
+  async createPlan(data: {
+    name: string;
+    description?: string;
+    price: number;
+    credits: number;
+    max_students?: number;
+  }) {
     const plan = await this.prisma.subscriptionPlan.create({
       data: {
         name: data.name,
@@ -40,7 +67,9 @@ export class SubscriptionsService {
         max_students: data.max_students ?? 50,
       },
     });
-    this.logger.log(`Plan created: ${plan.id} - ${plan.name} (${plan.max_students} alunos)`);
+    this.logger.log(
+      `Plan created: ${plan.id} - ${plan.name} (${plan.max_students} alunos)`,
+    );
     return plan;
   }
 
@@ -48,15 +77,22 @@ export class SubscriptionsService {
     return TOP_UP_PLANS;
   }
 
-  async purchaseTopUp(userId: string, dto: { packId: string; cardToken: string }) {
-    const pack = TOP_UP_PLANS.find(p => p.id === dto.packId);
+  async purchaseTopUp(
+    userId: string,
+    dto: { packId: string; cardToken: string },
+  ) {
+    const pack = TOP_UP_PLANS.find((p) => p.id === dto.packId);
     if (!pack) throw new NotFoundException('Pacote de créditos não encontrado');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
     try {
-      const mpCustomerId = await this.mp.findOrCreateCustomer(user.email, user.name, userId);
+      const mpCustomerId = await this.mp.findOrCreateCustomer(
+        user.email,
+        user.name,
+        userId,
+      );
 
       const payment = await this.mp.createOneTimePayment(
         mpCustomerId,
@@ -81,12 +117,18 @@ export class SubscriptionsService {
       return { success: false, status: payment.status, paymentId: payment.id };
     } catch (err) {
       this.logger.error(`Top-up failed: ${(err as Error).message}`);
-      throw new BadRequestException(`Erro na compra: ${(err as Error).message}`);
+      throw new BadRequestException(
+        `Erro na compra: ${(err as Error).message}`,
+      );
     }
   }
 
-  async purchaseAdditionalStudents(userId: string, dto: { quantity: number; cardToken: string }) {
-    if (dto.quantity < 1) throw new BadRequestException('Quantidade deve ser >= 1');
+  async purchaseAdditionalStudents(
+    userId: string,
+    dto: { quantity: number; cardToken: string },
+  ) {
+    if (dto.quantity < 1)
+      throw new BadRequestException('Quantidade deve ser >= 1');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -94,12 +136,17 @@ export class SubscriptionsService {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
     });
-    if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
 
     const totalPrice = dto.quantity * ADDITIONAL_STUDENT_PRICE;
 
     try {
-      const mpCustomerId = await this.mp.findOrCreateCustomer(user.email, user.name, userId);
+      const mpCustomerId = await this.mp.findOrCreateCustomer(
+        user.email,
+        user.name,
+        userId,
+      );
 
       const payment = await this.mp.createOneTimePayment(
         mpCustomerId,
@@ -117,62 +164,112 @@ export class SubscriptionsService {
           data: { additional_students: newAdditional },
         });
         if (sub.mercadopago_subscription_id && sub.plan_id) {
-          const planData = await this.prisma.subscriptionPlan.findUnique({ where: { id: sub.plan_id } });
+          const planData = await this.prisma.subscriptionPlan.findUnique({
+            where: { id: sub.plan_id },
+          });
           if (planData) {
-            const nextAmount = planData.price + newAdditional * ADDITIONAL_STUDENT_PRICE;
+            const nextAmount =
+              planData.price + newAdditional * ADDITIONAL_STUDENT_PRICE;
             try {
-              await this.mp.updateSubscriptionAmount(sub.mercadopago_subscription_id, nextAmount);
-              this.logger.log(`Preapproval ${sub.mercadopago_subscription_id} amount updated to ${nextAmount}`);
+              await this.mp.updateSubscriptionAmount(
+                sub.mercadopago_subscription_id,
+                nextAmount,
+              );
+              this.logger.log(
+                `Preapproval ${sub.mercadopago_subscription_id} amount updated to ${nextAmount}`,
+              );
             } catch (err) {
-              this.logger.warn(`Failed to update preapproval amount: ${(err as Error).message}`);
+              this.logger.warn(
+                `Failed to update preapproval amount: ${(err as Error).message}`,
+              );
             }
           }
         }
-        this.logger.log(`Additional students added: +${dto.quantity} for user ${userId}`);
-        return { success: true, totalStudents: sub.max_students + updated.additional_students };
+        this.logger.log(
+          `Additional students added: +${dto.quantity} for user ${userId}`,
+        );
+        return {
+          success: true,
+          totalStudents: sub.max_students + updated.additional_students,
+        };
       }
 
       return { success: false, status: payment.status, paymentId: payment.id };
     } catch (err) {
-      this.logger.error(`Additional students purchase failed: ${(err as Error).message}`);
-      throw new BadRequestException(`Erro na compra: ${(err as Error).message}`);
+      this.logger.error(
+        `Additional students purchase failed: ${(err as Error).message}`,
+      );
+      throw new BadRequestException(
+        `Erro na compra: ${(err as Error).message}`,
+      );
     }
   }
 
-  async updatePlan(id: string, data: { name?: string; description?: string; price?: number; credits?: number; active?: boolean }) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+  async updatePlan(
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      price?: number;
+      credits?: number;
+      active?: boolean;
+    },
+  ) {
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) throw new NotFoundException('Plano não encontrado');
     return this.prisma.subscriptionPlan.update({ where: { id }, data });
   }
 
   async deletePlan(id: string) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) throw new NotFoundException('Plano não encontrado');
-    const subs = await this.prisma.subscription.count({ where: { plan_id: id, status: { not: 'cancelled' } } });
-    if (subs > 0) throw new BadRequestException('Plano possui assinaturas ativas');
-    return this.prisma.subscriptionPlan.update({ where: { id }, data: { active: false } });
+    const subs = await this.prisma.subscription.count({
+      where: { plan_id: id, status: { not: 'cancelled' } },
+    });
+    if (subs > 0)
+      throw new BadRequestException('Plano possui assinaturas ativas');
+    return this.prisma.subscriptionPlan.update({
+      where: { id },
+      data: { active: false },
+    });
   }
 
   async getUserSubscription(userId: string) {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId },
       orderBy: { created_at: 'desc' },
-      include: { plan: true, payments: { orderBy: { created_at: 'desc' }, take: 10 } },
+      include: {
+        plan: true,
+        payments: { orderBy: { created_at: 'desc' }, take: 10 },
+      },
     });
     return sub;
   }
 
-  async createSubscription(userId: string, dto: { planId: string; cardToken: string }) {
+  async createSubscription(
+    userId: string,
+    dto: { planId: string; cardToken: string },
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: dto.planId } });
-    if (!plan || !plan.active) throw new NotFoundException('Plano não encontrado ou inativo');
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+    });
+    if (!plan || !plan.active)
+      throw new NotFoundException('Plano não encontrado ou inativo');
 
     const existing = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
     });
-    if (existing) throw new ConflictException('Usuário já possui uma assinatura ativa ou pendente');
+    if (existing)
+      throw new ConflictException(
+        'Usuário já possui uma assinatura ativa ou pendente',
+      );
 
     const currentStudents = await this.prisma.student.count({
       where: { teacher_id: userId },
@@ -186,7 +283,11 @@ export class SubscriptionsService {
     }
 
     try {
-      const mpCustomerId = await this.mp.findOrCreateCustomer(user.email, user.name, userId);
+      const mpCustomerId = await this.mp.findOrCreateCustomer(
+        user.email,
+        user.name,
+        userId,
+      );
 
       const payment = await this.mp.createOneTimePayment(
         mpCustomerId,
@@ -198,7 +299,9 @@ export class SubscriptionsService {
       );
 
       if (payment.status !== 'approved') {
-        throw new BadRequestException(`Pagamento não aprovado: ${payment.status}`);
+        throw new BadRequestException(
+          `Pagamento não aprovado: ${payment.status}`,
+        );
       }
 
       const startDate = new Date();
@@ -218,9 +321,13 @@ export class SubscriptionsService {
             nextBilling,
           );
           mpSubscriptionId = preapproval.subscriptionId;
-          this.logger.log(`Preapproval created for recurring billing: ${mpSubscriptionId}`);
+          this.logger.log(
+            `Preapproval created for recurring billing: ${mpSubscriptionId}`,
+          );
         } catch (err) {
-          this.logger.warn(`Failed to create preapproval, recurring billing disabled: ${(err as Error).message}`);
+          this.logger.warn(
+            `Failed to create preapproval, recurring billing disabled: ${(err as Error).message}`,
+          );
         }
       }
 
@@ -262,16 +369,24 @@ export class SubscriptionsService {
 
       this.logger.log(
         `Subscription created: ${subscription.id} for user ${userId}` +
-        ` (active, R$${totalAmount}, ${currentStudents} alunos, ${extraStudents} adicionais)`,
+          ` (active, R$${totalAmount}, ${currentStudents} alunos, ${extraStudents} adicionais)`,
       );
 
       return { subscription };
     } catch (err) {
-      if (err instanceof ConflictException || err instanceof BadRequestException || err instanceof NotFoundException) {
+      if (
+        err instanceof ConflictException ||
+        err instanceof BadRequestException ||
+        err instanceof NotFoundException
+      ) {
         throw err;
       }
-      this.logger.error(`Failed to create subscription: ${(err as Error).message}`);
-      throw new BadRequestException(`Erro ao criar assinatura: ${(err as Error).message}`);
+      this.logger.error(
+        `Failed to create subscription: ${(err as Error).message}`,
+      );
+      throw new BadRequestException(
+        `Erro ao criar assinatura: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -279,13 +394,19 @@ export class SubscriptionsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: dto.planId } });
-    if (!plan || !plan.active) throw new NotFoundException('Plano não encontrado ou inativo');
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+    });
+    if (!plan || !plan.active)
+      throw new NotFoundException('Plano não encontrado ou inativo');
 
     const existing = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
     });
-    if (existing) throw new ConflictException('Usuário já possui uma assinatura ativa ou pendente');
+    if (existing)
+      throw new ConflictException(
+        'Usuário já possui uma assinatura ativa ou pendente',
+      );
 
     const pref = await this.mp.createPreference({
       amount: plan.price,
@@ -298,7 +419,7 @@ export class SubscriptionsService {
   }
 
   async purchaseTopUpWithCard(userId: string, dto: { packId: string }) {
-    const pack = TOP_UP_PLANS.find(p => p.id === dto.packId);
+    const pack = TOP_UP_PLANS.find((p) => p.id === dto.packId);
     if (!pack) throw new NotFoundException('Pacote de créditos não encontrado');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -315,8 +436,12 @@ export class SubscriptionsService {
     return { redirectUrl: pref.initPoint, preferenceId: pref.preferenceId };
   }
 
-  async purchaseAdditionalStudentsWithCard(userId: string, dto: { quantity: number }) {
-    if (dto.quantity < 1) throw new BadRequestException('Quantidade deve ser >= 1');
+  async purchaseAdditionalStudentsWithCard(
+    userId: string,
+    dto: { quantity: number },
+  ) {
+    if (dto.quantity < 1)
+      throw new BadRequestException('Quantidade deve ser >= 1');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -324,7 +449,8 @@ export class SubscriptionsService {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
     });
-    if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
 
     const totalPrice = dto.quantity * ADDITIONAL_STUDENT_PRICE;
 
@@ -343,13 +469,16 @@ export class SubscriptionsService {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
     });
-    if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
 
     if (sub.mercadopago_subscription_id) {
       try {
         await this.mp.cancelSubscription(sub.mercadopago_subscription_id);
       } catch (err) {
-        this.logger.error(`Failed to cancel MP subscription: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to cancel MP subscription: ${(err as Error).message}`,
+        );
       }
     }
 
@@ -364,15 +493,25 @@ export class SubscriptionsService {
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
       include: { plan: true, user: true },
     });
-    if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
     if (!sub.user) throw new NotFoundException('Usuário não encontrado');
 
-    const newPlan = await this.prisma.subscriptionPlan.findUnique({ where: { id: newPlanId } });
-    if (!newPlan || !newPlan.active) throw new NotFoundException('Plano não encontrado ou inativo');
+    const newPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: newPlanId },
+    });
+    if (!newPlan || !newPlan.active)
+      throw new NotFoundException('Plano não encontrado ou inativo');
 
-    const currentStudents = await this.prisma.student.count({ where: { teacher_id: userId } });
-    const newExtraStudents = Math.max(0, currentStudents - newPlan.max_students);
-    const newTotal = newPlan.price + newExtraStudents * ADDITIONAL_STUDENT_PRICE;
+    const currentStudents = await this.prisma.student.count({
+      where: { teacher_id: userId },
+    });
+    const newExtraStudents = Math.max(
+      0,
+      currentStudents - newPlan.max_students,
+    );
+    const newTotal =
+      newPlan.price + newExtraStudents * ADDITIONAL_STUDENT_PRICE;
 
     const now = new Date();
 
@@ -382,18 +521,23 @@ export class SubscriptionsService {
 
     let savedCardId = sub.mercadopago_card_id;
     if (!savedCardId) {
-      const cards = await this.mp.listCustomerCards(sub.mercadopago_customer_id);
+      const cards = await this.mp.listCustomerCards(
+        sub.mercadopago_customer_id,
+      );
       const savedCard = cards[0];
       savedCardId = savedCard?.cardId || null;
     }
     if (!savedCardId) {
-      throw new BadRequestException('Nenhum cartão salvo encontrado. Acesse a página de assinatura para cadastrar um novo cartão.');
+      throw new BadRequestException(
+        'Nenhum cartão salvo encontrado. Acesse a página de assinatura para cadastrar um novo cartão.',
+      );
     }
 
     const daysInMonth = 30;
     let proratedCharge = 0;
     if (sub.next_billing_date) {
-      const msRemaining = new Date(sub.next_billing_date).getTime() - now.getTime();
+      const msRemaining =
+        new Date(sub.next_billing_date).getTime() - now.getTime();
       const daysRemaining = Math.max(0, msRemaining / (1000 * 60 * 60 * 24));
       const proratedFactor = daysRemaining / daysInMonth;
       proratedCharge = (newTotal - (sub.plan?.price || 0)) * proratedFactor;
@@ -403,7 +547,9 @@ export class SubscriptionsService {
     proratedCharge = Math.max(0, proratedCharge);
 
     if (proratedCharge > 0) {
-      this.logger.log(`Charging prorated R$${proratedCharge.toFixed(2)} for plan change to ${newPlan.name}`);
+      this.logger.log(
+        `Charging prorated R$${proratedCharge.toFixed(2)} for plan change to ${newPlan.name}`,
+      );
       const payment = await this.mp.createOneTimePaymentWithCardId(
         sub.mercadopago_customer_id,
         savedCardId,
@@ -413,7 +559,9 @@ export class SubscriptionsService {
         sub.user.email,
       );
       if (payment.status !== 'approved') {
-        throw new BadRequestException(`Pagamento não aprovado: ${payment.status}. Tente novamente.`);
+        throw new BadRequestException(
+          `Pagamento não aprovado: ${payment.status}. Tente novamente.`,
+        );
       }
     }
 
@@ -421,7 +569,9 @@ export class SubscriptionsService {
       try {
         await this.mp.cancelSubscription(sub.mercadopago_subscription_id);
       } catch (err) {
-        this.logger.warn(`Failed to cancel old MP subscription: ${(err as Error).message}`);
+        this.logger.warn(
+          `Failed to cancel old MP subscription: ${(err as Error).message}`,
+        );
       }
     }
 
@@ -437,7 +587,9 @@ export class SubscriptionsService {
       );
       mpSubscriptionId = preapproval.subscriptionId;
     } catch (err) {
-      this.logger.warn(`Failed to create new preapproval: ${(err as Error).message}`);
+      this.logger.warn(
+        `Failed to create new preapproval: ${(err as Error).message}`,
+      );
     }
 
     const nextBilling = new Date();
@@ -464,7 +616,9 @@ export class SubscriptionsService {
       `plan_change_${newPlanId}_${Date.now()}`,
     );
 
-    this.logger.log(`Subscription ${sub.id} changed to plan ${newPlan.name} (${newPlanId})`);
+    this.logger.log(
+      `Subscription ${sub.id} changed to plan ${newPlan.name} (${newPlanId})`,
+    );
     return updated;
   }
 
@@ -479,7 +633,13 @@ export class SubscriptionsService {
     });
   }
 
-  async handlePaymentApproved(mpPaymentId: string, subscriptionId: string, amount: number, paidAt: string, paymentMethod: string) {
+  async handlePaymentApproved(
+    mpPaymentId: string,
+    subscriptionId: string,
+    amount: number,
+    paidAt: string,
+    paymentMethod: string,
+  ) {
     const existing = await this.prisma.subscriptionPayment.findUnique({
       where: { mercadopago_payment_id: mpPaymentId },
     });
@@ -494,7 +654,9 @@ export class SubscriptionsService {
     });
     if (!sub) throw new NotFoundException('Assinatura não encontrada');
 
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: sub.plan_id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: sub.plan_id },
+    });
     if (!plan) throw new NotFoundException('Plano não encontrado');
 
     const payment = await this.prisma.subscriptionPayment.create({
@@ -532,10 +694,17 @@ export class SubscriptionsService {
     };
     if (sub.mercadopago_subscription_id && nextAmount !== amount) {
       try {
-        await this.mp.updateSubscriptionAmount(sub.mercadopago_subscription_id, nextAmount);
-        this.logger.log(`Preapproval ${sub.mercadopago_subscription_id} amount updated to ${nextAmount}`);
+        await this.mp.updateSubscriptionAmount(
+          sub.mercadopago_subscription_id,
+          nextAmount,
+        );
+        this.logger.log(
+          `Preapproval ${sub.mercadopago_subscription_id} amount updated to ${nextAmount}`,
+        );
       } catch (err) {
-        this.logger.warn(`Failed to update preapproval amount: ${(err as Error).message}`);
+        this.logger.warn(
+          `Failed to update preapproval amount: ${(err as Error).message}`,
+        );
       }
     }
     await this.prisma.subscription.update({
@@ -545,20 +714,32 @@ export class SubscriptionsService {
 
     this.logger.log(
       `Payment ${mpPaymentId} processed: +${plan.credits} credits for user ${sub.user_id}` +
-      ` (${currentStudents} alunos, ${extraStudents} adicionais, próx: R$${nextAmount})`,
+        ` (${currentStudents} alunos, ${extraStudents} adicionais, próx: R$${nextAmount})`,
     );
 
-    await this.mailService.sendPaymentApprovedEmail(sub.user.email, sub.user.name, plan.name, amount, plan.credits);
+    await this.mailService.sendPaymentApprovedEmail(
+      sub.user.email,
+      sub.user.name,
+      plan.name,
+      amount,
+      plan.credits,
+    );
 
     return payment;
   }
 
-  async handlePaymentRejected(mpPaymentId: string, subscriptionId: string, amount: number) {
+  async handlePaymentRejected(
+    mpPaymentId: string,
+    subscriptionId: string,
+    amount: number,
+  ) {
     const existing = await this.prisma.subscriptionPayment.findUnique({
       where: { mercadopago_payment_id: mpPaymentId },
     });
     if (existing) {
-      this.logger.log(`Rejected payment ${mpPaymentId} already recorded, skipping`);
+      this.logger.log(
+        `Rejected payment ${mpPaymentId} already recorded, skipping`,
+      );
       return existing;
     }
 
@@ -582,9 +763,16 @@ export class SubscriptionsService {
       data: { status: 'past_due' },
     });
 
-    this.logger.log(`Payment ${mpPaymentId} rejected, subscription ${subscriptionId} past due`);
+    this.logger.log(
+      `Payment ${mpPaymentId} rejected, subscription ${subscriptionId} past due`,
+    );
 
-    await this.mailService.sendPaymentRejectedEmail(sub.user.email, sub.user.name, sub.plan.name, amount);
+    await this.mailService.sendPaymentRejectedEmail(
+      sub.user.email,
+      sub.user.name,
+      sub.plan.name,
+      amount,
+    );
 
     return payment;
   }
@@ -613,7 +801,10 @@ export class SubscriptionsService {
     });
   }
 
-  async handleSubscriptionUpdated(mpSubscriptionId: string, data: { planId?: string; nextBillingDate?: string; status?: string }) {
+  async handleSubscriptionUpdated(
+    mpSubscriptionId: string,
+    data: { planId?: string; nextBillingDate?: string; status?: string },
+  ) {
     const sub = await this.prisma.subscription.findUnique({
       where: { mercadopago_subscription_id: mpSubscriptionId },
     });
@@ -621,10 +812,14 @@ export class SubscriptionsService {
 
     const updateData: any = {};
     if (data.status) updateData.status = this.mapMPStatus(data.status);
-    if (data.nextBillingDate) updateData.next_billing_date = new Date(data.nextBillingDate);
+    if (data.nextBillingDate)
+      updateData.next_billing_date = new Date(data.nextBillingDate);
     if (data.planId) updateData.plan_id = data.planId;
 
-    return this.prisma.subscription.update({ where: { id: sub.id }, data: updateData });
+    return this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: updateData,
+    });
   }
 
   async findSubscriptionByMpId(mpSubscriptionId: string) {
@@ -633,10 +828,16 @@ export class SubscriptionsService {
     });
   }
 
-  async handleTopUpApproved(mpPaymentId: string, userId: string, packId: string) {
-    const pack = TOP_UP_PLANS.find(p => p.id === packId);
+  async handleTopUpApproved(
+    mpPaymentId: string,
+    userId: string,
+    packId: string,
+  ) {
+    const pack = TOP_UP_PLANS.find((p) => p.id === packId);
     if (!pack) {
-      this.logger.warn(`Top-up pack not found: ${packId} for payment ${mpPaymentId}`);
+      this.logger.warn(
+        `Top-up pack not found: ${packId} for payment ${mpPaymentId}`,
+      );
       return;
     }
 
@@ -644,7 +845,9 @@ export class SubscriptionsService {
       where: { reference_id: mpPaymentId, reference_type: 'topup' },
     });
     if (existing) {
-      this.logger.log(`Top-up payment ${mpPaymentId} already processed, skipping`);
+      this.logger.log(
+        `Top-up payment ${mpPaymentId} already processed, skipping`,
+      );
       return;
     }
 
@@ -656,23 +859,37 @@ export class SubscriptionsService {
       mpPaymentId,
     );
 
-    this.logger.log(`Top-up approved: +${pack.credits} credits for user ${userId} (payment ${mpPaymentId})`);
+    this.logger.log(
+      `Top-up approved: +${pack.credits} credits for user ${userId} (payment ${mpPaymentId})`,
+    );
   }
 
-  async handleAdditionalStudentsApproved(mpPaymentId: string, userId: string, subscriptionId: string, quantity: number) {
+  async handleAdditionalStudentsApproved(
+    mpPaymentId: string,
+    userId: string,
+    subscriptionId: string,
+    quantity: number,
+  ) {
     const sub = await this.prisma.subscription.findUnique({
       where: { id: subscriptionId },
     });
     if (!sub) {
-      this.logger.warn(`Subscription not found for additional students: ${subscriptionId}`);
+      this.logger.warn(
+        `Subscription not found for additional students: ${subscriptionId}`,
+      );
       return;
     }
 
     const existing = await this.prisma.creditTransaction.findFirst({
-      where: { reference_id: mpPaymentId, reference_type: 'additional_students' },
+      where: {
+        reference_id: mpPaymentId,
+        reference_type: 'additional_students',
+      },
     });
     if (existing) {
-      this.logger.log(`Additional students payment ${mpPaymentId} already processed, skipping`);
+      this.logger.log(
+        `Additional students payment ${mpPaymentId} already processed, skipping`,
+      );
       return;
     }
 
@@ -682,7 +899,9 @@ export class SubscriptionsService {
       data: { additional_students: newAdditional },
     });
 
-    this.logger.log(`Additional students approved: +${quantity} for user ${userId} (payment ${mpPaymentId})`);
+    this.logger.log(
+      `Additional students approved: +${quantity} for user ${userId} (payment ${mpPaymentId})`,
+    );
   }
 
   async getCurrentStudents(userId: string): Promise<number> {

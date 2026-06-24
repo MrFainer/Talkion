@@ -11,6 +11,10 @@ export class CreditLogController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.service.getTransactions(userId, Number(page) || 1, Number(limit) || 50);
+    return this.service.getTransactions(
+      userId,
+      Number(page) || 1,
+      Number(limit) || 50,
+    );
   }
 }

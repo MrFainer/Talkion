@@ -70,7 +70,9 @@ export class UsageCostService {
     const usage = input.response?.usage || {};
     const inputTokens = this.safeInt(usage.prompt_tokens);
     const outputTokens = this.safeInt(usage.completion_tokens);
-    const cachedInputTokens = this.safeInt(usage.prompt_tokens_details?.cached_tokens);
+    const cachedInputTokens = this.safeInt(
+      usage.prompt_tokens_details?.cached_tokens,
+    );
     const totalTokens = this.safeInt(usage.total_tokens);
     const billableInputTokens = Math.max(inputTokens - cachedInputTokens, 0);
     const estimatedCostUsd =
@@ -121,7 +123,8 @@ export class UsageCostService {
     characters: number;
     metadata?: Record<string, unknown>;
   }) {
-    const estimatedCostUsd = (input.characters / 1_000_000) * this.ttsPer1MCharactersUsd;
+    const estimatedCostUsd =
+      (input.characters / 1_000_000) * this.ttsPer1MCharactersUsd;
 
     return this.recordUsage({
       provider: CostProvider.OPENAI,

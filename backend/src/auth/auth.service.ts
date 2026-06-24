@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
@@ -28,7 +32,9 @@ export class AuthService {
 
     const password_hash = await bcrypt.hash(password, 10);
     // Gera token de 6 dígitos
-    const verification_token = Math.floor(100000 + Math.random() * 900000).toString();
+    const verification_token = Math.floor(
+      100000 + Math.random() * 900000,
+    ).toString();
 
     const user = await this.prisma.user.create({
       data: {
@@ -44,7 +50,9 @@ export class AuthService {
     });
 
     // Envia e-mail de forma assíncrona
-    this.mailService.sendVerificationEmail(email, verification_token).catch(console.error);
+    this.mailService
+      .sendVerificationEmail(email, verification_token)
+      .catch(console.error);
 
     return {
       message:
@@ -63,7 +71,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { email } });
-    
+
     if (!user) {
       throw new BadRequestException('Usuário não encontrado.');
     }
@@ -122,7 +130,9 @@ export class AuthService {
     }
 
     if (!user.email_verified) {
-      throw new UnauthorizedException('E-mail não verificado. Por favor, verifique seu e-mail.');
+      throw new UnauthorizedException(
+        'E-mail não verificado. Por favor, verifique seu e-mail.',
+      );
     }
 
     if (!user.active) {
@@ -142,7 +152,9 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return { message: 'Se o e-mail estiver cadastrado, enviaremos um novo código.' };
+      return {
+        message: 'Se o e-mail estiver cadastrado, enviaremos um novo código.',
+      };
     }
 
     if (user.email_verified) {
@@ -151,7 +163,8 @@ export class AuthService {
 
     const minSeconds = 60;
     if (user.verification_token_sent_at) {
-      const diffMs = Date.now() - new Date(user.verification_token_sent_at).getTime();
+      const diffMs =
+        Date.now() - new Date(user.verification_token_sent_at).getTime();
       const remaining = Math.ceil((minSeconds * 1000 - diffMs) / 1000);
       if (remaining > 0) {
         throw new BadRequestException(
@@ -160,7 +173,9 @@ export class AuthService {
       }
     }
 
-    const verification_token = Math.floor(100000 + Math.random() * 900000).toString();
+    const verification_token = Math.floor(
+      100000 + Math.random() * 900000,
+    ).toString();
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -170,7 +185,9 @@ export class AuthService {
       },
     });
 
-    this.mailService.sendVerificationEmail(email, verification_token).catch(console.error);
+    this.mailService
+      .sendVerificationEmail(email, verification_token)
+      .catch(console.error);
 
     return { message: 'Novo código enviado para seu e-mail.' };
   }
@@ -200,7 +217,9 @@ export class AuthService {
       },
     });
 
-    this.mailService.sendPasswordResetEmail(email, resetToken).catch(console.error);
+    this.mailService
+      .sendPasswordResetEmail(email, resetToken)
+      .catch(console.error);
 
     return {
       message:
@@ -218,7 +237,9 @@ export class AuthService {
     const password = data.password || '';
 
     if (!email || !token || !password) {
-      throw new BadRequestException('E-mail, código e nova senha são obrigatórios.');
+      throw new BadRequestException(
+        'E-mail, código e nova senha são obrigatórios.',
+      );
     }
 
     if (!this.isPasswordStrong(password)) {
@@ -278,7 +299,13 @@ export class AuthService {
     const hasLower = /[a-z]/.test(pass);
     const hasNumber = /[0-9]/.test(pass);
     const hasSpecial = /[\W_]/.test(pass);
-    return pass.length >= minLength && hasUpper && hasLower && hasNumber && hasSpecial;
+    return (
+      pass.length >= minLength &&
+      hasUpper &&
+      hasLower &&
+      hasNumber &&
+      hasSpecial
+    );
   }
 
   private normalizeEmail(email: string) {

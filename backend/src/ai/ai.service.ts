@@ -6,7 +6,10 @@ import { join } from 'node:path';
 import { CostAction } from '@prisma/client';
 import { parseBuffer, parseFile } from 'music-metadata';
 import { OpenAI } from 'openai';
-import { UsageCostService, type UsageTrackingContext } from './usage-cost.service';
+import {
+  UsageCostService,
+  type UsageTrackingContext,
+} from './usage-cost.service';
 import { CreditsService } from '../credits/credits.service';
 
 type SpeakingEvaluationResult = {
@@ -97,14 +100,18 @@ type PrivateBroadcastGenerationInput = {
 
 function extractTeacherPhrases(text: string): string[] {
   const matches = [
-    ...String(text || '').matchAll(/\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g),
+    ...String(text || '').matchAll(
+      /\bTeacher\s+[A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3}\b/g,
+    ),
   ];
   const unique = new Set(matches.map((m) => m[0].trim()).filter(Boolean));
   return [...unique];
 }
 
 function extractEmojiSamples(text: string): string[] {
-  const matches = [...String(text || '').matchAll(/\p{Extended_Pictographic}/gu)];
+  const matches = [
+    ...String(text || '').matchAll(/\p{Extended_Pictographic}/gu),
+  ];
   const unique = new Set(matches.map((m) => m[0]).filter(Boolean));
   return [...unique];
 }
@@ -114,7 +121,9 @@ function extractSignatureLine(text: string): string | null {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
-  const candidate = [...lines].reverse().find((l: string) => /\bTeacher\s+/i.test(l));
+  const candidate = [...lines]
+    .reverse()
+    .find((l: string) => /\bTeacher\s+/i.test(l));
   return candidate || null;
 }
 
@@ -164,7 +173,10 @@ export class AiService {
 
     const before = normalized.slice(0, idx).trimEnd();
     const after = normalized.slice(idx).trimStart();
-    const afterFixed = after.replace(/\bDifficult\s+words\s*:/i, 'Difficult words:');
+    const afterFixed = after.replace(
+      /\bDifficult\s+words\s*:/i,
+      'Difficult words:',
+    );
     return `${before}\n\n${afterFixed}`.trim();
   }
 
@@ -224,7 +236,9 @@ export class AiService {
       violations.push('missing_blank_line_before_difficult_words');
     }
 
-    const body = content.replace(/\bDifficult\s+words\s*:\s*[\s\S]*$/i, '').trim();
+    const body = content
+      .replace(/\bDifficult\s+words\s*:\s*[\s\S]*$/i, '')
+      .trim();
     const difficultWordsRaw = diffMatch[1]?.trim() || '';
     const words = this.parseFallbackDifficultWords(difficultWordsRaw);
     if (words.length < 3) {
@@ -233,7 +247,10 @@ export class AiService {
     }
 
     for (const entry of words) {
-      const wordCount = entry.definition.trim().split(/\s+/).filter(Boolean).length;
+      const wordCount = entry.definition
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
       if (wordCount < 6 || wordCount > 14) {
         violations.push('meaning_length_out_of_range');
         break;
@@ -243,14 +260,23 @@ export class AiService {
     for (const entry of words) {
       const term = entry.term.trim();
       if (!term) continue;
-      if (!new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(body)) {
+      if (
+        !new RegExp(
+          `\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+          'i',
+        ).test(body)
+      ) {
         violations.push('difficult_word_not_in_body');
         break;
       }
     }
 
     const normalizedTerms = words
-      .map((w) => String(w.term || '').trim().toLowerCase())
+      .map((w) =>
+        String(w.term || '')
+          .trim()
+          .toLowerCase(),
+      )
       .filter(Boolean);
     if (new Set(normalizedTerms).size !== normalizedTerms.length) {
       violations.push('duplicate_difficult_words');
@@ -262,7 +288,10 @@ export class AiService {
       const escaped = term
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         .replace(/\s+/g, '\\s+');
-      const regex = new RegExp(`(^|[^A-Za-z])(${escaped})(?=$|[^A-Za-z])`, 'gi');
+      const regex = new RegExp(
+        `(^|[^A-Za-z])(${escaped})(?=$|[^A-Za-z])`,
+        'gi',
+      );
       const occurrences = (body.match(regex) || []).length;
       if (occurrences > 1) {
         violations.push('difficult_word_repeated_in_body');
@@ -411,15 +440,26 @@ ${JSON.stringify({ title, content })}`;
       >
     >,
   ): Promise<
-    Record<'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3', { title: string; content: string }>
+    Record<
+      'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3',
+      { title: string; content: string }
+    >
   > {
-    this.logger.log('Gerando notícia via IA (bundle LEVEL_1/2/3 com um único tema)');
+    this.logger.log(
+      'Gerando notícia via IA (bundle LEVEL_1/2/3 com um único tema)',
+    );
 
     const buildAvoid = (level: 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3') => {
-      const avoidTitle = String(optionsByLevel?.[level]?.avoidTitle || '').trim();
-      const avoidContent = String(optionsByLevel?.[level]?.avoidContent || '').trim();
+      const avoidTitle = String(
+        optionsByLevel?.[level]?.avoidTitle || '',
+      ).trim();
+      const avoidContent = String(
+        optionsByLevel?.[level]?.avoidContent || '',
+      ).trim();
       if (!avoidTitle && !avoidContent) return '';
-      const contentPreview = avoidContent ? `${avoidContent.slice(0, 500)}...` : '(vazio)';
+      const contentPreview = avoidContent
+        ? `${avoidContent.slice(0, 500)}...`
+        : '(vazio)';
       return `\n- ${level}: title="${avoidTitle || '(vazio)'}" | content="${contentPreview}"`;
     };
 
@@ -481,15 +521,21 @@ Retorne SOMENTE o JSON.`;
       },
     });
 
-    const parsed = JSON.parse(response.choices[0].message.content || '{}') as any;
+    const parsed = JSON.parse(response.choices[0].message.content || '{}');
     let level1 = parsed?.LEVEL_1;
     let level2 = parsed?.LEVEL_2;
     let level3 = parsed?.LEVEL_3;
     const isValidItem = (item: any) =>
-      item && typeof item.title === 'string' && typeof item.content === 'string' && item.title.trim() && item.content.trim();
+      item &&
+      typeof item.title === 'string' &&
+      typeof item.content === 'string' &&
+      item.title.trim() &&
+      item.content.trim();
 
     if (!isValidItem(level1) || !isValidItem(level2) || !isValidItem(level3)) {
-      throw new Error('A IA não retornou o formato esperado para o bundle de notícias.');
+      throw new Error(
+        'A IA não retornou o formato esperado para o bundle de notícias.',
+      );
     }
 
     const normalizeItem = (item: any, levelNumber: string) => ({
@@ -556,7 +602,7 @@ ${JSON.stringify({ LEVEL_1: level1, LEVEL_2: level2, LEVEL_3: level3 })}`;
 
       const repaired = JSON.parse(
         repairResponse.choices[0].message.content || '{}',
-      ) as any;
+      );
       const r1 = repaired?.LEVEL_1;
       const r2 = repaired?.LEVEL_2;
       const r3 = repaired?.LEVEL_3;
@@ -703,11 +749,19 @@ Se não conseguir interpretar, retorne: {"answers": null}`;
     text: string,
     tracking?: UsageTrackingContext,
   ): Promise<'YES' | 'NO' | 'UNKNOWN'> {
-    const cleaned = String(text || '').trim().toLowerCase();
+    const cleaned = String(text || '')
+      .trim()
+      .toLowerCase();
     if (!cleaned) return 'UNKNOWN';
 
-    const hasYesKeyword = /\b(yes|yep|yeah|sim|confirmo|confirmar|ok|okay|beleza|bora|vamos|com certeza|pode ser|pode confirmar)\b/i.test(cleaned);
-    const hasNoKeyword = /\b(no|nope|nao|não|recuso|cancelar|cancelo|negativo|de jeito nenhum|impossivel|hoje não|nao vou poder)\b/i.test(cleaned);
+    const hasYesKeyword =
+      /\b(yes|yep|yeah|sim|confirmo|confirmar|ok|okay|beleza|bora|vamos|com certeza|pode ser|pode confirmar)\b/i.test(
+        cleaned,
+      );
+    const hasNoKeyword =
+      /\b(no|nope|nao|não|recuso|cancelar|cancelo|negativo|de jeito nenhum|impossivel|hoje não|nao vou poder)\b/i.test(
+        cleaned,
+      );
 
     if (!hasYesKeyword && !hasNoKeyword) {
       return 'UNKNOWN';
@@ -750,7 +804,7 @@ ${cleaned}`;
       decision?: string;
     };
     const decision = String(parsed.decision || '').toUpperCase();
-    if (decision === 'YES' || decision === 'NO') return decision as any;
+    if (decision === 'YES' || decision === 'NO') return decision;
     return 'UNKNOWN';
   }
 
@@ -765,7 +819,8 @@ ${cleaned}`;
     const variables = input.variables || {};
     const model = String(input.model || 'gpt-4o-mini');
     const temperature =
-      typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+      typeof input.temperature === 'number' &&
+      Number.isFinite(input.temperature)
         ? input.temperature
         : 0.7;
 
@@ -800,7 +855,8 @@ Retorne SOMENTE JSON no formato: {"message":"..."};`;
       response,
       tracking: {
         ...input.tracking,
-        referenceType: input.tracking?.referenceType || 'lesson_confirmation_message',
+        referenceType:
+          input.tracking?.referenceType || 'lesson_confirmation_message',
         referenceId: input.tracking?.referenceId || null,
       },
       metadata: { kind: 'lesson_confirmation_message' },
@@ -818,19 +874,26 @@ Retorne SOMENTE JSON no formato: {"message":"..."};`;
   ): Promise<WhatsappOutboundMessage[]> {
     const model = input.model || 'gpt-4o-mini';
     const temperature =
-      typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+      typeof input.temperature === 'number' &&
+      Number.isFinite(input.temperature)
         ? input.temperature
         : 0.7;
 
     const greetingIdea = String(input.ideas?.greetingIdea || '').trim();
-    const previousQuizHeaderIdea = String(input.ideas?.previousQuizHeaderIdea || '').trim();
+    const previousQuizHeaderIdea = String(
+      input.ideas?.previousQuizHeaderIdea || '',
+    ).trim();
     const challengeIdea = String(input.ideas?.challengeIdea || '').trim();
     const quizFooterIdea = String(input.ideas?.quizFooterIdea || '').trim();
     const newsIntroIdea = String(input.ideas?.newsIntroIdea || '').trim();
     const defaultIdea =
       'Crie mensagens curtas, claras e motivacionais no estilo WhatsApp. Use inglês como idioma principal e, quando fizer sentido, inclua uma linha em português brasileiro para ajudar alunos. Evite textos longos.';
     const hasAnyIdea = Boolean(
-      greetingIdea || previousQuizHeaderIdea || challengeIdea || quizFooterIdea || newsIntroIdea,
+      greetingIdea ||
+      previousQuizHeaderIdea ||
+      challengeIdea ||
+      quizFooterIdea ||
+      newsIntroIdea,
     );
     const effectiveIdeas = hasAnyIdea
       ? {
@@ -852,7 +915,10 @@ Retorne SOMENTE JSON no formato: {"message":"..."};`;
     const signatureLinesByKind: Record<string, string> = {};
 
     const addRequiredPhrasesForKind = (kind: string, sources: string[]) => {
-      const combined = sources.map((s) => String(s || '').trim()).filter(Boolean).join('\n');
+      const combined = sources
+        .map((s) => String(s || '').trim())
+        .filter(Boolean)
+        .join('\n');
       const phrases = extractTeacherPhrases(combined);
       if (phrases.length > 0) {
         if (!requiredPhrasesByKind[kind]) requiredPhrasesByKind[kind] = [];
@@ -912,7 +978,8 @@ Retorne SOMENTE JSON no formato: {"message":"..."};`;
       if (newsIntroSig) signatureLinesByKind.NEWS_INTRO = newsIntroSig;
       if (input.content.previousAnswerKey) {
         const previousQuizSig = extractSignatureLine(previousQuizHeaderIdea);
-        if (previousQuizSig) signatureLinesByKind.ANSWER_KEY_HEADER = previousQuizSig;
+        if (previousQuizSig)
+          signatureLinesByKind.ANSWER_KEY_HEADER = previousQuizSig;
         const quizFooterSig = extractSignatureLine(quizFooterIdea);
         if (quizFooterSig) signatureLinesByKind.QUIZ_FOOTER = quizFooterSig;
       }
@@ -1023,7 +1090,8 @@ ${JSON.stringify(input.content)}`;
       response,
       tracking: {
         ...input.tracking,
-        referenceType: input.tracking?.referenceType || 'whatsapp_message_generation',
+        referenceType:
+          input.tracking?.referenceType || 'whatsapp_message_generation',
         referenceId: input.tracking?.referenceId || null,
       },
       metadata: {
@@ -1075,7 +1143,9 @@ ${JSON.stringify(input.content)}`;
 
       const requiredEmojis = requiredEmojisByKind[msg.kind] || [];
       if (requiredEmojis.length > 0) {
-        const hasAnyRequiredEmoji = requiredEmojis.some((e) => text.includes(e));
+        const hasAnyRequiredEmoji = requiredEmojis.some((e) =>
+          text.includes(e),
+        );
         if (!hasAnyRequiredEmoji) {
           text = `${text} ${requiredEmojis[0]}`.trim();
         }
@@ -1090,19 +1160,23 @@ ${JSON.stringify(input.content)}`;
   ): Promise<PrivateBroadcastMessageItem[]> {
     const model = input.model || 'gpt-4o-mini';
     const temperature =
-      typeof input.temperature === 'number' && Number.isFinite(input.temperature)
+      typeof input.temperature === 'number' &&
+      Number.isFinite(input.temperature)
         ? input.temperature
         : 0.7;
 
-    const keys = input.alunos.map((a) => ({ nome: a.nome, whatsapp: a.whatsapp }));
+    const keys = input.alunos.map((a) => ({
+      nome: a.nome,
+      whatsapp: a.whatsapp,
+    }));
 
     const requiredPhrasesByTipo: Record<string, string[]> = {};
     const requiredEmojisByTipo: Record<string, string[]> = {};
     const signatureLinesByTipo: Record<string, string> = {};
 
-    const greetingModel = String((input.modelosDeMensagens as any)?.greeting || '');
-    const challengeModel = String((input.modelosDeMensagens as any)?.challenge || '');
-    const newsIntroModel = String((input.modelosDeMensagens as any)?.news_intro || '');
+    const greetingModel = String(input.modelosDeMensagens?.greeting || '');
+    const challengeModel = String(input.modelosDeMensagens?.challenge || '');
+    const newsIntroModel = String(input.modelosDeMensagens?.news_intro || '');
 
     const greetingPhrases = extractTeacherPhrases(greetingModel);
     if (greetingPhrases.length > 0) {
@@ -1123,10 +1197,12 @@ ${JSON.stringify(input.content)}`;
     if (greetingSignature) signatureLinesByTipo.GREETING = greetingSignature;
 
     const challengeSignature = extractSignatureLine(challengeModel);
-    if (challengeSignature) signatureLinesByTipo.SPEAKING_INTRO = challengeSignature;
+    if (challengeSignature)
+      signatureLinesByTipo.SPEAKING_INTRO = challengeSignature;
 
     const newsIntroSignature = extractSignatureLine(newsIntroModel);
-    if (newsIntroSignature) signatureLinesByTipo.NEWS_INTRO = newsIntroSignature;
+    if (newsIntroSignature)
+      signatureLinesByTipo.NEWS_INTRO = newsIntroSignature;
 
     const speakingEmojis = extractEmojiSamples(challengeModel);
     if (speakingEmojis.length > 0) {
@@ -1230,7 +1306,8 @@ ${JSON.stringify(keys)}${variationRules}`;
       tracking: {
         ...input.tracking,
         referenceType:
-          input.tracking?.referenceType || 'whatsapp_private_broadcast_generation',
+          input.tracking?.referenceType ||
+          'whatsapp_private_broadcast_generation',
         referenceId: input.tracking?.referenceId || null,
       },
       metadata: {
@@ -1268,7 +1345,9 @@ ${JSON.stringify(keys)}${variationRules}`;
 
           const requiredPhrases = requiredPhrasesByTipo[tipo] || [];
           if (requiredPhrases.length > 0) {
-            const missing = requiredPhrases.filter((p) => !mensagem.includes(p));
+            const missing = requiredPhrases.filter(
+              (p) => !mensagem.includes(p),
+            );
             if (missing.length > 0) {
               const signatureLine = signatureLinesByTipo[tipo];
               if (signatureLine && !mensagem.includes(signatureLine)) {
@@ -1279,7 +1358,9 @@ ${JSON.stringify(keys)}${variationRules}`;
 
           const requiredEmojis = requiredEmojisByTipo[tipo] || [];
           if (requiredEmojis.length > 0) {
-            const hasAnyRequiredEmoji = requiredEmojis.some((e) => mensagem.includes(e));
+            const hasAnyRequiredEmoji = requiredEmojis.some((e) =>
+              mensagem.includes(e),
+            );
             if (!hasAnyRequiredEmoji) {
               mensagem = `${mensagem} ${requiredEmojis[0]}`.trim();
             }
@@ -1290,7 +1371,9 @@ ${JSON.stringify(keys)}${variationRules}`;
 
         return { ...item, mensagens: patched };
       })
-      .filter((item: any) => item.nome && item.whatsapp && item.mensagens.length > 0);
+      .filter(
+        (item: any) => item.nome && item.whatsapp && item.mensagens.length > 0,
+      );
   }
 
   /**
@@ -1303,8 +1386,14 @@ ${JSON.stringify(keys)}${variationRules}`;
     tracking?: UsageTrackingContext,
   ): Promise<SpeakingEvaluationResult> {
     const teachId = tracking?.teacherId;
-    await this.creditsService.requireCredits(teachId as string, 'speaking_transcription');
-    await this.creditsService.requireCredits(teachId as string, 'speaking_feedback');
+    await this.creditsService.requireCredits(
+      teachId as string,
+      'speaking_transcription',
+    );
+    await this.creditsService.requireCredits(
+      teachId as string,
+      'speaking_feedback',
+    );
 
     const { buffer, extension } = this.decodeAudioBase64(audioBase64, mimeType);
     const tempDir = await mkdtemp(join(tmpdir(), 'talkion-audio-'));
@@ -1325,10 +1414,11 @@ ${originalText}`;
         tracking?.audioSeconds,
       );
 
-      const transcriptionResponse = await this.openai.audio.transcriptions.create({
-        file: createReadStream(tempFilePath),
-        model: 'whisper-1',
-      });
+      const transcriptionResponse =
+        await this.openai.audio.transcriptions.create({
+          file: createReadStream(tempFilePath),
+          model: 'whisper-1',
+        });
 
       await this.usageCostService.recordWhisperTranscription({
         tracking: {
@@ -1376,7 +1466,9 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
         },
       });
 
-      const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
+      const parsed = JSON.parse(
+        response.choices[0].message.content || '{}',
+      ) as {
         score?: number;
         feedback?: string;
         mistakes?: string[];
@@ -1386,8 +1478,11 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
       };
 
       if (teachId) {
-        await this.creditsService.deductCredits(teachId as string, 'speaking_transcription');
-        await this.creditsService.deductCredits(teachId as string, 'speaking_feedback');
+        await this.creditsService.deductCredits(
+          teachId,
+          'speaking_transcription',
+        );
+        await this.creditsService.deductCredits(teachId, 'speaking_feedback');
       }
 
       return {
@@ -1395,7 +1490,8 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
           typeof parsed.score === 'number' && Number.isFinite(parsed.score)
             ? parsed.score
             : 0,
-        feedback: this.normalizeFeedbackText(parsed.feedback) || 'Sem feedback.',
+        feedback:
+          this.normalizeFeedbackText(parsed.feedback) || 'Sem feedback.',
         mistakes: Array.isArray(parsed.mistakes)
           ? parsed.mistakes
               .map((mistake) => this.normalizeFeedbackText(String(mistake)))
@@ -1428,7 +1524,9 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
 
   private decodeAudioBase64(audioBase64: string, mimeType?: string) {
     const trimmedAudio = audioBase64.trim();
-    const dataUriMatch = trimmedAudio.match(/^data:(audio\/[-+\w.]+);base64,(.+)$/i);
+    const dataUriMatch = trimmedAudio.match(
+      /^data:(audio\/[-+\w.]+);base64,(.+)$/i,
+    );
     const effectiveMimeType = dataUriMatch?.[1] || mimeType || 'audio/ogg';
     const base64Content = dataUriMatch?.[2] || trimmedAudio;
 
@@ -1452,7 +1550,10 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
       const metadata = await parseFile(filePath, { duration: true });
       const durationSeconds = metadata.format.duration;
 
-      if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)) {
+      if (
+        typeof durationSeconds === 'number' &&
+        Number.isFinite(durationSeconds)
+      ) {
         return Math.max(0.001, Number(durationSeconds.toFixed(3)));
       }
     } catch (error) {
@@ -1470,7 +1571,10 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
       );
       const durationSeconds = metadata.format.duration;
 
-      if (typeof durationSeconds === 'number' && Number.isFinite(durationSeconds)) {
+      if (
+        typeof durationSeconds === 'number' &&
+        Number.isFinite(durationSeconds)
+      ) {
         return Math.max(0.001, Number(durationSeconds.toFixed(3)));
       }
     } catch (error) {
@@ -1489,7 +1593,10 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
       return 'ogg';
     }
 
-    if (normalizedMimeType.includes('mpeg') || normalizedMimeType.includes('mp3')) {
+    if (
+      normalizedMimeType.includes('mpeg') ||
+      normalizedMimeType.includes('mp3')
+    ) {
       return 'mp3';
     }
 
@@ -1572,10 +1679,7 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
     }
   }
 
-  async generateQuickTip(input: {
-    teacherId: string;
-    model?: string;
-  }) {
+  async generateQuickTip(input: { teacherId: string; model?: string }) {
     const model = input.model || 'gpt-4o-mini';
 
     const prompt = `Você é um professor de inglês criando uma "Quick Tip" para alunos brasileiros no WhatsApp.
@@ -1626,5 +1730,254 @@ Retorne APENAS o texto da dica, sem formatação adicional.`;
     });
 
     return response.choices[0]?.message?.content?.trim() || null;
+  }
+
+  async generateContentFromTrend(input: {
+    teacherId: string;
+    topic: string;
+    type: 'VOCABULARY' | 'TIPS' | 'QUIZ' | 'INFORMATIVE' | 'CURIOSITY';
+    tone?: string;
+    level?: string;
+    platform?: string;
+    model?: string;
+  }) {
+    const model = input.model || 'gpt-4o-mini';
+
+    const toneLabels: Record<string, string> = {
+      formal: 'formal e profissional',
+      informal: 'informal e amigável',
+      motivational: 'motivacional e inspirador',
+      fun: 'divertido e descontraído',
+    };
+
+    const levelLabels: Record<string, string> = {
+      beginner: 'iniciante (A1-A2)',
+      intermediate: 'intermediário (B1-B2)',
+      advanced: 'avançado (C1-C2)',
+    };
+
+    const platformLabels: Record<string, string> = {
+      whatsapp: 'WhatsApp',
+      instagram: 'Instagram',
+      facebook: 'Facebook',
+      linkedin: 'LinkedIn',
+    };
+
+    const typeNames: Record<string, string> = {
+      VOCABULARY: 'Vocabulário Temático',
+      TIPS: 'Dicas de Inglês',
+      QUIZ: 'Quiz Interativo',
+      INFORMATIVE: 'Post Informativo',
+      CURIOSITY: 'Curiosidade Cultural/Linguística',
+    };
+
+    const tone = toneLabels[input.tone || ''] || 'informal e amigável';
+    const level = levelLabels[input.level || ''] || 'iniciante (A1-A2)';
+    const platform = platformLabels[input.platform || ''] || 'WhatsApp';
+    const typeName = typeNames[input.type] || input.type;
+
+    const systemPrompt = `Você é um professor de inglês especializado em criar conteúdo educativo para alunos brasileiros.
+
+REGRAS FUNDAMENTAIS (ACIMA DE TUDO):
+- TODO conteúdo deve ensinar inglês de forma explícita — não basta falar SOBRE o tópico.
+- Cada post DEVE conter vocabulário útil com tradução, exemplos em inglês com explicação em português, e algo que o aluno aprenda.
+- O aluno brasileiro precisa aprender palavras novas, gramática ou expressões em CADA conteúdo gerado.
+- Mesmo em posts informativos ou curiosidades, SEMPRE inclua seção de aprendizado de inglês.
+
+Você deve gerar conteúdo no formato JSON, sem markdown, sem comentários, APENAS o JSON válido.
+
+## Contexto
+- Tópico: "${input.topic}"
+- Tipo de conteúdo: ${typeName}
+- Tom: ${tone}
+- Nível de inglês: ${level}
+- Plataforma alvo: ${platform}
+
+## Instruções para cada tipo
+
+### VOCABULARY (Vocabulário Temático)
+Crie um post ENSINANDO vocabulário relacionado ao tópico.
+- singlePost: Texto completo explicando 5-8 palavras-chave em inglês, cada uma com definição simples, exemplo em frase, e tradução para português.
+- carousel: 4 slides, cada slide = 1 palavra com: título da palavra, body com definição em inglês simples + exemplo + tradução, vocabulary = a palavra em inglês.
+- description: Chamada curta para legenda (1-2 frases).
+
+### TIPS (Dicas de Inglês)
+Crie dicas práticas de gramática/vocabulário RELACIONADAS ao tópico, ENSINANDO inglês de verdade.
+- singlePost: Texto completo com 3-4 dicas de inglês, cada uma com explicação em português, exemplos em inglês com tradução, e regra gramatical clara.
+- carousel: 4 slides, cada slide = 1 dica com: título (ex: "Dica 1: ..."), body com explicação + exemplo, vocabulary = palavra-chave.
+- description: Chamada curta.
+
+### QUIZ (Quiz Interativo)
+Crie um quiz de múltipla escolha para TESTAR e ENSINAR inglês sobre o tópico.
+- singlePost: Introdução ao quiz + mini lição de vocabulário útil sobre o tema (5 palavras com tradução).
+- carousel: [] (array vazio).
+- description: Chamada para participar do quiz.
+- quizQuestions: 4 perguntas, cada uma com 3-4 opções, a resposta correta indicada pela letra. As perguntas devem testar vocabulário e compreensão do tema.
+
+### INFORMATIVE (Post Informativo)
+Crie um post informativo sobre o tema, mas COM FOCO EM ENSINAR INGLÊS.
+- singlePost: Texto informativo em português COM vocabulário destacado. A cada parágrafo, inclua um "📚 Vocabulário:" com 2-3 palavras em inglês, tradução e exemplo.
+- carousel: 4 slides com: título do slide, body com informação + "💡 English: [palavra] = [tradução], exemplo: [frase]".
+- description: Resumo curto.
+
+### CURIOSITY (Curiosidade Cultural/Linguística)
+Crie uma curiosidade sobre cultura inglesa ou linguística, SEMPRE com aprendizado de inglês.
+- singlePost: Texto da curiosidade em português + "🇺🇸 English Learning:" com 5 expressões/vocabulário relacionados, cada um com tradução e exemplo.
+- carousel: 4 slides, cada um com: título da curiosidade, body com explicação + "📖 New word: [palavra] = [tradução]", vocabulary = palavra-chave.
+- description: Chamada curta.
+
+## Regras importantes
+- O nível ${level} deve ser respeitado: vocabulário adequado, frases mais curtas para iniciantes, mais complexas para avançados.
+- O tom deve ser ${tone}.
+- O conteúdo deve ser otimizado para ${platform}.
+- Use emojis moderadamente (2-4 no máximo).
+- NÃO use placeholders como {{variavel}}.
+- NÃO inclua markdown no JSON.
+- Garanta que o conteúdo seja culturalmente relevante para alunos brasileiros.
+- SEMPRE gere 4 slides no carrossel (exceto Quiz que é array vazio).
+
+## Formato de resposta (JSON)
+{
+  "singlePost": "string com o texto completo do post com vocabulário e ensino de inglês",
+  "carousel": [
+    { "title": "Título do slide", "body": "Conteúdo do slide com explicação em português + exemplo em inglês", "vocabulary": "palavra-chave em inglês" }
+  ],
+  "description": "string com descrição curta",
+  "quizQuestions": [
+    { "question": "Pergunta?", "options": ["A) Opção 1", "B) Opção 2", "C) Opção 3"], "correctAnswer": "A" }
+  ]
+}`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model,
+        temperature: 0.8,
+        messages: [{ role: 'system', content: systemPrompt }],
+        response_format: { type: 'json_object' },
+      });
+
+      const raw = response.choices[0]?.message?.content?.trim() || '{}';
+      const parsed = JSON.parse(raw);
+
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.CONTENT_GENERATION,
+        modelName: model,
+        response,
+        tracking: {
+          teacherId: input.teacherId,
+          referenceType: 'content_generation',
+          referenceId: input.topic,
+        },
+        metadata: {
+          kind: 'content_generation',
+          topic: input.topic,
+          type: input.type,
+          tone: input.tone,
+          level: input.level,
+          platform: input.platform,
+        },
+      });
+
+      return {
+        singlePost: parsed.singlePost || '',
+        carousel: Array.isArray(parsed.carousel) ? parsed.carousel : [],
+        description: parsed.description || '',
+        quizQuestions: Array.isArray(parsed.quizQuestions)
+          ? parsed.quizQuestions
+          : [],
+        promptUsed: systemPrompt,
+        aiModel: model,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Erro ao gerar conteúdo para "${input.topic}": ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  async generateTopicSuggestions(input: {
+    teacherId: string;
+    count: number;
+    category?: string;
+    model?: string;
+  }): Promise<string[]> {
+    const model = input.model || 'gpt-4o-mini';
+
+    const categoryContext =
+      input.category && input.category !== 'all'
+        ? `Foco específico em tópicos da categoria "${input.category}". Gere apenas ideias relacionadas a essa área.\n`
+        : '';
+
+    const prompt = `Você é um professor de inglês brasileiro especializado em criar conteúdo relevante para alunos brasileiros.
+
+Gere uma lista de ${input.count} tópicos interessantes e atuais que poderiam ser usados para criar conteúdo educativo de inglês.
+
+${categoryContext}Os tópicos devem:
+- Ser relevantes para alunos brasileiros de inglês
+- Incluir temas que gerem vocabulário útil, dicas gramaticais, quizzes ou conversação
+- Ser específicos o suficiente para um post de redes sociais
+- Misturar temas do dia-a-dia com temas mais amplos
+
+Retorne APENAS um objeto JSON com uma chave "topics" contendo um array de strings, sem formatação adicional, sem markdown.
+Exemplo: {"topics": ["Como pedir comida em um restaurante nos EUA", "Vocabulário de tecnologia para o trabalho", "Diferença entre Make e Do"]}`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model,
+        temperature: 0.9,
+        messages: [{ role: 'system', content: prompt }],
+        response_format: { type: 'json_object' },
+      });
+
+      const raw = response.choices[0]?.message?.content?.trim() || '{}';
+      const parsed = JSON.parse(raw);
+
+      const topics: string[] = (
+        parsed.topics ||
+        parsed.topicos ||
+        parsed.suggestions ||
+        Object.values(parsed).find(Array.isArray) ||
+        []
+      )
+        .slice(0, input.count)
+        .map(String);
+
+      await this.usageCostService.recordChatCompletion({
+        action: CostAction.CONTENT_GENERATION,
+        modelName: model,
+        response,
+        tracking: {
+          teacherId: input.teacherId,
+          referenceType: 'ai_topic_suggestion',
+          referenceId: `topics_${Date.now()}`,
+        },
+        metadata: { kind: 'topic_suggestion', count: input.count },
+      });
+
+      return topics.length > 0 ? topics : this.fallbackTopics(input.count);
+    } catch (error) {
+      this.logger.error(
+        `Erro ao gerar sugestões de tópicos: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return this.fallbackTopics(input.count);
+    }
+  }
+
+  private fallbackTopics(count: number): string[] {
+    return [
+      'Como pedir comida em um restaurante',
+      'Vocabulário de tecnologia para o trabalho',
+      'Diferença entre Make e Do',
+      'Expressões idiomáticas com cores',
+      'Como escrever um e-mail profissional em inglês',
+      'Falsos cognatos mais comuns',
+      'Vocabulário para viagens internacionais',
+      'Phrasal verbs com "get"',
+      'Como falar sobre suas férias em inglês',
+      'Diferença entre Say, Tell, Speak e Talk',
+      'Vocabulário de roupas e compras',
+      'Como agendar uma consulta médica em inglês',
+    ].slice(0, count);
   }
 }

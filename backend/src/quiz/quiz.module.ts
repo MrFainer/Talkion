@@ -7,6 +7,6 @@ import { AiModule } from '../ai/ai.module';
   imports: [AiModule],
   providers: [QuizService],
   controllers: [QuizController],
-  exports: [QuizService]
+  exports: [QuizService],
 })
 export class QuizModule {}

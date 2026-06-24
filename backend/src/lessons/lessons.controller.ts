@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { LessonsService } from './lessons.service';
 
 @Controller('lessons')
@@ -48,4 +58,3 @@ export class LessonsController {
     return this.lessonsService.deleteLesson(lessonId);
   }
 }
-

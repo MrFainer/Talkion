@@ -15,12 +15,13 @@ export class TeacherDashboardService {
       throw new NotFoundException('Professor não encontrado.');
     }
 
-    const [summary, engagement, ranking, pronunciationEvolution] = await Promise.all([
-      this.getSummary(teacherId),
-      this.getEngagement(teacherId),
-      this.getWeeklyRanking(teacherId),
-      this.getPronunciationEvolution(teacherId),
-    ]);
+    const [summary, engagement, ranking, pronunciationEvolution] =
+      await Promise.all([
+        this.getSummary(teacherId),
+        this.getEngagement(teacherId),
+        this.getWeeklyRanking(teacherId),
+        this.getPronunciationEvolution(teacherId),
+      ]);
 
     return {
       teacher: { id: teacher.id, name: teacher.name, email: teacher.email },
@@ -65,7 +66,11 @@ export class TeacherDashboardService {
 
   private async getEngagement(teacherId: string) {
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const todayEnd = new Date(todayStart.getTime() + 86400000 - 1);
     const yesterdayStart = new Date(todayStart.getTime() - 86400000);
     const yesterdayEnd = new Date(todayStart.getTime() - 1);
@@ -75,11 +80,17 @@ export class TeacherDashboardService {
       where: { teacher_id: teacherId, active: true },
     });
 
-    const [todayActiveRaw, yesterdayActiveRaw, last7DaysDaily] = await Promise.all([
-      this.getActiveStudentsInRange(teacherId, todayStart, todayEnd),
-      this.getActiveStudentsInRange(teacherId, yesterdayStart, yesterdayEnd),
-      this.getDailyActiveCount(teacherId, sevenDaysAgo, todayEnd, activeStudents),
-    ]);
+    const [todayActiveRaw, yesterdayActiveRaw, last7DaysDaily] =
+      await Promise.all([
+        this.getActiveStudentsInRange(teacherId, todayStart, todayEnd),
+        this.getActiveStudentsInRange(teacherId, yesterdayStart, yesterdayEnd),
+        this.getDailyActiveCount(
+          teacherId,
+          sevenDaysAgo,
+          todayEnd,
+          activeStudents,
+        ),
+      ]);
 
     const todayActive = todayActiveRaw.length;
     const yesterdayActive = yesterdayActiveRaw.length;
@@ -87,14 +98,17 @@ export class TeacherDashboardService {
     const dailyResponseRate =
       activeStudents > 0 ? Math.round((todayActive / activeStudents) * 100) : 0;
     const yesterdayRate =
-      activeStudents > 0 ? Math.round((yesterdayActive / activeStudents) * 100) : 0;
+      activeStudents > 0
+        ? Math.round((yesterdayActive / activeStudents) * 100)
+        : 0;
 
     const consecutiveDays = await this.computeConsecutiveDays(teacherId);
 
     return {
       dailyResponseRate,
       yesterdayRate,
-      dailyRateChange: yesterdayRate > 0 ? dailyResponseRate - yesterdayRate : 0,
+      dailyRateChange:
+        yesterdayRate > 0 ? dailyResponseRate - yesterdayRate : 0,
       last7Days: last7DaysDaily,
       totalActiveStudents: activeStudents,
       todayActiveStudents: todayActive,
@@ -155,8 +169,13 @@ export class TeacherDashboardService {
       const dayEnd = new Date(cursor);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const active = await this.getActiveStudentsInRange(teacherId, dayStart, dayEnd);
-      const rate = totalActive > 0 ? Math.round((active.length / totalActive) * 100) : 0;
+      const active = await this.getActiveStudentsInRange(
+        teacherId,
+        dayStart,
+        dayEnd,
+      );
+      const rate =
+        totalActive > 0 ? Math.round((active.length / totalActive) * 100) : 0;
 
       days.push({
         date: dayStart.toISOString().slice(0, 10),
@@ -180,7 +199,8 @@ export class TeacherDashboardService {
       return { classAverage: 0, bestStreaks: [] };
     }
 
-    const streaks: { studentId: string; fullName: string; streak: number }[] = [];
+    const streaks: { studentId: string; fullName: string; streak: number }[] =
+      [];
 
     for (const student of students) {
       const [quizDates, audioDates, lessonDates] = await Promise.all([
@@ -264,7 +284,11 @@ export class TeacherDashboardService {
     const now = new Date();
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset);
+    const weekStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + mondayOffset,
+    );
     weekStart.setHours(0, 0, 0, 0);
     const weekEnd = new Date(weekStart.getTime() + 7 * 86400000 - 1);
 
@@ -380,9 +404,10 @@ export class TeacherDashboardService {
     const weekly = Array.from(weeklyMap.entries())
       .map(([week, data]) => ({
         period: week,
-        averageScore: Math.round(
-          (data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10,
-        ) / 10,
+        averageScore:
+          Math.round(
+            (data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10,
+          ) / 10,
         evaluations: data.count,
       }))
       .sort((a, b) => a.period.localeCompare(b.period));
@@ -390,17 +415,19 @@ export class TeacherDashboardService {
     const monthly = Array.from(monthlyMap.entries())
       .map(([month, data]) => ({
         period: month,
-        averageScore: Math.round(
-          (data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10,
-        ) / 10,
+        averageScore:
+          Math.round(
+            (data.scores.reduce((a, b) => a + b, 0) / data.scores.length) * 10,
+          ) / 10,
         evaluations: data.count,
       }))
       .sort((a, b) => a.period.localeCompare(b.period));
 
     const allScores = feedbacks.map((f) => f.score);
-    const average = Math.round(
-      (allScores.reduce((a, b) => a + b, 0) / allScores.length) * 10,
-    ) / 10;
+    const average =
+      Math.round(
+        (allScores.reduce((a, b) => a + b, 0) / allScores.length) * 10,
+      ) / 10;
 
     return {
       weekly,

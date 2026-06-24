@@ -6,6 +6,6 @@ import { UsageCostService } from './usage-cost.service';
 @Module({
   providers: [AiService, UsageCostService],
   controllers: [AiController],
-  exports: [AiService, UsageCostService]
+  exports: [AiService, UsageCostService],
 })
 export class AiModule {}

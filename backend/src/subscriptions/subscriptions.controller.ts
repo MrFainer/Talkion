@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { MercadoPagoService } from './mercadopago.service';
 
@@ -17,7 +28,15 @@ export class SubscriptionsController {
   }
 
   @Post('plans')
-  async createPlan(@Body() body: { name: string; description?: string; price: number; credits: number }) {
+  async createPlan(
+    @Body()
+    body: {
+      name: string;
+      description?: string;
+      price: number;
+      credits: number;
+    },
+  ) {
     if (!body.name || body.price == null || body.credits == null) {
       throw new BadRequestException('name, price e credits são obrigatórios');
     }
@@ -44,7 +63,10 @@ export class SubscriptionsController {
   }
 
   @Post('user/:userId')
-  async createSubscription(@Param('userId') userId: string, @Body() body: { planId: string; cardToken: string }) {
+  async createSubscription(
+    @Param('userId') userId: string,
+    @Body() body: { planId: string; cardToken: string },
+  ) {
     if (!body.planId || !body.cardToken) {
       throw new BadRequestException('planId e cardToken são obrigatórios');
     }
@@ -57,7 +79,10 @@ export class SubscriptionsController {
   }
 
   @Patch('user/:userId/plan')
-  async changePlan(@Param('userId') userId: string, @Body() body: { planId: string }) {
+  async changePlan(
+    @Param('userId') userId: string,
+    @Body() body: { planId: string },
+  ) {
     if (!body.planId) throw new BadRequestException('planId é obrigatório');
     return this.service.changePlan(userId, body.planId);
   }
@@ -115,7 +140,8 @@ export class SubscriptionsController {
   @Post('user/:userId/direct-pay')
   async directPay(
     @Param('userId') userId: string,
-    @Body() body: {
+    @Body()
+    body: {
       type: 'subscription' | 'topup' | 'additional';
       planId?: string;
       packId?: string;
@@ -128,20 +154,32 @@ export class SubscriptionsController {
 
     switch (body.type) {
       case 'subscription':
-        if (!body.planId) throw new BadRequestException('planId é obrigatório para subscription');
-        return this.service.createSubscriptionWithCard(userId, { planId: body.planId });
+        if (!body.planId)
+          throw new BadRequestException(
+            'planId é obrigatório para subscription',
+          );
+        return this.service.createSubscriptionWithCard(userId, {
+          planId: body.planId,
+        });
 
       case 'topup':
-        if (!body.packId) throw new BadRequestException('packId é obrigatório para topup');
-        return this.service.purchaseTopUpWithCard(userId, { packId: body.packId });
+        if (!body.packId)
+          throw new BadRequestException('packId é obrigatório para topup');
+        return this.service.purchaseTopUpWithCard(userId, {
+          packId: body.packId,
+        });
 
       case 'additional':
-        if (!body.quantity) throw new BadRequestException('quantity é obrigatório para additional');
-        return this.service.purchaseAdditionalStudentsWithCard(userId, { quantity: body.quantity });
+        if (!body.quantity)
+          throw new BadRequestException(
+            'quantity é obrigatório para additional',
+          );
+        return this.service.purchaseAdditionalStudentsWithCard(userId, {
+          quantity: body.quantity,
+        });
 
       default:
         throw new BadRequestException('Tipo de pagamento inválido');
     }
   }
 }
-

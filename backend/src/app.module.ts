@@ -17,6 +17,8 @@ import { TeacherDashboardModule } from './teacher-dashboard/teacher-dashboard.mo
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { CreditsModule } from './credits/credits.module';
 import { ContactModule } from './contact/contact.module';
+import { TrendsModule } from './trends/trends.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { ContactModule } from './contact/contact.module';
     SubscriptionsModule,
     CreditsModule,
     ContactModule,
+    TrendsModule,
+    ContentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

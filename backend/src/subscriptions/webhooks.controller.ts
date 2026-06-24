@@ -49,8 +49,14 @@ export class WebhooksController {
   ) {
     const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
 
-    if (signature && secret && !validateMercadoPagoSignature(body, signature, secret)) {
-      this.logger.warn(`Invalid webhook signature (requestId: ${requestId || 'N/A'}) - processing anyway`);
+    if (
+      signature &&
+      secret &&
+      !validateMercadoPagoSignature(body, signature, secret)
+    ) {
+      this.logger.warn(
+        `Invalid webhook signature (requestId: ${requestId || 'N/A'}) - processing anyway`,
+      );
     }
 
     this.logger.log(`Webhook received: ${JSON.stringify(body).slice(0, 500)}`);
@@ -79,9 +85,13 @@ export class WebhooksController {
     if (!mpPaymentId) return;
 
     const status = data.status || body.status;
-    const amount = parseFloat(data.transaction_amount || data.amount || body.transaction_amount || '0');
-    const paidAt = data.date_approved || body.date_approved || new Date().toISOString();
-    const paymentMethod = data.payment_method_id || body.payment_method_id || 'credit_card';
+    const amount = parseFloat(
+      data.transaction_amount || data.amount || body.transaction_amount || '0',
+    );
+    const paidAt =
+      data.date_approved || body.date_approved || new Date().toISOString();
+    const paymentMethod =
+      data.payment_method_id || body.payment_method_id || 'credit_card';
     const externalRef = data.external_reference || body.external_reference;
 
     if (externalRef && externalRef.startsWith('topup:')) {
@@ -100,7 +110,12 @@ export class WebhooksController {
       const subscriptionId = parts[2];
       const quantity = parseInt(parts[3] || '1', 10);
       if (status === 'approved') {
-        await this.service.handleAdditionalStudentsApproved(mpPaymentId, userId, subscriptionId, quantity);
+        await this.service.handleAdditionalStudentsApproved(
+          mpPaymentId,
+          userId,
+          subscriptionId,
+          quantity,
+        );
       }
       return;
     }
@@ -121,14 +136,28 @@ export class WebhooksController {
     }
 
     if (!subscriptionId) {
-      this.logger.warn(`Could not resolve subscription for payment ${mpPaymentId}`);
+      this.logger.warn(
+        `Could not resolve subscription for payment ${mpPaymentId}`,
+      );
       return;
     }
 
     if (status === 'approved') {
-      await this.service.handlePaymentApproved(mpPaymentId, subscriptionId, amount, paidAt, paymentMethod);
-    } else if (['rejected', 'refunded', 'cancelled', 'charged_back'].includes(status)) {
-      await this.service.handlePaymentRejected(mpPaymentId, subscriptionId, amount);
+      await this.service.handlePaymentApproved(
+        mpPaymentId,
+        subscriptionId,
+        amount,
+        paidAt,
+        paymentMethod,
+      );
+    } else if (
+      ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(status)
+    ) {
+      await this.service.handlePaymentRejected(
+        mpPaymentId,
+        subscriptionId,
+        amount,
+      );
     }
   }
 
@@ -145,7 +174,10 @@ export class WebhooksController {
       await this.service.handleSubscriptionPaused(mpSubscriptionId);
     } else if (status === 'authorized' || status === 'pending') {
       const nextBilling = data.next_payment_date || body.next_payment_date;
-      await this.service.handleSubscriptionUpdated(mpSubscriptionId, { status, nextBillingDate: nextBilling });
+      await this.service.handleSubscriptionUpdated(mpSubscriptionId, {
+        status,
+        nextBillingDate: nextBilling,
+      });
     }
   }
 

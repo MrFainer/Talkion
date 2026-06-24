@@ -73,6 +73,10 @@ export const CREDIT_ACTION_COPY: Record<
     name: 'Processamento de resposta do resumo semanal',
     description: 'Interpretação da resposta do resumo semanal pela IA',
   },
+  content_generation: {
+    name: 'Geração de conteúdo educacional',
+    description: 'Geração de conteúdo de inglês baseado em tendências',
+  },
 };
 
 export function getCreditActionCopy(key: string) {

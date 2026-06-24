@@ -15,17 +15,18 @@ export class SettingsService {
       const defaultPrivateGreeting = 'Good {{period}}, {{nome}}! 🎉🎉';
       const defaultGroupGreeting = 'Good {{period}}! 🎉🎉';
       const defaultSpeakingIntro =
-        "*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*";
-      const defaultNewsIntro = "📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*";
+        '*Welcome to the challenge of the day 👊🏻🚀*\n\nCan you read this news out loud and send an audio here?\n\nVocê pode ler esta notícia em voz alta e enviar um áudio aqui?\n\n*Have a wonderful day and let’s speak English with Talkion 😉👍🏻🗣️🇺🇸🇬🇧*';
+      const defaultNewsIntro =
+        '📰 *Let’s go to today’s news!*\n\n📰 *Vamos para a notícia do dia!*';
       const defaultGroupNewsIntro = defaultNewsIntro;
       const defaultLessonConfirmationIdea =
         'Você pode montar a confirmação de aula com base nesse modelo aqui:\n\nGood {{period}} {{nome}}, how are you doing today? 🎉\n\nI would like to confirm our English Mentoring this {{diasemana}} at {{hora_en}} 🙌🏻\n\nParabéns pelo seu comprometimento e dedicação nos estudos de inglês 🚀🇺🇸\n\nHave an excellent week  🎊';
       const defaultGroupQuizHeader =
-        "📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀";
+        '📝 *Quiz do Dia*\n\n🇺🇸 Let’s check your understanding of the news.\n\nHora de testar sua compreensão da notícia.\nResponda com atenção e envie tudo em uma única mensagem. 🚀';
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
       const defaultGroupQuizFooter =
-        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
+        '📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!';
 
       settings = await this.prisma.messageSettings.create({
         data: {
@@ -48,8 +49,7 @@ export class SettingsService {
           group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
         },
       });
-    }
-    else {
+    } else {
       const updates: Record<string, any> = {};
       const privateGreeting = settings.private_greeting_message || '';
       const speakingIntro = settings.speaking_intro_message || '';
@@ -60,7 +60,7 @@ export class SettingsService {
       const defaultPreviousQuizHeader =
         '🗝️ *Gabarito do Quiz Anterior*\n\nConfira as respostas corretas do quiz anterior:';
       const defaultGroupQuizFooter =
-        "📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!";
+        '📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!';
 
       if (!settings.private_greeting_idea) {
         updates.private_greeting_idea = `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${privateGreeting}`;
@@ -85,7 +85,8 @@ export class SettingsService {
         updates.group_quiz_header_idea = `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${groupQuizHeader}`;
       }
       if (!settings.group_quiz_footer_idea) {
-        const quizFooterModel = settings.group_quiz_footer_message || defaultGroupQuizFooter;
+        const quizFooterModel =
+          settings.group_quiz_footer_message || defaultGroupQuizFooter;
         updates.group_quiz_footer_idea = `Você pode montar o rodapé do quiz com base nesse modelo aqui:\n\n${quizFooterModel}`;
       }
       if (!settings.group_news_intro_idea) {
@@ -103,7 +104,11 @@ export class SettingsService {
     return settings;
   }
 
-  async updateSettings(teacherId: string, dto: UpdateSettingsDto, changedBy?: string) {
+  async updateSettings(
+    teacherId: string,
+    dto: UpdateSettingsDto,
+    changedBy?: string,
+  ) {
     const oldSettings = await this.getSettings(teacherId);
 
     const newSettings = await this.prisma.messageSettings.update({
