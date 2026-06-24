@@ -219,7 +219,7 @@ export class WhatsappService {
     await this.createInstance(instanceName);
 
     if (this.getWebhookUrl()) {
-      await this.setWebhook(instanceName);
+      try { await this.setWebhook(instanceName); } catch (e) { this.logger.error(`[WEBHOOK] Falha ao configurar webhook para ${instanceName}`, e); }
     }
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -412,7 +412,15 @@ export class WhatsappService {
    */
   async logout(teacherId: string) {
     const instanceName = await this.resolveInstanceName(teacherId);
-    await this.http.delete(`/instance/delete/${instanceName}`);
+    const deleted = await this.deleteEvolutionInstance(instanceName);
+
+    if (!deleted) {
+      this.logger.warn(
+        `[LOGOUT] Não foi possível deletar a instância ${instanceName} na Evolution API. Limpando referência local para permitir recriação.`,
+      );
+      await this.clearInstanceName(teacherId);
+    }
+
     this.qrCodeCache.delete(instanceName);
     this.resetAllSyncStates('idle', 'WhatsApp desconectado.'); // Optional: maybe only reset for this teacher?
 
@@ -432,6 +440,51 @@ export class WhatsappService {
     });
 
     return { success: true };
+  }
+
+  private async deleteEvolutionInstance(instanceName: string): Promise<boolean> {
+    // Tenta logout primeiro (desconectar WhatsApp antes de deletar)
+    try {
+      await this.http.post(`/instance/logout/${instanceName}`);
+      this.logger.log(`[LOGOUT] WhatsApp desconectado para ${instanceName}`);
+    } catch {
+      this.logger.warn(`[LOGOUT] POST /instance/logout/${instanceName} não disponível (pode não existir nesta versão da API)`);
+    }
+
+    // Tenta DELETE convencional
+    try {
+      await this.http.delete(`/instance/delete/${instanceName}`);
+      return true;
+    } catch {
+      this.logger.warn(`[LOGOUT] DELETE /instance/delete falhou para ${instanceName}, tentando POST...`);
+    }
+
+    // Tenta POST /instance/delete com body (algumas versões da API usam esse formato)
+    try {
+      await this.http.post('/instance/delete', { instanceName });
+      return true;
+    } catch {
+      this.logger.warn(`[LOGOUT] POST /instance/delete falhou para ${instanceName}`);
+    }
+
+    return false;
+  }
+
+  private async clearInstanceName(teacherId: string) {
+    try {
+      const suffix = Date.now().toString(36).slice(-6);
+      const newName = `talkion_prof_${teacherId.substring(0, 8)}_${suffix}`;
+      await this.prisma.user.update({
+        where: { id: teacherId },
+        data: { whatsapp_instance_name: newName },
+      });
+      this.logger.log(`[LOGOUT] Nova instância reservada: ${newName}`);
+    } catch (error) {
+      this.logger.error(
+        `[LOGOUT] Erro ao limpar instance_name do professor ${teacherId}`,
+        this.describeError(error),
+      );
+    }
   }
 
   /**
@@ -4565,10 +4618,6 @@ export class WhatsappService {
       };
     }
 
-    this.logger.log(
-      `[WEBHOOK] Configurando webhook para ${instanceName} -> ${webhookUrl}`,
-    );
-
     const payload = {
       webhook: {
         enabled: true,
@@ -4585,8 +4634,6 @@ export class WhatsappService {
       `/webhook/set/${instanceName}`,
       payload,
     );
-
-    this.logger.log(`[WEBHOOK] Configurado com sucesso para ${instanceName}`);
 
     return {
       configured: true,
