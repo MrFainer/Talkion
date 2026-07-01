@@ -298,14 +298,13 @@ export class SubscriptionsService {
         dto.cardToken,
       );
 
-      const payment = await this.mp.createOneTimePaymentWithCardId(
+      const payment = await this.mp.createOneTimePayment(
         mpCustomerId,
-        card.cardId,
+        dto.cardToken,
         totalAmount,
         description,
         userId,
         user.email,
-        card.paymentMethodId,
       );
 
       if (payment.status !== 'approved') {
