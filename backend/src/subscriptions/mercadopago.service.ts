@@ -135,23 +135,28 @@ export class MercadoPagoService {
     description: string,
     userId: string,
     userEmail: string,
+    paymentMethodId?: string,
   ) {
     const idempotencyKey = crypto.randomUUID();
+    const body: Record<string, any> = {
+      transaction_amount: amount,
+      description,
+      installments: 1,
+      payer: {
+        email: userEmail,
+        id: customerId,
+        type: 'customer',
+      },
+      card_id: parseInt(cardId, 10),
+      external_reference: userId,
+    };
+    if (paymentMethodId) {
+      body.payment_method_id = paymentMethodId;
+    }
     const data = await this.request(
       'POST',
       '/v1/payments',
-      {
-        transaction_amount: amount,
-        description,
-        installments: 1,
-        payer: {
-          email: userEmail,
-          id: customerId,
-          type: 'customer',
-        },
-        card_id: parseInt(cardId, 10),
-        external_reference: userId,
-      },
+      body,
       null,
       { 'X-Idempotency-Key': idempotencyKey },
     );
@@ -176,6 +181,7 @@ export class MercadoPagoService {
       cardId: data.id,
       lastFourDigits: data.last_four_digits || '',
       holderName: data.cardholder?.name || '',
+      paymentMethodId: data.payment_method?.id || null,
     };
   }
 

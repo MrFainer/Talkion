@@ -305,6 +305,7 @@ export class SubscriptionsService {
         description,
         userId,
         user.email,
+        card.paymentMethodId,
       );
 
       if (payment.status !== 'approved') {
