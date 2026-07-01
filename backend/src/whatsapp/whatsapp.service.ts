@@ -2142,6 +2142,7 @@ export class WhatsappService {
           group_news_intro_message: defaultGroupNewsIntro,
           group_quiz_header_message: defaultGroupQuizHeader,
           lessons_confirmation_enabled: false,
+          weekly_summary_enabled: false,
           private_greeting_idea: `Você pode montar a saudação inicial com base nesse modelo aqui:\n\n${defaultPrivateGreeting}`,
           private_speaking_intro_idea: `Você pode montar a introdução do desafio de áudio com base nesse modelo aqui:\n\n${defaultSpeakingIntro}`,
           private_news_intro_idea: `Você pode montar a introdução da notícia com base nesse modelo aqui:\n\n${defaultNewsIntro}`,

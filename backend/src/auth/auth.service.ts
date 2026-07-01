@@ -7,6 +7,9 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
 import { MailService } from './mail.service';
+import { CreditsService } from '../credits/credits.service';
+
+const TRIAL_CREDITS = 500;
 
 @Injectable()
 export class AuthService {
@@ -14,6 +17,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   async registerTeacher(data: any) {
@@ -56,7 +60,7 @@ export class AuthService {
 
     return {
       message:
-        'Registro realizado. Verifique seu e-mail. Após a verificação, sua conta ficará bloqueada até liberação do administrador.',
+        'Registro realizado! Verifique seu e-mail para ativar sua conta e começar a usar o Talkion.',
       requiresVerification: true,
       email,
     };
@@ -77,12 +81,17 @@ export class AuthService {
     }
     if (user.email_verified) {
       if (!user.active) {
-        return {
-          message:
-            'E-mail já verificado. Sua conta está bloqueada. Entre em contato com o administrador do sistema Talkion.',
-          blocked: true,
-          email,
-        };
+        const updated = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { active: true },
+        });
+        await this.creditsService.addCredits(
+          updated.id,
+          TRIAL_CREDITS,
+          'Créditos de boas-vindas para teste',
+          'trial',
+        );
+        return this.generateAuthResponse(updated);
       }
       return this.generateAuthResponse(user);
     }
@@ -94,19 +103,18 @@ export class AuthService {
       where: { id: user.id },
       data: {
         email_verified: true,
+        active: true,
         verification_token: null,
         verification_token_sent_at: null,
       },
     });
 
-    if (!updatedUser.active) {
-      return {
-        message:
-          'E-mail verificado com sucesso. Sua conta está bloqueada. Entre em contato com o administrador do sistema Talkion.',
-        blocked: true,
-        email,
-      };
-    }
+    await this.creditsService.addCredits(
+      updatedUser.id,
+      TRIAL_CREDITS,
+      'Créditos de boas-vindas para teste',
+      'trial',
+    );
 
     return this.generateAuthResponse(updatedUser);
   }

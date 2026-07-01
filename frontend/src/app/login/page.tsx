@@ -183,7 +183,7 @@ export default function LoginPage() {
         setRegisteredEmail(response.data.email);
         setView("verify");
         setResendCooldownSeconds(60);
-        toast.success("Conta criada! Verifique seu e-mail.");
+        toast.success("Conta criada! Verifique seu e-mail para ativar o teste grátis.");
       } else {
         login(response.data.user, response.data.access_token, true);
         toast.success("Conta criada com sucesso!");

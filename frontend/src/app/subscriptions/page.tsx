@@ -109,11 +109,13 @@ export default function SubscriptionsPage() {
     document.title = "Talkion - Assinatura";
   }, []);
 
+  const isTrial = !loading && !subscription && creditBalance > 0;
+
   useEffect(() => {
-    if (!loading && !subscription) {
+    if (!loading && !subscription && !creditBalance) {
       router.replace("/subscriptions/checkout");
     }
-  }, [loading, subscription, router]);
+  }, [loading, subscription, creditBalance, router]);
 
   const handleTopUpCardSubmit = async (cardToken: string) => {
     if (!selectedPack) return;
@@ -224,7 +226,28 @@ export default function SubscriptionsPage() {
           </div>
         ) : null}
 
-        {!subscription ? (
+        {isTrial ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center max-w-lg mx-auto">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 mb-4">
+              <Zap className="h-8 w-8 text-amber-600" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Testando o Talkion</h2>
+            <p className="text-muted-foreground mb-2">
+              Você está no período de teste com <strong className="text-amber-600">{formatNumber(creditBalance)} créditos</strong>.
+              Aproveite para explorar todas as funcionalidades.
+            </p>
+            <p className="text-sm text-muted-foreground mb-8">
+              Quando acabar, escolha um plano para continuar usando.
+            </p>
+            <button
+              onClick={() => router.push("/subscriptions/checkout")}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <CreditCard className="h-4 w-4" />
+              Ver Planos
+            </button>
+          </div>
+        ) : !subscription ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Redirecionando para contratar plano...</p>

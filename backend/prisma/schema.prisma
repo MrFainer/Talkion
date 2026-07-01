@@ -372,7 +372,7 @@ model MessageSettings {
   lessons_confirmation_enabled Boolean @default(false)
 
   weekly_summary_time         String   @db.VarChar(5) @default("08:00")
-  weekly_summary_enabled      Boolean  @default(true)
+weekly_summary_enabled      Boolean  @default(false)
 
   quick_tip_time              String   @db.VarChar(5) @default("12:00")
   quick_tip_enabled           Boolean  @default(false)

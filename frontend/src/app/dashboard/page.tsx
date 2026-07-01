@@ -128,6 +128,25 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        {(summary.creditBalance ?? 0) > 0 && (summary.creditBalance ?? 0) < 200 ? (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-800">Créditos acabando</p>
+              <p className="mt-1 text-sm text-amber-700">
+                Você tem apenas <strong>{formatNumber(summary.creditBalance ?? 0)} créditos</strong>.
+                Assine um plano para não ficar sem.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/subscriptions/checkout")}
+              className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
+            >
+              Ver Planos
+            </button>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Card className="border-l-4 border-l-emerald-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
