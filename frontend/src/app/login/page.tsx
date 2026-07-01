@@ -84,14 +84,20 @@ export default function LoginPage() {
   };
 
   const [refParam] = useState(() => {
-    const urlRef = new URLSearchParams(window.location.search).get('ref');
+    const params = new URLSearchParams(window.location.search);
+    const urlRef = params.get('ref');
+    const shouldRegister = params.get('register') === 'true';
     console.log('[Affiliate] useState init - urlRef:', urlRef, 'cookie:', getAffiliateCookie(), 'search:', window.location.search);
     if (urlRef) {
       document.cookie = `affiliate_ref=${encodeURIComponent(urlRef)}; path=/; max-age=86400; SameSite=Lax`;
-      return urlRef;
     }
-    return getAffiliateCookie();
+    if (shouldRegister) {
+      setTimeout(() => setView('register'), 0);
+    }
+    return urlRef || getAffiliateCookie();
   });
+
+  const [referralCode, setReferralCode] = useState(refParam);
 
   useEffect(() => {
     hydrate();
@@ -192,11 +198,9 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const cookieRef = getAffiliateCookie();
-      console.log('[Affiliate] Register - refParam:', refParam, 'cookieRef:', cookieRef);
-      const finalRef = refParam || cookieRef;
+      console.log('[Affiliate] Register - referralCode:', referralCode);
       const payload: any = { name, email: normalizedEmail, password };
-      if (finalRef) payload.ref = finalRef;
+      if (referralCode) payload.ref = referralCode;
       const response = await api.post("/auth/register", payload);
       document.cookie = 'affiliate_ref=; path=/; max-age=0';
       if (response.data.requiresVerification) {
@@ -634,6 +638,42 @@ export default function LoginPage() {
                       <RequirementItem label="Número" met={passwordChecks.hasNumber} />
                       <RequirementItem label="Símbolo" met={passwordChecks.hasSpecial} />
                     </div>
+
+                    {referralCode ? (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="referral" className="text-sm font-medium text-slate-700">
+                          Código do afiliado
+                        </Label>
+                        <Input
+                          id="referral"
+                          type="text"
+                          placeholder="EX: A1B2C3D4"
+                          value={referralCode}
+                          onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                          className="h-10.5 rounded-xl border-slate-200 bg-white px-4 shadow-none"
+                        />
+                        <p className="text-xs text-slate-400">
+                          Código de quem te indicou (opcional)
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="referral" className="text-sm font-medium text-slate-700">
+                          Código do afiliado
+                        </Label>
+                        <Input
+                          id="referral"
+                          type="text"
+                          placeholder="EX: A1B2C3D4"
+                          value={referralCode}
+                          onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                          className="h-10.5 rounded-xl border-slate-200 bg-white px-4 shadow-none"
+                        />
+                        <p className="text-xs text-slate-400">
+                          Código de quem te indicou (opcional)
+                        </p>
+                      </div>
+                    )}
 
                     <Button
                       type="submit"

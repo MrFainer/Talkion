@@ -27,7 +27,7 @@ export class AffiliateService {
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     return {
       code,
-      link: `${baseUrl}/login?ref=${code}`,
+      link: `${baseUrl}/login?ref=${code}&register=true`,
     };
   }
 
