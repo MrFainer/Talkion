@@ -178,6 +178,7 @@ export default function AdminPage() {
     weekly_summary_send: { name: "Envio de resumo semanal", description: "" },
     weekly_summary_process: { name: "Processamento de resposta do resumo semanal", description: "" },
     content_generation: { name: "Geração de conteúdo educacional", description: "" },
+    birthday_send: { name: "Envio de mensagem de aniversário", description: "" },
     admin_adjustment: { name: "Ajuste manual (admin)", description: "" },
     admin_plan_change: { name: "Troca de plano", description: "" },
   };
@@ -612,6 +613,34 @@ export default function AdminPage() {
                                     />
                                     <TooltipContent>
                                       <p>{teacherSettings[teacher.id]?.admin_weekly_summary_enabled !== false ? "Desativar Res. Semanal" : "Ativar Res. Semanal"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Aniversário</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'admin_birthday_enabled', teacherSettings[teacher.id]?.admin_birthday_enabled !== false);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? "Desativar Aniversário" : "Ativar Aniversário"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>

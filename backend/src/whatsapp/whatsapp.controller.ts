@@ -262,6 +262,16 @@ export class WhatsappController {
     return result;
   }
 
+  @Post('send-birthday-messages')
+  @HttpCode(HttpStatus.OK)
+  async sendBirthdayMessages(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    return this.whatsappService.sendBirthdayMessages(body.teacherId);
+  }
+
   @Post('send-quick-tips')
   @HttpCode(HttpStatus.OK)
   async sendQuickTips(@Body() body: { teacherId: string }) {

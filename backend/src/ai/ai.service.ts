@@ -869,6 +869,64 @@ Retorne SOMENTE JSON no formato: {"message":"..."};`;
     return String(parsed.message || '').trim();
   }
 
+  async generateBirthdayMessage(input: {
+    idea: string;
+    studentName: string;
+    tracking?: UsageTrackingContext;
+    model?: string;
+    temperature?: number;
+  }) {
+    const idea = String(input.idea || '').trim();
+    const studentName = String(input.studentName || '').trim();
+    const model = String(input.model || 'gpt-4o-mini');
+    const temperature =
+      typeof input.temperature === 'number' &&
+      Number.isFinite(input.temperature)
+        ? input.temperature
+        : 0.7;
+
+    const prompt = `Você escreve mensagens de WhatsApp de aniversário em inglês.
+
+Use esta "ideia" como referência de estilo (não copie literalmente se não fizer sentido, mas mantenha o tom e emojis):
+${idea}
+
+Dados do aluno:
+- nome: ${studentName}
+
+Regras:
+- Retorne uma mensagem curta, calorosa e amigável em inglês parabenizando o aluno pelo aniversário.
+- Use o nome do aluno na mensagem.
+- Não use placeholders do tipo {{variavel}} no texto final.
+- Não inclua JSON no texto final.
+
+Retorne SOMENTE JSON no formato: {"message":"..."};`;
+
+    const response = await this.openai.chat.completions.create({
+      model,
+      temperature,
+      messages: [{ role: 'system', content: prompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.WHATSAPP_MESSAGE_GENERATION,
+      modelName: model,
+      response,
+      tracking: {
+        ...input.tracking,
+        referenceType: input.tracking?.referenceType || 'birthday_message',
+        referenceId: input.tracking?.referenceId || null,
+      },
+      metadata: { kind: 'birthday_message' },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}') as {
+      message?: string;
+    };
+
+    return String(parsed.message || '').trim();
+  }
+
   async generateWhatsappOutboundMessages(
     input: WhatsappOutboundGenerationInput,
   ): Promise<WhatsappOutboundMessage[]> {

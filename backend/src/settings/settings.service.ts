@@ -28,6 +28,9 @@ export class SettingsService {
       const defaultGroupQuizFooter =
         '📩 Responda enviando `A`, `B`, `C` ou no formato `1A`, `2B`, `3C`.\n\n🍀 Boa sorte!';
 
+      const defaultBirthdayTemplate =
+        'Você pode montar a mensagem de aniversário com base nesse modelo aqui:\n\n🎉 *Happy Birthday, {{nome}}!* 🎉\n\nWishing you an amazing day filled with joy, success, and lots of English learning! 🚀🇺🇸\n\nMay this new year of your life bring you incredible opportunities and achievements.\n\nKeep shining and never stop learning! 🌟\n\n*Best wishes from Talkion team!* 🎊';
+
       settings = await this.prisma.messageSettings.create({
         data: {
           teacher_id: teacherId,
@@ -48,6 +51,7 @@ export class SettingsService {
           group_quiz_header_idea: `Você pode montar o cabeçalho do desafio (quiz) com base nesse modelo aqui:\n\n${defaultGroupQuizHeader}`,
           group_quiz_footer_idea: `Você pode montar o rodapé do quiz com base nesse modelo aqui:\n\n${defaultGroupQuizFooter}`,
           group_news_intro_idea: `Você pode montar a introdução da notícia no grupo com base nesse modelo aqui:\n\n${defaultGroupNewsIntro}`,
+          birthday_message_template: defaultBirthdayTemplate,
         },
       });
     } else {

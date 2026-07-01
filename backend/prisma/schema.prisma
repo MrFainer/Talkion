@@ -132,6 +132,7 @@ model Student {
   whatsapp_number String       @unique
   whatsapp_valid  Boolean      @default(false)
   english_level   EnglishLevel @default(LEVEL_1)
+  birthday        DateTime?
   active          Boolean      @default(true)
   created_at      DateTime     @default(now())
 
@@ -398,6 +399,10 @@ weekly_summary_enabled      Boolean  @default(false)
   quick_tip_time              String   @db.VarChar(5) @default("12:00")
   quick_tip_enabled           Boolean  @default(false)
 
+  birthday_message_time       String   @db.VarChar(5) @default("09:00")
+  birthday_message_enabled    Boolean  @default(false)
+  birthday_message_template   String?  @db.Text
+
   admin_news_capture_enabled        Boolean  @default(true)
   admin_quiz_generation_enabled     Boolean  @default(true)
   admin_auto_send_enabled           Boolean  @default(true)
@@ -406,6 +411,7 @@ weekly_summary_enabled      Boolean  @default(false)
   admin_weekly_summary_enabled          Boolean  @default(true)
   admin_content_generation_enabled      Boolean  @default(false)
   admin_quick_tip_enabled               Boolean  @default(true)
+  admin_birthday_enabled                Boolean  @default(true)
 
   news_capture_enabled        Boolean  @default(true)
   quiz_generation_enabled     Boolean  @default(true)

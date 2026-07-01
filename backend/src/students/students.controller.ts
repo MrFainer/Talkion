@@ -61,6 +61,15 @@ export class StudentsController {
     );
   }
 
+  @Patch('teacher/:teacherId/:studentId/birthday')
+  async updateBirthday(
+    @Param('teacherId') teacherId: string,
+    @Param('studentId') studentId: string,
+    @Body('birthday') birthday: string | null,
+  ) {
+    return this.studentsService.updateBirthday(teacherId, studentId, birthday);
+  }
+
   @Post('teacher/:teacherId/:studentId/validate-number')
   async validateNumber(
     @Param('teacherId') teacherId: string,

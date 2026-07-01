@@ -159,6 +159,14 @@ export default function LoginPage() {
     hasSpecial: /[\W_]/.test(password),
   };
 
+  const resetPasswordChecks = {
+    minLength: resetPassword.length >= 8,
+    hasUpper: /[A-Z]/.test(resetPassword),
+    hasLower: /[a-z]/.test(resetPassword),
+    hasNumber: /[0-9]/.test(resetPassword),
+    hasSpecial: /[\W_]/.test(resetPassword),
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedEmail = normalizeEmail(email);
@@ -801,6 +809,14 @@ export default function LoginPage() {
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="grid gap-1.5 sm:grid-cols-3">
+                      <RequirementItem label="8+ caracteres" met={resetPasswordChecks.minLength} />
+                      <RequirementItem label="Maiúscula" met={resetPasswordChecks.hasUpper} />
+                      <RequirementItem label="Minúscula" met={resetPasswordChecks.hasLower} />
+                      <RequirementItem label="Número" met={resetPasswordChecks.hasNumber} />
+                      <RequirementItem label="Símbolo" met={resetPasswordChecks.hasSpecial} />
                     </div>
 
                     <Button

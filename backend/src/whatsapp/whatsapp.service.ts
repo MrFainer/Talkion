@@ -899,6 +899,114 @@ export class WhatsappService {
     return { sent, skipped };
   }
 
+  async sendBirthdayMessages(teacherId: string) {
+    const now = new Date();
+    const todayMonthDay = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+      select: {
+        birthday_message_template: true,
+        ai_model: true,
+        ai_temperature: true,
+      },
+    });
+
+    if (!settings?.birthday_message_template) {
+      return { sent: 0, skipped: 0, message: 'Modelo de mensagem de aniversário não configurado.' };
+    }
+
+    const students = await this.prisma.student.findMany({
+      where: {
+        teacher_id: teacherId,
+        active: true,
+        whatsapp_valid: true,
+        birthday: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        full_name: true,
+        whatsapp_number: true,
+        birthday: true,
+      },
+    });
+
+    const birthdayStudents = students.filter((s) => {
+      if (!s.birthday) return false;
+      const bdMonth = String(s.birthday.getMonth() + 1).padStart(2, '0');
+      const bdDay = String(s.birthday.getDate()).padStart(2, '0');
+      return `${bdMonth}-${bdDay}` === todayMonthDay;
+    });
+
+    if (birthdayStudents.length === 0) {
+      return { sent: 0, skipped: 0 };
+    }
+
+    const idea = settings.birthday_message_template;
+    let sent = 0;
+    let skipped = 0;
+
+    for (const student of birthdayStudents) {
+      try {
+        let text = '';
+        try {
+          text = await this.aiService.generateBirthdayMessage({
+            idea,
+            studentName: student.full_name,
+            model: settings.ai_model || undefined,
+            temperature:
+              typeof settings.ai_temperature === 'number'
+                ? settings.ai_temperature
+                : undefined,
+            tracking: {
+              teacherId,
+              studentId: student.id,
+              referenceType: 'birthday_message',
+              referenceId: student.id,
+            },
+          });
+        } catch (aiError) {
+          this.logger.warn(
+            `[BIRTHDAY] Falha na geração por IA para ${student.id}, usando template direto: ${this.describeError(aiError)}`,
+          );
+          text = idea
+            .replace(/\{\{nome\}\}/g, student.full_name)
+            .replace(/\{\{telefone\}\}/g, student.whatsapp_number);
+        }
+
+        if (!text) {
+          skipped += 1;
+          continue;
+        }
+
+        await this.sendMessage(teacherId, student.whatsapp_number, text, {
+          studentId: student.id,
+          contentKind: 'BIRTHDAY',
+        });
+
+        try {
+          await this.creditsService.deductCredits(teacherId, 'birthday_send', 'student', student.id);
+        } catch (creditError: any) {
+          this.logger.warn(
+            `[BIRTHDAY] Falha ao debitar créditos para ${student.id}: ${creditError.message}`,
+          );
+        }
+
+        sent += 1;
+      } catch (error) {
+        this.logger.error(
+          `[BIRTHDAY] Erro ao enviar mensagem para ${student.whatsapp_number}`,
+          this.describeError(error),
+        );
+        skipped += 1;
+      }
+    }
+
+    return { sent, skipped };
+  }
+
   async sendWeeklyLessonSummaries(teacherId: string) {
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const now = new Date();
@@ -1654,8 +1762,11 @@ export class WhatsappService {
         admin_lessons_confirmation_enabled: boolean;
         admin_weekly_summary_enabled: boolean;
         admin_quick_tip_enabled: boolean;
+        admin_birthday_enabled: boolean;
         quick_tip_time: string;
         quick_tip_enabled: boolean;
+        birthday_message_time: string;
+        birthday_message_enabled: boolean;
         automation_days: unknown;
         auto_group_targets: unknown;
       } | null;
@@ -1685,8 +1796,11 @@ export class WhatsappService {
               admin_lessons_confirmation_enabled: true,
               admin_weekly_summary_enabled: true,
               admin_quick_tip_enabled: true,
+              admin_birthday_enabled: true,
               quick_tip_time: true,
               quick_tip_enabled: true,
+              birthday_message_time: true,
+              birthday_message_enabled: true,
               automation_days: true,
               auto_group_targets: true,
             },
@@ -1712,6 +1826,7 @@ export class WhatsappService {
       lessonsDue: boolean;
       weeklySummaryDue: boolean;
       quickTipDue: boolean;
+      birthdayDue: boolean;
       generateQuiz: boolean;
       targets: Array<{ groupId: string; groupLevel?: string }>;
     }> = [];
@@ -1775,13 +1890,21 @@ export class WhatsappService {
         settings.quick_tip_time &&
         settings.quick_tip_time === hhmm;
 
+      const birthdayDue =
+        isAutomationDay &&
+        settings.admin_birthday_enabled !== false &&
+        settings.birthday_message_enabled &&
+        settings.birthday_message_time &&
+        settings.birthday_message_time === hhmm;
+
       if (
         !captureDue &&
         !privateDue &&
         !groupDue &&
         !lessonsDue &&
         !weeklySummaryDue &&
-        !quickTipDue
+        !quickTipDue &&
+        !birthdayDue
       )
         continue;
 
@@ -1794,6 +1917,7 @@ export class WhatsappService {
         lessonsDue: Boolean(lessonsDue),
         weeklySummaryDue: Boolean(weeklySummaryDue),
         quickTipDue: Boolean(quickTipDue),
+        birthdayDue: Boolean(birthdayDue),
         generateQuiz:
           settings.admin_quiz_generation_enabled !== false &&
           settings.quiz_generation_enabled !== false,
@@ -1808,7 +1932,8 @@ export class WhatsappService {
         job.groupDue ||
         job.lessonsDue ||
         job.weeklySummaryDue ||
-        job.quickTipDue,
+        job.quickTipDue ||
+        job.birthdayDue,
     );
     const captureParallel = Math.min(
       this.automationParallelBase,
@@ -2041,6 +2166,18 @@ export class WhatsappService {
           this.sendQuickTips(job.teacherId).catch((error) => {
             this.logger.error(
               `[AUTO][${jobId}] Falha quick tip teacherId=${job.teacherId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }),
+        );
+      }
+
+      if (job.birthdayDue) {
+        tasks.push(
+          this.sendBirthdayMessages(job.teacherId).catch((error) => {
+            this.logger.error(
+              `[AUTO][${jobId}] Falha mensagens de aniversário teacherId=${job.teacherId}: ${
                 error instanceof Error ? error.message : String(error)
               }`,
             );

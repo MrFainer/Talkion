@@ -78,12 +78,13 @@ export default function StudentsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<{ id: string; full_name: string } | null>(null);
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
-  const [editingData, setEditingData] = useState<{ whatsappNumber: string; level: string } | null>(null);
+  const [editingData, setEditingData] = useState<{ whatsappNumber: string; level: string; birthday: string } | null>(null);
 
   // Formulário
   const [fullName, setFullName] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [englishLevel, setEnglishLevel] = useState("LEVEL_1");
+  const [birthday, setBirthday] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [newStudentLessons, setNewStudentLessons] = useState<LessonDraft[]>([]);
   
@@ -189,6 +190,7 @@ export default function StudentsPage() {
         fullName: normalizedFullName,
         whatsappNumber: rawWhatsappNumber,
         englishLevel,
+        birthday: birthday || null,
       });
       const createdStudentId = String(res.data?.id || "").trim();
       if (createdStudentId && newStudentLessons.length > 0) {
@@ -203,6 +205,7 @@ export default function StudentsPage() {
       setFullName("");
       setWhatsappNumber("");
       setEnglishLevel("LEVEL_1");
+      setBirthday("");
       setNewStudentLessons([]);
       fetchStudents();
     } catch (error: any) {
@@ -344,7 +347,7 @@ export default function StudentsPage() {
     }
   };
 
-  const handleSaveEdits = async (studentId: string, originalNumber: string, originalLevel: string) => {
+  const handleSaveEdits = async (studentId: string, originalNumber: string, originalLevel: string, originalBirthday: string | null) => {
     if (!editingData) return;
     
     let hasChanges = false;
@@ -365,6 +368,19 @@ export default function StudentsPage() {
       hasChanges = true;
     }
 
+    const formattedOriginalBirthday = originalBirthday ? originalBirthday.split('T')[0] : '';
+    if (editingData.birthday !== formattedOriginalBirthday) {
+      try {
+        await api.patch(`/students/teacher/${user?.id}/${studentId}/birthday`, {
+          birthday: editingData.birthday || null,
+        });
+        hasChanges = true;
+      } catch (e) {
+        toast.error("Erro ao atualizar data de aniversário.");
+        hasError = true;
+      }
+    }
+
     if (!hasChanges && !hasError) {
       toast.info("Nenhuma alteração feita.");
     }
@@ -372,6 +388,7 @@ export default function StudentsPage() {
     if (!hasError) {
       setEditingLevelId(null);
       setEditingData(null);
+      fetchStudents();
     }
   };
 
@@ -684,6 +701,7 @@ export default function StudentsPage() {
                   setFullName("");
                   setWhatsappNumber("");
                   setEnglishLevel("LEVEL_1");
+                  setBirthday("");
                   setNewStudentLessons([]);
                 }
                 setIsDialogOpen(open);
@@ -701,6 +719,7 @@ export default function StudentsPage() {
                   setFullName("");
                   setWhatsappNumber("");
                   setEnglishLevel("LEVEL_1");
+                  setBirthday("");
                   setNewStudentLessons([]);
                   setIsDialogOpen(true);
                 }}
@@ -743,6 +762,15 @@ export default function StudentsPage() {
                       <SelectItem value="LEVEL_3">Nível 3</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birthday">Data de Aniversário</Label>
+                  <Input
+                    id="birthday"
+                    type="date"
+                    value={birthday}
+                    onChange={(e) => setBirthday(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-3 rounded-lg border p-3">
                   <p className="text-sm font-medium">Aulas (opcional)</p>
@@ -977,6 +1005,7 @@ export default function StudentsPage() {
                     <TableHead>Nome</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Nível</TableHead>
+                    <TableHead>Aniversário</TableHead>
                     <TableHead>Recebeu hoje?</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -1023,6 +1052,22 @@ export default function StudentsPage() {
                             {student.english_level === 'LEVEL_1' && 'Nível 1'}
                             {student.english_level === 'LEVEL_2' && 'Nível 2'}
                             {student.english_level === 'LEVEL_3' && 'Nível 3'}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {editingLevelId === student.id ? (
+                          <Input 
+                            type="date"
+                            value={editingData?.birthday || ""} 
+                            onChange={(e) => setEditingData(prev => ({ ...prev!, birthday: e.target.value }))}
+                            className="w-[140px] h-8 text-xs"
+                          />
+                        ) : (
+                          <span className="text-sm">
+                            {student.birthday
+                              ? new Date(student.birthday).toLocaleDateString("pt-BR")
+                              : "—"}
                           </span>
                         )}
                       </TableCell>
@@ -1074,7 +1119,7 @@ export default function StudentsPage() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon-sm"
-                                  onClick={() => handleSaveEdits(student.id, student.whatsapp_number, student.english_level)}
+                                  onClick={() => handleSaveEdits(student.id, student.whatsapp_number, student.english_level, student.birthday)}
                                   className="text-green-600 hover:text-green-700"
                                 >
                                   <Check className="h-4 w-4" />
@@ -1095,7 +1140,8 @@ export default function StudentsPage() {
                                   setEditingLevelId(student.id);
                                   setEditingData({ 
                                     whatsappNumber: formatWhatsApp(student.whatsapp_number), 
-                                    level: student.english_level
+                                    level: student.english_level,
+                                    birthday: student.birthday ? student.birthday.split('T')[0] : "",
                                   });
                                 }}
                               >

@@ -115,7 +115,7 @@ export class StudentsService {
 
   async create(
     teacherId: string,
-    data: { fullName: string; whatsappNumber: string; englishLevel?: any },
+    data: { fullName: string; whatsappNumber: string; englishLevel?: any; birthday?: string | null },
   ) {
     const normalizedName = this.normalizeFullName(data.fullName || '');
     if (!normalizedName) {
@@ -168,6 +168,7 @@ export class StudentsService {
         whatsapp_number: rawNumber,
         whatsapp_valid: isValid,
         english_level: data.englishLevel || 'LEVEL_1',
+        birthday: data.birthday ? new Date(data.birthday) : null,
       },
     });
 
@@ -380,6 +381,26 @@ export class StudentsService {
         'Erro ao processar a planilha. Verifique se o formato é válido (.xlsx, .xls).',
       );
     }
+  }
+
+  async updateBirthday(
+    teacherId: string,
+    studentId: string,
+    birthday: string | null,
+  ) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+    });
+    if (!student || student.teacher_id !== teacherId) {
+      throw new NotFoundException('Aluno não encontrado.');
+    }
+
+    return this.prisma.student.update({
+      where: { id: studentId },
+      data: {
+        birthday: birthday ? new Date(birthday) : null,
+      },
+    });
   }
 
   async updateNumber(teacherId: string, studentId: string, newNumber: string) {

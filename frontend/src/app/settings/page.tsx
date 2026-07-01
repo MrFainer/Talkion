@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
 import { toast } from "sonner";
-import { MessageSquare, Users, Variable, Save, RotateCcw, SmilePlus } from "lucide-react";
+import { MessageSquare, Users, Variable, Save, RotateCcw, SmilePlus, Cake } from "lucide-react";
 
 type TextEditorProps = {
   label: string;
@@ -358,12 +358,15 @@ export default function SettingsPage() {
         </Dialog>
 
         <Tabs defaultValue="private" className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="private" className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Privado</span>
             </TabsTrigger>
             <TabsTrigger value="group" className="flex items-center gap-2">
               <Users className="w-4 h-4" /> <span className="hidden sm:inline">Grupo</span>
+            </TabsTrigger>
+            <TabsTrigger value="birthday" className="flex items-center gap-2">
+              <Cake className="w-4 h-4" /> <span className="hidden sm:inline">Aniversário</span>
             </TabsTrigger>
             <TabsTrigger value="vars" className="flex items-center gap-2">
               <Variable className="w-4 h-4" /> <span className="hidden sm:inline">Variáveis</span>
@@ -552,6 +555,29 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
           */}
+
+          <TabsContent value="birthday" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Mensagem de Aniversário</CardTitle>
+                <CardDescription>Configure o modelo da mensagem de aniversário enviada para os alunos. Use as variáveis disponíveis para personalizar.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <WhatsappFormatGuide />
+
+                <TextEditor
+                  label="Modelo da Mensagem de Aniversário"
+                  field="birthday_message_template"
+                  value={settings?.birthday_message_template || ""}
+                  onChange={updateSetting}
+                  onInsertEmoji={insertTextAtCursor}
+                  minHeight="min-h-[200px]"
+                />
+
+
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="vars" className="space-y-6">
             <Card>

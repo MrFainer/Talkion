@@ -96,6 +96,10 @@ const creditActionCopy: Record<
     name: "Processamento de resposta do resumo semanal",
     description: "Interpretação da resposta do resumo semanal pela IA",
   },
+  birthday_send: {
+    name: "Envio de mensagem de aniversário",
+    description: "Envio de mensagem de aniversário para o aluno",
+  },
 };
 
 function getConfigCopy(config: any) {

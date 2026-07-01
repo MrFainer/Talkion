@@ -62,6 +62,9 @@ type MessageSettingsPayload = {
   quick_tip_time?: string;
   quick_tip_enabled?: boolean;
   admin_quick_tip_enabled?: boolean;
+  birthday_message_time?: string;
+  birthday_message_enabled?: boolean;
+  admin_birthday_enabled?: boolean;
   news_capture_enabled?: boolean;
   quiz_generation_enabled?: boolean;
   auto_send_enabled?: boolean;
@@ -113,6 +116,11 @@ export default function AutomationPage() {
   const [quickTipEnabled, setQuickTipEnabled] = useState(false);
   const [quickTipSaving, setQuickTipSaving] = useState(false);
   const [initialQuickTipEnabled, setInitialQuickTipEnabled] = useState(true);
+  const [birthdayMessageTime, setBirthdayMessageTime] = useState("09:00");
+  const [birthdayMessageEnabled, setBirthdayMessageEnabled] = useState(false);
+  const [initialBirthdayEnabled, setInitialBirthdayEnabled] = useState(true);
+  const [birthdaySaving, setBirthdaySaving] = useState(false);
+  const [sendingBirthdayMessages, setSendingBirthdayMessages] = useState(false);
   const [newsCaptureEnabled, setNewsCaptureEnabled] = useState(true);
   const [quizGenerationEnabled, setQuizGenerationEnabled] = useState(true);
   const [autoSendEnabled, setAutoSendEnabled] = useState(true);
@@ -338,6 +346,9 @@ export default function AutomationPage() {
       setQuickTipTime(payload.quick_tip_time || "12:00");
       setQuickTipEnabled(payload.quick_tip_enabled === true);
       setInitialQuickTipEnabled(payload.admin_quick_tip_enabled !== false);
+      setBirthdayMessageTime(payload.birthday_message_time || "09:00");
+      setBirthdayMessageEnabled(payload.birthday_message_enabled === true);
+      setInitialBirthdayEnabled(payload.admin_birthday_enabled !== false);
       setNewsCaptureEnabled(payload.news_capture_enabled !== false);
       setInitialNewsCaptureEnabled(payload.admin_news_capture_enabled !== false);
       setQuizGenerationEnabled(payload.quiz_generation_enabled !== false);
@@ -398,6 +409,8 @@ export default function AutomationPage() {
         weekly_summary_enabled: weeklySummaryEnabled,
         quick_tip_time: quickTipTime || "12:00",
         quick_tip_enabled: quickTipEnabled,
+        birthday_message_time: birthdayMessageTime || "09:00",
+        birthday_message_enabled: birthdayMessageEnabled,
         news_capture_enabled: newsCaptureEnabled,
         quiz_generation_enabled: quizGenerationEnabled,
         auto_send_enabled: autoSendEnabled,
@@ -468,6 +481,52 @@ export default function AutomationPage() {
       toast.error(error.response?.data?.message || "Erro ao atualizar resumo semanal.");
     } finally {
       setWeeklySummarySaving(false);
+    }
+  };
+
+  const handleToggleBirthdayMessage = async () => {
+    if (!user?.id) return;
+    if (scheduleLoading || scheduleSaving || birthdaySaving) return;
+
+    const nextValue = !birthdayMessageEnabled;
+    const previousValue = birthdayMessageEnabled;
+
+    setBirthdayMessageEnabled(nextValue);
+    setBirthdaySaving(true);
+
+    try {
+      await api.put(`/message-settings/${user.id}`, {
+        birthday_message_enabled: nextValue,
+      });
+      if (nextValue) {
+        toast.success("Função de Mensagem de Aniversário Ativada.");
+      } else {
+        toast("Função de Mensagem de Aniversário Desativada.", {
+          icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        });
+      }
+    } catch (error: any) {
+      setBirthdayMessageEnabled(previousValue);
+      toast.error(error.response?.data?.message || "Erro ao atualizar mensagem de aniversário.");
+    } finally {
+      setBirthdaySaving(false);
+    }
+  };
+
+  const handleSendBirthdayMessages = async () => {
+    if (!user?.id) return;
+    setSendingBirthdayMessages(true);
+    const toastId = toast.loading("Enviando mensagens de aniversário...");
+    try {
+      const res = await api.post("/whatsapp/send-birthday-messages", { teacherId: user.id });
+      toast.success(
+        res.data?.sent ? `${res.data.sent} mensagem(ns) enviada(s)` : "Mensagens de aniversário enviadas com sucesso.",
+        { id: toastId },
+      );
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao enviar mensagens de aniversário.", { id: toastId });
+    } finally {
+      setSendingBirthdayMessages(false);
     }
   };
 
@@ -711,6 +770,22 @@ export default function AutomationPage() {
         </Card>
         )}
 
+        {initialBirthdayEnabled && birthdayMessageEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Mensagem de Aniversário</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Envia manualmente as mensagens de aniversário para os alunos que fazem aniversário hoje.
+            </p>
+            <Button onClick={handleSendBirthdayMessages} disabled={sendingBirthdayMessages} className="h-9 shrink-0">
+              {sendingBirthdayMessages ? "Enviando..." : "Enviar Mensagens de Aniversário"}
+            </Button>
+          </CardContent>
+        </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Automação</CardTitle>
@@ -917,16 +992,53 @@ export default function AutomationPage() {
                 </Tooltip>
               </div>
               )}
+              {initialBirthdayEnabled && (
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="birthday-time" className="text-xs whitespace-nowrap">Aniversário</Label>
+                <Input
+                  id="birthday-time"
+                  type="time"
+                  value={birthdayMessageTime}
+                  onChange={(e) => setBirthdayMessageTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleBirthdayMessage}
+                        disabled={scheduleLoading || scheduleSaving || birthdaySaving}
+                        className={birthdayMessageEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={birthdayMessageEnabled ? "Desativar aniversário" : "Ativar aniversário"}
+                      >
+                        {birthdayMessageEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>
+                    <p>{birthdayMessageEnabled ? "Desativar Aniversário" : "Ativar Aniversário"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              )}
             </div>
 
-            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && !initialQuickTipEnabled && user?.role !== "ADMIN" && (
+            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && !initialQuickTipEnabled && !initialBirthdayEnabled && user?.role !== "ADMIN" && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 As funções de automação estão desativadas para a sua conta. Entre em contato com o administrador do
                 Talkion para mais informações.
               </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Dias da semana (automático)</Label>
               <div className="flex flex-wrap gap-2">
@@ -947,7 +1059,7 @@ export default function AutomationPage() {
             </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
             <div className="space-y-3 rounded-lg border p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1108,7 +1220,7 @@ export default function AutomationPage() {
             </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
             <div className="flex justify-end">
               <Button onClick={handleSaveSchedule} disabled={scheduleSaving || scheduleLoading}>
                 {scheduleSaving ? "Salvando..." : "Salvar"}

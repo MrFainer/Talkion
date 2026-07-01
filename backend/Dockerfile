@@ -38,4 +38,4 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "if [ -z \"$DATABASE_URL\" ]; then echo \"DATABASE_URL não está definido no runtime\"; exit 1; fi; node dist/src/main.js"]
+CMD ["sh", "-c", "if [ -z \"$DATABASE_URL\" ]; then echo \"DATABASE_URL não está definido no runtime\"; exit 1; fi; npx prisma migrate deploy 2>&1 || echo \"[WARN] Nenhuma migration pendente ou erro ao aplicar\"; node dist/src/main.js"]

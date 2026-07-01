@@ -81,6 +81,10 @@ export const CREDIT_ACTION_COPY: Record<
     name: 'Geração de conteúdo educacional',
     description: 'Geração de conteúdo de inglês baseado em tendências',
   },
+  birthday_send: {
+    name: 'Envio de mensagem de aniversário',
+    description: 'Envio de mensagem de aniversário para o aluno',
+  },
 };
 
 export function getCreditActionCopy(key: string) {
