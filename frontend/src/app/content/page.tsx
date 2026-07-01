@@ -118,6 +118,7 @@ const AUTOSAVE_INTERVAL = 30000;
 export default function ContentStudioPage() {
   const { user, isHydrated, hydrate } = useAuthStore();
   const [activeTab, setActiveTab] = useState("create");
+  const [contentEnabled, setContentEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     hydrate();
@@ -127,11 +128,38 @@ export default function ContentStudioPage() {
     document.title = "Talkion - Estúdio de Conteúdo";
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get(`/message-settings/${user.id}`)
+      .then((res) => setContentEnabled(res.data?.admin_content_generation_enabled !== false))
+      .catch(() => setContentEnabled(true));
+  }, [user?.id]);
+
   if (!isHydrated || !user) {
     return (
       <div className="flex min-h-[100dvh] w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (contentEnabled === false) {
+    return (
+      <>
+        <Sidebar />
+        <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
+          <div className="text-center max-w-md space-y-4">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+              <FileText className="h-8 w-8 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold">Conteúdo desativado</h2>
+            <p className="text-muted-foreground">
+              A geração de conteúdo está desativada para sua conta.
+              Entre em contato com o administrador do Talkion para mais informações.
+            </p>
+          </div>
+        </main>
+      </>
     );
   }
 
