@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
 import { MailService } from './mail.service';
 import { CreditsService } from '../credits/credits.service';
+import { AffiliateService } from '../affiliate/affiliate.service';
 
 const TRIAL_CREDITS = 500;
 
@@ -18,12 +19,14 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly creditsService: CreditsService,
+    private readonly affiliateService: AffiliateService,
   ) {}
 
   async registerTeacher(data: any) {
     const name = (data.name || '').trim();
     const email = this.normalizeEmail(data.email);
     const password = data.password || '';
+    const ref = data.ref || null;
 
     if (!name || !email || !password) {
       throw new BadRequestException('Nome, e-mail e senha são obrigatórios.');
@@ -32,6 +35,11 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new BadRequestException('Email já cadastrado.');
+    }
+
+    let referredBy: string | null = null;
+    if (ref) {
+      referredBy = await this.affiliateService.registerReferral(ref);
     }
 
     const password_hash = await bcrypt.hash(password, 10);
@@ -49,6 +57,7 @@ export class AuthService {
         email_verified: false,
         verification_token,
         active: false,
+        referred_by: referredBy,
         verification_token_sent_at: new Date(),
       },
     });

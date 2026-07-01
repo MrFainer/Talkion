@@ -42,6 +42,18 @@ export default function RootLayout({
           </ProtectedRoute>
           <Toaster position="bottom-right" expand={true} />
         </TooltipProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+              var m = window.location.search.match(/[?&]ref=([^&]+)/);
+              if (m) {
+                var c = 'affiliate_ref=' + encodeURIComponent(m[1]) + '; path=/; max-age=86400; SameSite=Lax';
+                document.cookie = c;
+                console.log('[Affiliate] Ref saved to cookie:', m[1]);
+              }
+            })()`
+          }}
+        />
       </body>
     </html>
   );

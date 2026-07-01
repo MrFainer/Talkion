@@ -15,6 +15,13 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     hydrate();
   }, [hydrate]);
 
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) {
+      document.cookie = `affiliate_ref=${encodeURIComponent(ref)}; path=/; max-age=86400; SameSite=Lax`;
+    }
+  }, [pathname]);
+
   const publicRoutes = ['/login', '/'];
 
   useEffect(() => {

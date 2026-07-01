@@ -9,6 +9,9 @@ import { PrismaService } from '../prisma.service';
 import { MercadoPagoService } from './mercadopago.service';
 import { MailService } from '../auth/mail.service';
 import { CreditsService } from '../credits/credits.service';
+import { AffiliateService } from '../affiliate/affiliate.service';
+
+const COMMISSION_PERCENT = 0.3;
 
 const TOP_UP_PLANS = [
   {
@@ -42,6 +45,7 @@ export class SubscriptionsService {
     private readonly mp: MercadoPagoService,
     private readonly mailService: MailService,
     private readonly creditsService: CreditsService,
+    private readonly affiliateService: AffiliateService,
   ) {}
 
   async listPlans() {
@@ -375,6 +379,28 @@ export class SubscriptionsService {
           ` (active, R$${totalAmount}, ${currentStudents} alunos, ${extraStudents} adicionais)` +
           ` cardId: ${card.cardId}, preapprovalId: ${mpSubscriptionId}`,
       );
+
+      if (user.referred_by) {
+        try {
+          const referrer = await this.prisma.user.findUnique({
+            where: { referral_code: user.referred_by },
+            select: { id: true },
+          });
+          if (referrer) {
+            const commissionAmount = totalAmount * COMMISSION_PERCENT;
+            await this.affiliateService.createCommission(
+              referrer.id,
+              userId,
+              subscription.id,
+              commissionAmount,
+            );
+          }
+        } catch (err) {
+          this.logger.warn(
+            `Failed to create affiliate commission: ${(err as Error).message}`,
+          );
+        }
+      }
 
       return { subscription };
     } catch (err) {

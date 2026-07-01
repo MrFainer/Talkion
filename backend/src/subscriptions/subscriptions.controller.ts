@@ -7,7 +7,6 @@ import {
   Param,
   Body,
   Query,
-  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
@@ -58,8 +57,7 @@ export class SubscriptionsController {
   @Get('user/:userId')
   async getUserSubscription(@Param('userId') userId: string) {
     const sub = await this.service.getUserSubscription(userId);
-    if (!sub) throw new NotFoundException('Nenhuma assinatura encontrada');
-    return sub;
+    return sub || null;
   }
 
   @Post('user/:userId')

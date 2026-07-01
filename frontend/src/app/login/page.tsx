@@ -78,6 +78,20 @@ export default function LoginPage() {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
   const { login, isAuthenticated, isHydrated, hydrate } = useAuthStore();
+  const getAffiliateCookie = () => {
+    const match = document.cookie.match(/(?:^| )affiliate_ref=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  };
+
+  const [refParam] = useState(() => {
+    const urlRef = new URLSearchParams(window.location.search).get('ref');
+    console.log('[Affiliate] useState init - urlRef:', urlRef, 'cookie:', getAffiliateCookie(), 'search:', window.location.search);
+    if (urlRef) {
+      document.cookie = `affiliate_ref=${encodeURIComponent(urlRef)}; path=/; max-age=86400; SameSite=Lax`;
+      return urlRef;
+    }
+    return getAffiliateCookie();
+  });
 
   useEffect(() => {
     hydrate();
@@ -178,7 +192,13 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const response = await api.post("/auth/register", { name, email: normalizedEmail, password });
+      const cookieRef = getAffiliateCookie();
+      console.log('[Affiliate] Register - refParam:', refParam, 'cookieRef:', cookieRef);
+      const finalRef = refParam || cookieRef;
+      const payload: any = { name, email: normalizedEmail, password };
+      if (finalRef) payload.ref = finalRef;
+      const response = await api.post("/auth/register", payload);
+      document.cookie = 'affiliate_ref=; path=/; max-age=0';
       if (response.data.requiresVerification) {
         setRegisteredEmail(response.data.email);
         setView("verify");

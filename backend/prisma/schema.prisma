@@ -88,6 +88,8 @@ model User {
   whatsapp_instance_name String? @unique
   active             Boolean  @default(true)
   credit_balance     Float    @default(0)
+  referral_code      String?  @unique
+  referred_by        String?
   created_at         DateTime @default(now())
 
   student         Student?
@@ -101,6 +103,25 @@ model User {
   messageSettingsHistory MessageSettingsHistory[] @relation("TeacherMessageSettingsHistory")
   subscriptions          Subscription[]
   creditTransactions     CreditTransaction[]
+  affiliateCommissions   AffiliateCommission[]    @relation("ReferrerCommissions")
+  referredUsers          User[]                   @relation("ReferredUsers")
+  referrer               User?                    @relation("ReferredUsers", fields: [referred_by], references: [referral_code])
+}
+
+model AffiliateCommission {
+  id              String   @id @default(uuid())
+  referrer_id     String
+  referred_id     String
+  subscription_id String?
+  amount          Float
+  status          String   @default("pending")
+  created_at      DateTime @default(now())
+  paid_at         DateTime?
+
+  referrer User @relation("ReferrerCommissions", fields: [referrer_id], references: [id], onDelete: Cascade)
+
+  @@index([referrer_id])
+  @@index([status])
 }
 
 model Student {
@@ -383,7 +404,7 @@ weekly_summary_enabled      Boolean  @default(false)
   admin_group_send_enabled          Boolean  @default(true)
   admin_lessons_confirmation_enabled Boolean @default(true)
   admin_weekly_summary_enabled          Boolean  @default(true)
-  admin_content_generation_enabled      Boolean  @default(true)
+  admin_content_generation_enabled      Boolean  @default(false)
   admin_quick_tip_enabled               Boolean  @default(true)
 
   news_capture_enabled        Boolean  @default(true)

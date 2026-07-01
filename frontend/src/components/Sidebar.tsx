@@ -366,6 +366,7 @@ export function Sidebar() {
     ...(admin_lessons_confirmation_enabled !== false ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
     { href: "/content", label: "Conteúdo", icon: FileText },
     { href: "/automation", label: "Automação", icon: Bot },
+    ...((hasActivePlan || isAdmin) ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
   ];
   const adminLink =
     user?.role === "ADMIN"

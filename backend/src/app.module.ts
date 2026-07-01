@@ -19,6 +19,7 @@ import { CreditsModule } from './credits/credits.module';
 import { ContactModule } from './contact/contact.module';
 import { TrendsModule } from './trends/trends.module';
 import { ContentModule } from './content/content.module';
+import { AffiliateModule } from './affiliate/affiliate.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ContentModule } from './content/content.module';
     ContactModule,
     TrendsModule,
     ContentModule,
+    AffiliateModule,
   ],
   controllers: [AppController],
   providers: [AppService],
