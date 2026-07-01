@@ -128,6 +128,13 @@ export class MercadoPagoService {
     }));
   }
 
+  async createCardTokenFromSavedCard(cardId: string): Promise<string> {
+    const data = await this.request('POST', '/v1/card_tokens', {
+      card_id: cardId,
+    });
+    return data.id;
+  }
+
   async createOneTimePaymentWithCardId(
     customerId: string,
     cardId: string,
@@ -137,17 +144,18 @@ export class MercadoPagoService {
     userEmail: string,
     paymentMethodId?: string,
   ) {
+    const cardToken = await this.createCardTokenFromSavedCard(cardId);
     const idempotencyKey = crypto.randomUUID();
     const body: Record<string, any> = {
       transaction_amount: amount,
       description,
       installments: 1,
+      token: cardToken,
       payer: {
         email: userEmail,
         id: customerId,
         type: 'customer',
       },
-      card_id: parseInt(cardId, 10),
       external_reference: userId,
     };
     if (paymentMethodId) {
@@ -197,7 +205,7 @@ export class MercadoPagoService {
       reason: `Talkion - ${planName}`,
       external_reference: userId,
       payer_email: userEmail,
-      card_id: parseInt(cardId, 10),
+      card_id: cardId,
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',
@@ -232,7 +240,7 @@ export class MercadoPagoService {
       reason: `Talkion - ${planName}`,
       external_reference: userId,
       payer_email: userEmail,
-      card_id: parseInt(cardId, 10),
+      card_id: cardId,
       back_url: 'https://httpbin.org/post',
       auto_recurring: {
         frequency: 1,
