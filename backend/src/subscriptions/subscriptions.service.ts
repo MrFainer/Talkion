@@ -289,9 +289,14 @@ export class SubscriptionsService {
         userId,
       );
 
-      const payment = await this.mp.createOneTimePayment(
+      const card = await this.mp.associateCard(
         mpCustomerId,
         dto.cardToken,
+      );
+
+      const payment = await this.mp.createOneTimePaymentWithCardId(
+        mpCustomerId,
+        card.cardId,
         totalAmount,
         description,
         userId,
@@ -309,26 +314,24 @@ export class SubscriptionsService {
       nextBilling.setMonth(nextBilling.getMonth() + 1);
 
       let mpSubscriptionId: string | null = null;
-      if (payment.cardId) {
-        try {
-          const preapproval = await this.mp.createSubscription(
-            mpCustomerId,
-            payment.cardId,
-            totalAmount,
-            plan.name,
-            userId,
-            user.email,
-            nextBilling,
-          );
-          mpSubscriptionId = preapproval.subscriptionId;
-          this.logger.log(
-            `Preapproval created for recurring billing: ${mpSubscriptionId}`,
-          );
-        } catch (err) {
-          this.logger.warn(
-            `Failed to create preapproval, recurring billing disabled: ${(err as Error).message}`,
-          );
-        }
+      try {
+        const preapproval = await this.mp.createSubscription(
+          mpCustomerId,
+          card.cardId,
+          totalAmount,
+          plan.name,
+          userId,
+          user.email,
+          nextBilling,
+        );
+        mpSubscriptionId = preapproval.subscriptionId;
+        this.logger.log(
+          `Preapproval created for recurring billing: ${mpSubscriptionId}`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to create preapproval, recurring billing disabled: ${(err as Error).message}`,
+        );
       }
 
       const subscription = await this.prisma.subscription.create({
@@ -336,12 +339,12 @@ export class SubscriptionsService {
           user_id: userId,
           plan_id: plan.id,
           mercadopago_customer_id: mpCustomerId,
-          mercadopago_card_id: payment.cardId ? String(payment.cardId) : null,
+          mercadopago_card_id: card.cardId,
           mercadopago_subscription_id: mpSubscriptionId,
           status: 'active',
           next_billing_date: nextBilling,
-          card_last_four: payment.lastFourDigits || null,
-          card_holder_name: payment.holderName || null,
+          card_last_four: card.lastFourDigits || null,
+          card_holder_name: card.holderName || null,
           payment_method: 'credit_card',
           max_students: plan.max_students,
           additional_students: extraStudents,
@@ -369,7 +372,8 @@ export class SubscriptionsService {
 
       this.logger.log(
         `Subscription created: ${subscription.id} for user ${userId}` +
-          ` (active, R$${totalAmount}, ${currentStudents} alunos, ${extraStudents} adicionais)`,
+          ` (active, R$${totalAmount}, ${currentStudents} alunos, ${extraStudents} adicionais)` +
+          ` cardId: ${card.cardId}, preapprovalId: ${mpSubscriptionId}`,
       );
 
       return { subscription };
