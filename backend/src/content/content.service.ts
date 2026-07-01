@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { AiService } from '../ai/ai.service';
@@ -18,6 +18,15 @@ export class ContentService {
   ) {}
 
   async generate(teacherId: string, dto: GenerateContentDto) {
+    const settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+    });
+    if (settings && settings.admin_content_generation_enabled === false) {
+      throw new BadRequestException(
+        'A geração de conteúdo está desativada para sua conta. Entre em contato com o administrador.',
+      );
+    }
+
     // 1) Verificar créditos antes de gerar
     await this.creditsService.requireCredits(teacherId, 'content_generation');
 

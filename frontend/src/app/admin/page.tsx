@@ -560,6 +560,34 @@ export default function AdminPage() {
                                   </Tooltip>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Conteúdo</span>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onClick={(e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleAdminToggleSetting(teacher.id, 'admin_content_generation_enabled', teacherSettings[teacher.id]?.admin_content_generation_enabled !== false);
+                                          }}
+                                          className={teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? "text-red-500" : "text-green-500"}
+                                        >
+                                          {teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? (
+                                            <PowerOff className="h-4 w-4" />
+                                          ) : (
+                                            <Power className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                      }
+                                    />
+                                    <TooltipContent>
+                                      <p>{teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? "Desativar Conteúdo" : "Ativar Conteúdo"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                                <div className="flex items-center gap-2">
                                   <span className="text-sm text-muted-foreground whitespace-nowrap">Res. Semanal</span>
                                   <Tooltip>
                                     <TooltipTrigger
