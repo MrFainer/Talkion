@@ -251,6 +251,17 @@ export class SubscriptionsService {
         payments: { orderBy: { created_at: 'desc' } },
       },
     });
+
+    if (sub) {
+      const allPayments = await this.prisma.subscriptionPayment.findMany({
+        where: {
+          subscription: { user_id: userId },
+        },
+        orderBy: { created_at: 'desc' },
+      });
+      sub.payments = allPayments;
+    }
+
     return sub;
   }
 
