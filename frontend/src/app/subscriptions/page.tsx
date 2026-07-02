@@ -467,8 +467,8 @@ export default function SubscriptionsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {subscription.payments && subscription.payments.length > 0 ? (
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {subscription.payments && subscription.payments.length > 0 ? (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                       {subscription.payments.map((payment: any) => (
                         <div
                           key={payment.id}

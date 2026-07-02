@@ -248,7 +248,7 @@ export class SubscriptionsService {
       orderBy: { created_at: 'desc' },
       include: {
         plan: true,
-        payments: { orderBy: { created_at: 'desc' }, take: 10 },
+        payments: { orderBy: { created_at: 'desc' } },
       },
     });
     return sub;

@@ -257,6 +257,13 @@ export class CreditsService {
 
   async checkAndNotifyLowCredits(userId: string, balance?: number) {
     const currentBalance = balance ?? (await this.getBalance(userId));
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { user_id: userId, status: 'active' },
+      select: { id: true },
+    });
+    const isTrial = !subscription;
+
     const configs = await this.prisma.creditActionConfig.findMany({
       where: { current_cost: { gt: 0 } },
       orderBy: { current_cost: 'asc' },
@@ -264,7 +271,7 @@ export class CreditsService {
     });
 
     const lowestCost = configs[0]?.current_cost ?? 5;
-    const threshold = Math.max(lowestCost * 10, 1000);
+    const threshold = isTrial ? 100 : Math.max(lowestCost * 10, 1000);
 
     if (currentBalance > 0 && currentBalance <= threshold) {
       const user = await this.prisma.user.findUnique({
@@ -276,6 +283,7 @@ export class CreditsService {
           user.email,
           user.name,
           currentBalance,
+          isTrial,
         );
       }
     }

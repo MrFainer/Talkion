@@ -1776,6 +1776,7 @@ export class WhatsappService {
         where: { role: 'TEACHER', active: true },
         select: {
           id: true,
+          whatsapp_instance_name: true,
           messageSettings: {
             select: {
               news_capture_time: true,
@@ -1834,6 +1835,13 @@ export class WhatsappService {
     for (const teacher of teachers) {
       const settings = teacher.messageSettings;
       if (!settings) continue;
+
+      if (!(teacher as any).whatsapp_instance_name) {
+        this.logger.log(
+          `[AUTO] Pulando teacherId=${teacher.id} — não possui WhatsApp configurado.`,
+        );
+        continue;
+      }
 
       const days = Array.isArray(settings.automation_days)
         ? settings.automation_days

@@ -92,13 +92,36 @@ export class MailService {
     }
   }
 
-  async sendLowCreditsEmail(to: string, name: string, balance: number) {
+  async sendLowCreditsEmail(
+    to: string,
+    name: string,
+    balance: number,
+    isTrial: boolean = false,
+  ) {
     try {
       const info = await this.transporter.sendMail({
         from: this.from,
         to,
-        subject: '⚠️ Créditos baixos - Talkion',
-        html: `
+        subject: isTrial
+          ? '📢 Créditos de teste acabando - Talkion'
+          : '⚠️ Créditos baixos - Talkion',
+        html: isTrial
+          ? `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+            <h2 style="color: #f59e0b; text-align: center;">Créditos de Teste Acabando</h2>
+            <p>Olá ${name},</p>
+            <p>Seus créditos de teste no Talkion estão acabando!</p>
+            <div style="background-color: #fef3c7; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; color: #92400e;">${Math.floor(balance)}</span>
+              <p style="color: #92400e; margin: 5px 0 0;">créditos restantes</p>
+            </div>
+            <p>Para continuar usando a plataforma, escolha um dos nossos planos e assine agora mesmo.</p>
+            <p style="text-align: center; margin-top: 20px;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Ver Planos</a>
+            </p>
+          </div>
+        `
+          : `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
             <h2 style="color: #f59e0b; text-align: center;">Créditos Baixos</h2>
             <p>Olá ${name},</p>

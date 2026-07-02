@@ -114,32 +114,62 @@ export class NewsService {
     }
   }
 
-  async cleanupAllNewsAudio() {
+  async cleanupAllNewsAudio(teacherId?: string) {
     try {
+      const where: any = { audio_url: { not: null } };
+      if (teacherId) {
+        where.teacher_id = teacherId;
+      }
       await this.prisma.news.updateMany({
-        where: { audio_url: { not: null } },
+        where,
         data: { audio_url: null },
       });
-      this.logger.log('audio_url limpos de todas as notícias');
+      const scope = teacherId ? `do professor ${teacherId}` : 'de todas as notícias';
+      this.logger.log(`audio_url limpos ${scope}`);
 
-      const audioDir = join(process.cwd(), 'uploads', 'news-audio');
-      let files: string[];
-      try {
-        files = await readdir(audioDir);
-      } catch {
-        return;
-      }
-      const mp3Files = files.filter((f) => f.endsWith('.mp3'));
-      for (const file of mp3Files) {
-        const filePath = join(audioDir, file);
-        await unlink(filePath).catch(() => {});
-      }
-      if (mp3Files.length > 0) {
-        this.logger.log(`${mp3Files.length} arquivos de áudio removidos`);
+      if (teacherId) {
+        const teacherNews = await this.prisma.news.findMany({
+          where: { teacher_id: teacherId },
+          select: { id: true },
+        });
+        const teacherIds = new Set(teacherNews.map((n) => n.id));
+        const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+        let files: string[];
+        try {
+          files = await readdir(audioDir);
+        } catch {
+          return;
+        }
+        const toDelete = files.filter(
+          (f) => f.endsWith('.mp3') && teacherIds.has(parse(f).name),
+        );
+        for (const file of toDelete) {
+          const filePath = join(audioDir, file);
+          await unlink(filePath).catch(() => {});
+        }
+        if (toDelete.length > 0) {
+          this.logger.log(`${toDelete.length} arquivos de áudio do professor ${teacherId} removidos`);
+        }
+      } else {
+        const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+        let files: string[];
+        try {
+          files = await readdir(audioDir);
+        } catch {
+          return;
+        }
+        const mp3Files = files.filter((f) => f.endsWith('.mp3'));
+        for (const file of mp3Files) {
+          const filePath = join(audioDir, file);
+          await unlink(filePath).catch(() => {});
+        }
+        if (mp3Files.length > 0) {
+          this.logger.log(`${mp3Files.length} arquivos de áudio removidos`);
+        }
       }
     } catch (error) {
       this.logger.warn(
-        `Erro ao limpar todos os áudios: ${error instanceof Error ? error.message : String(error)}`,
+        `Erro ao limpar áudios${teacherId ? ` do professor ${teacherId}` : ''}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -240,7 +270,15 @@ export class NewsService {
   ): Promise<NewsProcessingResult[]> {
     const results: NewsProcessingResult[] = [];
 
-    await this.cleanupAllNewsAudio();
+    const alreadyHasAllLevels = await this.checkExistingNewsForToday(tracking);
+    if (alreadyHasAllLevels) {
+      this.logger.log(
+        `Notícias do dia já existem para teacherId=${tracking?.teacherId}. Pulando scraping e limpeza de áudio.`,
+      );
+      return alreadyHasAllLevels;
+    }
+
+    await this.cleanupAllNewsAudio(tracking?.teacherId ?? undefined);
 
     try {
       const response = await axios.get(this.baseUrl);
@@ -772,6 +810,49 @@ export class NewsService {
       content,
       source_url: sourceUrl || '',
     });
+  }
+
+  private async checkExistingNewsForToday(
+    tracking?: UsageTrackingContext,
+  ): Promise<NewsProcessingResult[] | null> {
+    const { startOfDay, endOfDay } = this.getTodayRange();
+    const existing = await this.prisma.news.findMany({
+      where: {
+        teacher_id: tracking?.teacherId || null,
+        level: { in: ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'] as const },
+        created_at: { gte: startOfDay, lte: endOfDay },
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true, title: true, level: true, audio_url: true },
+    });
+
+    const byLevel = new Map<string, (typeof existing)[number]>();
+    for (const item of existing) {
+      if (!byLevel.has(item.level)) {
+        byLevel.set(item.level, item);
+      }
+    }
+
+    if (byLevel.size < 3) return null;
+
+    const allHaveAudio = Array.from(byLevel.values()).every((n) => n.audio_url);
+    if (!allHaveAudio) {
+      this.logger.log(
+        `[NEWS] 3 níveis existem mas nem todos têm áudio para teacherId=${tracking?.teacherId}. Permitindo regeneração.`,
+      );
+      return null;
+    }
+
+    this.logger.log(
+      `[NEWS] 3 níveis com áudio já existem hoje para teacherId=${tracking?.teacherId}. Pulando regeneração.`,
+    );
+    return Array.from(byLevel.values()).map((n) => ({
+      level: n.level,
+      status: 'skipped_same_day' as const,
+      title: n.title,
+      newsId: n.id,
+      reason: 'Já existe uma notícia cadastrada para este nível hoje.',
+    }));
   }
 
   private getTodayRange() {
