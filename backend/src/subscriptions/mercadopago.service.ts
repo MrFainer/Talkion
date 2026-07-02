@@ -128,10 +128,14 @@ export class MercadoPagoService {
     }));
   }
 
-  async createCardTokenFromSavedCard(cardId: string): Promise<string> {
-    const data = await this.request('POST', '/v1/card_tokens', {
+  async createCardTokenFromSavedCard(cardId: string, securityCode?: string): Promise<string> {
+    const body: Record<string, any> = {
       card_id: cardId,
-    });
+    };
+    if (securityCode) {
+      body.security_code = securityCode;
+    }
+    const data = await this.request('POST', '/v1/card_tokens', body);
     return data.id;
   }
 

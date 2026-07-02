@@ -74,9 +74,9 @@ export class SubscriptionsController {
   @Post('user/:userId/retry-preapproval')
   async retryPreapproval(
     @Param('userId') userId: string,
-    @Body() body: { subscriptionCardToken?: string },
+    @Body() body: { subscriptionCardToken?: string; cvv?: string },
   ) {
-    return this.service.retryCreatePreapproval(userId, body.subscriptionCardToken);
+    return this.service.retryCreatePreapproval(userId, body);
   }
 
   @Post('user/:userId/cancel')

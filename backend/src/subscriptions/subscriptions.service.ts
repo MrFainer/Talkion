@@ -496,7 +496,7 @@ export class SubscriptionsService {
     return { redirectUrl: pref.initPoint, preferenceId: pref.preferenceId };
   }
 
-  async retryCreatePreapproval(userId: string, subscriptionCardToken?: string) {
+  async retryCreatePreapproval(userId: string, body?: { subscriptionCardToken?: string; cvv?: string }) {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
       include: { plan: true, user: true },
@@ -512,6 +512,11 @@ export class SubscriptionsService {
     if (!sub.user) throw new NotFoundException('Usuário não encontrado');
     if (!sub.plan) throw new NotFoundException('Plano não encontrado');
 
+    let token = body?.subscriptionCardToken;
+    if (!token && body?.cvv) {
+      token = await this.mp.createCardTokenFromSavedCard(sub.mercadopago_card_id, body.cvv);
+    }
+
     const preapproval = await this.mp.createSubscription(
       sub.mercadopago_customer_id,
       sub.mercadopago_card_id,
@@ -520,7 +525,7 @@ export class SubscriptionsService {
       userId,
       sub.user.email,
       sub.next_billing_date || undefined,
-      subscriptionCardToken,
+      token,
     );
 
     const updated = await this.prisma.subscription.update({
