@@ -236,12 +236,11 @@ export class MercadoPagoService {
     userEmail: string,
     startDate?: Date,
   ) {
-    const cardToken = await this.createCardTokenFromSavedCard(cardId);
     const body: Record<string, any> = {
       reason: `Talkion - ${planName}`,
       external_reference: userId,
       payer_email: userEmail,
-      card_token_id: cardToken,
+      card_id: parseInt(cardId, 10),
       back_url: 'https://httpbin.org/post',
       auto_recurring: {
         frequency: 1,
