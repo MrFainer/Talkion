@@ -326,7 +326,6 @@ export class SubscriptionsService {
           plan.name,
           userId,
           user.email,
-          nextBilling,
         );
         mpSubscriptionId = preapproval.subscriptionId;
         this.logger.log(
@@ -493,6 +492,47 @@ export class SubscriptionsService {
     });
 
     return { redirectUrl: pref.initPoint, preferenceId: pref.preferenceId };
+  }
+
+  async retryCreatePreapproval(userId: string) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { user_id: userId, status: { in: ['active', 'pending'] } },
+      include: { plan: true, user: true },
+    });
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (sub.mercadopago_subscription_id)
+      throw new BadRequestException('Assinatura já possui preapproval');
+    if (!sub.mercadopago_customer_id)
+      throw new BadRequestException('Nenhum customer MP encontrado');
+    if (!sub.mercadopago_card_id)
+      throw new BadRequestException('Nenhum cartão MP encontrado');
+    if (!sub.user) throw new NotFoundException('Usuário não encontrado');
+    if (!sub.plan) throw new NotFoundException('Plano não encontrado');
+
+    const preapproval = await this.mp.createSubscription(
+      sub.mercadopago_customer_id,
+      sub.mercadopago_card_id,
+      sub.plan.price,
+      sub.plan.name,
+      userId,
+      sub.user.email,
+    );
+
+    const updated = await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { mercadopago_subscription_id: preapproval.subscriptionId },
+    });
+
+    this.logger.log(
+      `Preapproval retry successful: ${preapproval.subscriptionId} for subscription ${sub.id}`,
+    );
+
+    return {
+      subscriptionId: updated.id,
+      mercadopagoSubscriptionId: preapproval.subscriptionId,
+      status: preapproval.status,
+    };
   }
 
   async cancelSubscription(userId: string) {

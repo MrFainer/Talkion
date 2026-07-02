@@ -234,7 +234,6 @@ export class MercadoPagoService {
     planName: string,
     userId: string,
     userEmail: string,
-    startDate?: Date,
   ) {
     const body: Record<string, any> = {
       reason: `Talkion - ${planName}`,
@@ -250,9 +249,6 @@ export class MercadoPagoService {
       },
       status: 'authorized',
     };
-    if (startDate) {
-      body.auto_recurring.start_date = startDate.toISOString();
-    }
     this.logger.log(`Creating PreApproval: ${JSON.stringify(body)}`);
     const data = await this.request('POST', '/preapproval', body);
     this.logger.log(`Preapproval created: ${data.id}`);
