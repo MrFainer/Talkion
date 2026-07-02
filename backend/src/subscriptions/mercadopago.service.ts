@@ -234,12 +234,14 @@ export class MercadoPagoService {
     planName: string,
     userId: string,
     userEmail: string,
+    startDate?: Date,
   ) {
+    const cardToken = await this.createCardTokenFromSavedCard(cardId);
     const body: Record<string, any> = {
       reason: `Talkion - ${planName}`,
       external_reference: userId,
       payer_email: userEmail,
-      card_id: cardId,
+      card_token_id: cardToken,
       back_url: 'https://httpbin.org/post',
       auto_recurring: {
         frequency: 1,
@@ -249,6 +251,9 @@ export class MercadoPagoService {
       },
       status: 'authorized',
     };
+    if (startDate) {
+      body.auto_recurring.start_date = startDate.toISOString();
+    }
     this.logger.log(`Creating PreApproval: ${JSON.stringify(body)}`);
     const data = await this.request('POST', '/preapproval', body);
     this.logger.log(`Preapproval created: ${data.id}`);

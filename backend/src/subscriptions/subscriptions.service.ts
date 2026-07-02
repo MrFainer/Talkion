@@ -326,6 +326,7 @@ export class SubscriptionsService {
           plan.name,
           userId,
           user.email,
+          nextBilling,
         );
         mpSubscriptionId = preapproval.subscriptionId;
         this.logger.log(
@@ -517,6 +518,7 @@ export class SubscriptionsService {
       sub.plan.name,
       userId,
       sub.user.email,
+      sub.next_billing_date || undefined,
     );
 
     const updated = await this.prisma.subscription.update({
