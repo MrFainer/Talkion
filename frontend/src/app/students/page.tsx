@@ -1066,7 +1066,7 @@ export default function StudentsPage() {
                         ) : (
                           <span className="text-sm">
                             {student.birthday
-                              ? new Date(student.birthday).toLocaleDateString("pt-BR")
+                              ? new Date(student.birthday).toLocaleDateString("pt-BR", { timeZone: "UTC" })
                               : "—"}
                           </span>
                         )}

@@ -901,7 +901,7 @@ export class WhatsappService {
 
   async sendBirthdayMessages(teacherId: string) {
     const now = new Date();
-    const todayMonthDay = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayMonthDay = `${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
 
     const settings = await this.prisma.messageSettings.findUnique({
       where: { teacher_id: teacherId },
@@ -935,8 +935,8 @@ export class WhatsappService {
 
     const birthdayStudents = students.filter((s) => {
       if (!s.birthday) return false;
-      const bdMonth = String(s.birthday.getMonth() + 1).padStart(2, '0');
-      const bdDay = String(s.birthday.getDate()).padStart(2, '0');
+      const bdMonth = String(s.birthday.getUTCMonth() + 1).padStart(2, '0');
+      const bdDay = String(s.birthday.getUTCDate()).padStart(2, '0');
       return `${bdMonth}-${bdDay}` === todayMonthDay;
     });
 

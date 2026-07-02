@@ -168,7 +168,7 @@ export class StudentsService {
         whatsapp_number: rawNumber,
         whatsapp_valid: isValid,
         english_level: data.englishLevel || 'LEVEL_1',
-        birthday: data.birthday ? new Date(data.birthday) : null,
+        birthday: data.birthday ? new Date(data.birthday + 'T00:00:00') : null,
       },
     });
 
@@ -398,7 +398,7 @@ export class StudentsService {
     return this.prisma.student.update({
       where: { id: studentId },
       data: {
-        birthday: birthday ? new Date(birthday) : null,
+        birthday: birthday ? new Date(birthday + 'T00:00:00') : null,
       },
     });
   }
