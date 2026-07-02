@@ -12,9 +12,10 @@ import { SelectItem } from "@/components/ui/select";
 
 interface MercadoPagoCardPaymentBrickProps {
   amount: number;
-  onSubmit: (cardToken: string) => Promise<void>;
+  onSubmit: (cardToken: string, subscriptionCardToken?: string) => Promise<void>;
   onError?: (error: Error) => void;
   buttonLabel?: string;
+  generateSubscriptionToken?: boolean;
 }
 
 function formatCPF(value: string) {
@@ -25,7 +26,7 @@ function formatCPF(value: string) {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
-export function MercadoPagoCardPaymentBrick({ amount, onSubmit, onError, buttonLabel }: MercadoPagoCardPaymentBrickProps) {
+export function MercadoPagoCardPaymentBrick({ amount, onSubmit, onError, buttonLabel, generateSubscriptionToken }: MercadoPagoCardPaymentBrickProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -82,7 +83,7 @@ export function MercadoPagoCardPaymentBrick({ amount, onSubmit, onError, buttonL
     setError(null);
 
     try {
-      const cardToken = await mpRef.current.createCardToken({
+      const tokenPayload = {
         cardNumber: cardNumber.replace(/\s/g, ""),
         cardholderName,
         identificationType: docType,
@@ -90,9 +91,17 @@ export function MercadoPagoCardPaymentBrick({ amount, onSubmit, onError, buttonL
         cardExpirationMonth: expiryMonth,
         cardExpirationYear: expiryYear,
         securityCode,
-      });
+      };
 
-      await onSubmit(cardToken.id);
+      const cardToken = await mpRef.current.createCardToken(tokenPayload);
+
+      let subscriptionToken: string | undefined;
+      if (generateSubscriptionToken) {
+        const subToken = await mpRef.current.createCardToken(tokenPayload);
+        subscriptionToken = subToken.id;
+      }
+
+      await onSubmit(cardToken.id, subscriptionToken);
     } catch (err: any) {
       const message = err?.message || err?.cause?.message || "Erro ao validar cartão";
       setError(message);

@@ -256,7 +256,7 @@ export class SubscriptionsService {
 
   async createSubscription(
     userId: string,
-    dto: { planId: string; cardToken: string },
+    dto: { planId: string; cardToken: string; subscriptionCardToken?: string },
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -327,6 +327,7 @@ export class SubscriptionsService {
           userId,
           user.email,
           nextBilling,
+          dto.subscriptionCardToken,
         );
         mpSubscriptionId = preapproval.subscriptionId;
         this.logger.log(
@@ -495,7 +496,7 @@ export class SubscriptionsService {
     return { redirectUrl: pref.initPoint, preferenceId: pref.preferenceId };
   }
 
-  async retryCreatePreapproval(userId: string) {
+  async retryCreatePreapproval(userId: string, subscriptionCardToken?: string) {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
       include: { plan: true, user: true },
@@ -519,6 +520,7 @@ export class SubscriptionsService {
       userId,
       sub.user.email,
       sub.next_billing_date || undefined,
+      subscriptionCardToken,
     );
 
     const updated = await this.prisma.subscription.update({

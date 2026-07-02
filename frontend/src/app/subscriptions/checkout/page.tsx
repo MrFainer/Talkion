@@ -115,7 +115,7 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleCardSubmit = async (cardToken: string) => {
+  const handleCardSubmit = async (cardToken: string, subscriptionCardToken?: string) => {
     if (!selectedPlan || !user?.id) return;
     setErrorMessage(null);
 
@@ -123,6 +123,7 @@ export default function CheckoutPage() {
       await api.post(`/subscriptions/user/${user.id}`, {
         planId: selectedPlan.id,
         cardToken,
+        subscriptionCardToken,
       });
       setSuccess(true);
       toast.success("Assinatura criada com sucesso!");
@@ -411,6 +412,7 @@ export default function CheckoutPage() {
                           amount={totalAmount}
                           onSubmit={handleCardSubmit}
                           onError={(err) => toast.error(err.message)}
+                          generateSubscriptionToken
                         />
                       </CardContent>
                     </Card>

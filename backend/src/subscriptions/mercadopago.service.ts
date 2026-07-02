@@ -235,12 +235,12 @@ export class MercadoPagoService {
     userId: string,
     userEmail: string,
     startDate?: Date,
+    subscriptionCardToken?: string,
   ) {
     const body: Record<string, any> = {
       reason: `Talkion - ${planName}`,
       external_reference: userId,
       payer_email: userEmail,
-      card_id: parseInt(cardId, 10),
       back_url: 'https://httpbin.org/post',
       auto_recurring: {
         frequency: 1,
@@ -250,6 +250,11 @@ export class MercadoPagoService {
       },
       status: 'authorized',
     };
+    if (subscriptionCardToken) {
+      body.card_token_id = subscriptionCardToken;
+    } else {
+      body.card_id = cardId;
+    }
     if (startDate) {
       body.auto_recurring.start_date = startDate.toISOString();
     }
