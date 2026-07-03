@@ -155,7 +155,8 @@ const languages = [
   { name: "Italiano", flag: "IT" },
   { name: "Japonês", flag: "JP" },
   { name: "Mandarim", flag: "CN" },
-];
+] as const;
+const flagSrc = (code: string) => `/flags/${code.toLowerCase()}.svg`;
 
 const depoimentos = [
   {
@@ -284,8 +285,6 @@ export default function LandingPage() {
       document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" });
     }, 100);
   };
-
-  const flagUrl = (code: string) => `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 
   return (
     <div className="min-h-[100dvh] w-full [overscroll-behavior-y:contain]">
@@ -605,7 +604,7 @@ export default function LandingPage() {
               >
                 <div className="flex items-center gap-2">
                   <Image
-                    src={flagUrl(lang.flag)}
+                    src={flagSrc(lang.flag)}
                     alt={lang.name}
                     width={28}
                     height={20}

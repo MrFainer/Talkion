@@ -6,11 +6,8 @@ const nextConfig: NextConfig = {
       {
         pathname: "/logo*",
       },
-    ],
-    remotePatterns: [
       {
-        protocol: "https",
-        hostname: "flagcdn.com",
+        pathname: "/flags/**",
       },
     ],
   },
