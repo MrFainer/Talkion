@@ -285,19 +285,14 @@ export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { logout, user } = useAuthStore();
-  const [logoSrc, setLogoSrc] = useState("/logo.png");
   const [whatsappStatus, setWhatsappStatus] = useState<string>("Desconectado");
   const [isWhatsappMenuOpen, setIsWhatsappMenuOpen] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLogoSrc(`/logo.png?v=${Date.now()}`);
-  }, []);
+  const logoSrc = "/logo.png";
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -406,11 +401,8 @@ export function Sidebar() {
     pathname.startsWith("/settings/");
 
   useEffect(() => {
-    if (isNavigating) {
-      setIsNavigating(false);
-    }
     setMobileOpen(false);
-  }, [pathname, isNavigating]);
+  }, [pathname]);
 
   useEffect(() => {
     if (isWhatsappSectionActive) {
@@ -436,22 +428,6 @@ export function Sidebar() {
     window.dispatchEvent(ev);
     if (ev.defaultPrevented) return;
 
-    const leavingWhatsappSection =
-      !(
-        href === "/whatsapp" ||
-        href.startsWith("/whatsapp/") ||
-        href === "/messages" ||
-        href.startsWith("/messages/") ||
-        href === "/settings" ||
-        href.startsWith("/settings/")
-      );
-
-    if (leavingWhatsappSection && isWhatsappMenuOpen) {
-      setIsWhatsappMenuOpen(false);
-    }
-
-    setIsNavigating(true);
-
     const doPush = () => {
       const anyDocument = document as any;
       if (typeof anyDocument?.startViewTransition === "function") {
@@ -463,22 +439,11 @@ export function Sidebar() {
       router.push(href);
     };
 
-    if (leavingWhatsappSection && isWhatsappMenuOpen) {
-      window.setTimeout(doPush, 180);
-      return;
-    }
-
     doPush();
   };
 
   return (
     <>
-      <div
-        className={`pointer-events-none fixed inset-0 z-40 bg-background transition-opacity duration-200 ${
-          isNavigating ? "opacity-20" : "opacity-0"
-        }`}
-      />
-
       <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <div className="flex items-center gap-2">
           <Image
