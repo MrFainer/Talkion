@@ -67,6 +67,55 @@ type SidebarNavProps = {
   onLogout: () => void;
 };
 
+function SidebarLoadingShell({ logoSrc }: { logoSrc: string }) {
+  return (
+    <>
+      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
+        <div className="flex items-center gap-2">
+          <Image
+            src={logoSrc}
+            alt="Talkion"
+            width={28}
+            height={28}
+            className="h-7 w-7 shrink-0 object-contain"
+            unoptimized
+          />
+          <span className="text-lg font-semibold leading-none tracking-tight text-[#18181b]">
+            Talkion
+          </span>
+        </div>
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+
+      <div className="hidden w-64 shrink-0 md:block" aria-hidden="true" />
+      <aside className="fixed left-0 top-0 z-40 hidden h-[100dvh] w-64 border-r bg-background md:flex md:flex-col">
+        <div className="border-b px-6 py-5">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src={logoSrc}
+              alt="Talkion"
+              width={32}
+              height={32}
+              className="h-8 w-8 shrink-0 object-contain"
+              unoptimized
+            />
+            <span className="text-2xl font-semibold leading-none tracking-tight text-[#18181b]">
+              Talkion
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-1 items-center justify-center px-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
+            <p className="text-sm text-muted-foreground">Carregando menu...</p>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
 function SidebarNav({
   compact,
   isAdmin,
@@ -283,6 +332,8 @@ export function Sidebar() {
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
+  const [subscriptionResolved, setSubscriptionResolved] = useState(false);
+  const [settingsResolved, setSettingsResolved] = useState(false);
   const logoSrc = "/logo.png";
 
   useEffect(() => {
@@ -310,21 +361,47 @@ export function Sidebar() {
   }, [user?.id, user?.role]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchSubscription = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        setHasActivePlan(null);
+        setPlanFeatures(null);
+        setPlanName(null);
+        setSubscriptionResolved(false);
+        return;
+      }
+
+      if (user.role === "ADMIN") {
+        setSubscriptionResolved(true);
+        return;
+      }
+
+      setSubscriptionResolved(false);
       try {
         const res = await api.get(`/subscriptions/user/${user.id}`);
+        if (cancelled) return;
         setHasActivePlan(res.data?.status === 'active');
         setPlanFeatures(res.data?.plan?.features || null);
         setPlanName(res.data?.plan?.name || null);
       } catch {
+        if (cancelled) return;
         setHasActivePlan(false);
         setPlanFeatures(null);
         setPlanName(null);
+      } finally {
+        if (!cancelled) {
+          setSubscriptionResolved(true);
+        }
       }
     };
+
     fetchSubscription();
-  }, [user?.id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -348,16 +425,32 @@ export function Sidebar() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [user?.id]);
-
-
-
-  const { admin_lessons_confirmation_enabled, loaded, fetch: fetchSettings } = useSettingsStore();
+  const { admin_lessons_confirmation_enabled, fetch: fetchSettings } = useSettingsStore();
 
   useEffect(() => {
-    if (user?.id && !loaded) {
-      fetchSettings(user.id);
+    let cancelled = false;
+
+    if (!user?.id) {
+      setSettingsResolved(false);
+      return;
     }
-  }, [user?.id, loaded, fetchSettings]);
+
+    if (user.role === "ADMIN") {
+      setSettingsResolved(true);
+      return;
+    }
+
+    setSettingsResolved(false);
+    fetchSettings(user.id).finally(() => {
+      if (!cancelled) {
+        setSettingsResolved(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role, fetchSettings]);
 
   const isAdmin = user?.role === "ADMIN";
   const dashboardHref = isAdmin ? "/billing" : "/dashboard";
@@ -404,11 +497,11 @@ export function Sidebar() {
     }
   }, [isWhatsappSectionActive]);
 
-  useEffect(() => {
-    // #region debug-point C:sidebar-render
-    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"sidebar-admin-flash",runId:"pre-fix",hypothesisId:"C",location:"components/Sidebar.tsx:405",msg:"[DEBUG] sidebar rendered navigation model",data:{pathname,role:user?.role||null,userId:user?.id||null,isAdmin,links:links.map((link)=>link.label),planName:planName||null,hasActivePlan},ts:Date.now()})}).catch(()=>{});
-    // #endregion
-  }, [pathname, user?.role, user?.id, isAdmin, links, planName, hasActivePlan]);
+  const shouldHoldTeacherSidebar = !isAdmin && (!subscriptionResolved || !settingsResolved);
+
+  if (shouldHoldTeacherSidebar) {
+    return <SidebarLoadingShell logoSrc={logoSrc} />;
+  }
 
   const shouldInterceptClick = (event: React.MouseEvent) => {
     return (
