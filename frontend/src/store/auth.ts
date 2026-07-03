@@ -64,9 +64,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
     const userRaw =
       localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+    const parsedUser = userRaw ? JSON.parse(userRaw) : null;
 
     set({
-      user: userRaw ? JSON.parse(userRaw) : null,
+      user: parsedUser,
       token,
       isAuthenticated: !!token,
       isHydrated: true,

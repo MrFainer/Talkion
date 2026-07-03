@@ -6,6 +6,17 @@ import { Sidebar } from "@/components/Sidebar";
 
 const PUBLIC_ROUTES = ["/", "/login"];
 
+function ShellLoadingScreen() {
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <p className="text-sm text-muted-foreground">Carregando sua área...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isHydrated, user } = useAuthStore();
@@ -25,17 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (shouldHoldSidebar) {
-    return (
-      <>
-        <div className="fixed left-0 right-0 top-0 z-50 h-14 border-b bg-background md:hidden" />
-        <div className="hidden w-64 shrink-0 md:block" aria-hidden="true" />
-        <div
-          className="fixed left-0 top-0 z-40 hidden h-[100dvh] w-64 border-r bg-muted/30 md:flex"
-          aria-hidden="true"
-        />
-        {children}
-      </>
-    );
+    return <ShellLoadingScreen />;
   }
 
   return (

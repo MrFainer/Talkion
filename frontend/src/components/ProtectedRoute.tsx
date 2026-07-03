@@ -4,6 +4,17 @@ import { useAuthStore } from "@/store/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+function RouteLoadingScreen() {
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <p className="text-sm text-muted-foreground">Carregando...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isHydrated, hydrate, user, subscriptionStatus, isFreePlan } = useAuthStore();
   const router = useRouter();
@@ -66,15 +77,15 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   ]);
 
   if (!mounted || !isHydrated) {
-    return null;
+    return <RouteLoadingScreen />;
   }
 
   if (!isAuthenticated && !publicRoutes.includes(pathname)) {
-    return null;
+    return <RouteLoadingScreen />;
   }
 
   if (isAuthenticated && user?.role !== "ADMIN" && isAdminOnlyRoute) {
-    return null;
+    return <RouteLoadingScreen />;
   }
 
   return <>{children}</>;

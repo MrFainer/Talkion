@@ -404,6 +404,12 @@ export function Sidebar() {
     }
   }, [isWhatsappSectionActive]);
 
+  useEffect(() => {
+    // #region debug-point C:sidebar-render
+    fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"sidebar-admin-flash",runId:"pre-fix",hypothesisId:"C",location:"components/Sidebar.tsx:405",msg:"[DEBUG] sidebar rendered navigation model",data:{pathname,role:user?.role||null,userId:user?.id||null,isAdmin,links:links.map((link)=>link.label),planName:planName||null,hasActivePlan},ts:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, [pathname, user?.role, user?.id, isAdmin, links, planName, hasActivePlan]);
+
   const shouldInterceptClick = (event: React.MouseEvent) => {
     return (
       !event.defaultPrevented &&
