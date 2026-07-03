@@ -104,59 +104,93 @@ async function main() {
   }
 
   // ─── Planos ──────────────────────────────────────────────────────
-  const existingBase = await prisma.subscriptionPlan.findFirst({
-    where: { name: 'Talkion Base' },
-  });
-  if (!existingBase) {
-    await prisma.subscriptionPlan.create({
-      data: {
-        name: 'Talkion Base',
-        description: 'Plano ideal para professores com até 50 alunos',
-        price: 84.90,
-        credits: 15000,
-        max_students: 50,
-        active: true,
-      },
-    });
-    console.log('[seed] Plano criado: Talkion Base (R$79,90/mês)');
-  } else {
-    await prisma.subscriptionPlan.update({
-      where: { id: existingBase.id },
-      data: {
-        description: 'Plano ideal para professores com até 50 alunos',
-        max_students: 50,
-      },
-    });
-    console.log('[seed] Plano Talkion Base atualizado para 50 alunos.');
+  const FREE_FEATURES = {
+    ai_content: true, speaking_ia: true, quiz: true, dashboard: false,
+    private_flows: true, group_flows: true, student_management: true,
+    automations: false, lesson_confirmation: false, scheduling: false,
+    priority_support: false, multi_teacher: false, advanced_reports: false,
+    admin_dashboard: false, api_integrations: false, dedicated_support: false,
+    onboarding: false, affiliate_program: false, custom_messages: true,
+    weekly_newsletter: true, content_studio: false,
+  };
+  const BASE_FEATURES = {
+    ai_content: true, speaking_ia: true, quiz: true, dashboard: true,
+    private_flows: true, group_flows: true, student_management: true,
+    automations: true, lesson_confirmation: true, scheduling: true,
+    priority_support: false, multi_teacher: false, advanced_reports: true,
+    admin_dashboard: false, api_integrations: false, dedicated_support: false,
+    onboarding: true, affiliate_program: true, custom_messages: true,
+    weekly_newsletter: true, content_studio: true,
+  };
+  const PREMIUM_FEATURES = {
+    ai_content: true, speaking_ia: true, quiz: true, dashboard: true,
+    private_flows: true, group_flows: true, student_management: true,
+    automations: true, lesson_confirmation: true, scheduling: true,
+    priority_support: true, multi_teacher: false, advanced_reports: true,
+    admin_dashboard: false, api_integrations: true, dedicated_support: false,
+    onboarding: true, affiliate_program: true, custom_messages: true,
+    weekly_newsletter: true, content_studio: true,
+  };
+  const SCHOOL_FEATURES = {
+    ai_content: true, speaking_ia: true, quiz: true, dashboard: true,
+    private_flows: true, group_flows: true, student_management: true,
+    automations: true, lesson_confirmation: true, scheduling: true,
+    priority_support: true, multi_teacher: true, advanced_reports: true,
+    admin_dashboard: true, api_integrations: true, dedicated_support: true,
+    onboarding: true, affiliate_program: true, custom_messages: true,
+    weekly_newsletter: true, content_studio: true,
+  };
 
-    await prisma.subscription.updateMany({
-      where: {
-        plan_id: existingBase.id,
-        max_students: { not: 50 },
-      },
-      data: { max_students: 50 },
+  const PLAN_DEFS = [
+    { name: 'Free', desc: 'Comece gratuitamente. Sem cartão de crédito.', price: 0, credits: 5000, max_students: 10, is_free: true, features: FREE_FEATURES, sort_order: 1 },
+    { name: 'Essentials', desc: 'Para professores que querem automatizar suas aulas.', price: 99.90, credits: 20000, max_students: 50, is_free: false, features: BASE_FEATURES, sort_order: 2 },
+    { name: 'Professional', desc: 'Cresça sem aumentar sua carga de trabalho.', price: 199.90, credits: 50000, max_students: 100, is_free: false, features: PREMIUM_FEATURES, sort_order: 3 },
+    { name: 'School', desc: 'Para escolas e equipes de professores.', price: 399.90, credits: 120000, max_students: 250, max_teachers: 5, is_free: false, features: SCHOOL_FEATURES, sort_order: 4 },
+  ];
+
+  for (const def of PLAN_DEFS) {
+    const existing = await prisma.subscriptionPlan.findFirst({
+      where: { name: def.name },
     });
-    console.log('[seed] Assinaturas do Base sincronizadas para 50 alunos.');
+    if (!existing) {
+      await prisma.subscriptionPlan.create({
+        data: {
+          name: def.name,
+          description: def.desc,
+          price: def.price,
+          credits: def.credits,
+          max_students: def.max_students,
+          max_teachers: def.max_teachers || 1,
+          is_free: def.is_free,
+          features: def.features,
+          active: true,
+          sort_order: def.sort_order,
+        },
+      });
+      console.log(`[seed] Plano criado: ${def.name}`);
+    } else {
+      await prisma.subscriptionPlan.update({
+        where: { id: existing.id },
+        data: {
+          description: def.desc,
+          price: def.price,
+          credits: def.credits,
+          max_students: def.max_students,
+          max_teachers: def.max_teachers || 1,
+          is_free: def.is_free,
+          features: def.features,
+          sort_order: def.sort_order,
+        },
+      });
+      console.log(`[seed] Plano atualizado: ${def.name}`);
+    }
   }
 
-  const existingPremium = await prisma.subscriptionPlan.findFirst({
-    where: { name: 'Talkion Premium' },
+  // Deactivate orphan plans (Talkion Base, Talkion Premium, any duplicates)
+  await prisma.subscriptionPlan.updateMany({
+    where: { name: { in: ['Talkion Base', 'Talkion Premium'] } },
+    data: { active: false },
   });
-  if (!existingPremium) {
-    await prisma.subscriptionPlan.create({
-      data: {
-        name: 'Talkion Premium',
-        description: 'Plano completo para professores com até 100 alunos',
-        price: 159.90,
-        credits: 30000,
-        max_students: 100,
-        active: true,
-      },
-    });
-    console.log('[seed] Plano criado: Talkion Premium (R$149,90/mês)');
-  } else {
-    console.log('[seed] Plano Talkion Premium já existe.');
-  }
 
   // ─── Professor com 60 Alunos (simula professor que já tem alunos cadastrados) ──
   const teacherWithStudentsEmail = 'professor2@talkion.com';

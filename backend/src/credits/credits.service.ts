@@ -271,21 +271,32 @@ export class CreditsService {
     });
 
     const lowestCost = configs[0]?.current_cost ?? 5;
-    const threshold = isTrial ? 100 : Math.max(lowestCost * 10, 1000);
+    const threshold = isTrial ? 1000 : Math.max(lowestCost * 10, 1000);
 
     if (currentBalance > 0 && currentBalance <= threshold) {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { email: true, name: true },
+        select: { email: true, name: true, last_low_credits_notified_at: true },
       });
-      if (user?.email) {
-        await this.mailService.sendLowCreditsEmail(
-          user.email,
-          user.name,
-          currentBalance,
-          isTrial,
-        );
-      }
+      if (!user?.email) return;
+
+      const lastNotified = user.last_low_credits_notified_at;
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      if (lastNotified && lastNotified > oneDayAgo) return;
+
+      await this.mailService.sendLowCreditsEmail(
+        user.email,
+        user.name,
+        currentBalance,
+        isTrial,
+      );
+
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { last_low_credits_notified_at: now },
+      });
     }
   }
 }

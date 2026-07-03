@@ -1,634 +1,292 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { useAuthStore } from "@/store/auth";
 import { Sidebar } from "@/components/Sidebar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAuthStore } from "@/store/auth";
+import { usePlanFeatures } from "@/hooks/usePlanFeatures";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
 import { toast } from "sonner";
-import { MessageSquare, Users, Variable, Save, RotateCcw, SmilePlus, Cake } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, X, Users, Save, MessageSquare } from "lucide-react";
 
-type TextEditorProps = {
-  label: string;
-  field: string;
-  value: string;
-  onChange: (field: string, value: string) => void;
-  onInsertEmoji: (field: string, emoji: string) => void;
-  minHeight?: string;
-};
-
-function TextEditor({
-  label,
-  field,
-  value,
-  onChange,
-  onInsertEmoji,
-  minHeight = "min-h-[100px]",
-}: TextEditorProps) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label>{label}</Label>
-        <Popover>
-          <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-2 text-muted-foreground">
-            <SmilePlus className="w-4 h-4 mr-2" /> Emojis
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end" side="top">
-            <EmojiPicker
-              theme={Theme.AUTO}
-              onEmojiClick={(emoji: EmojiClickData) => onInsertEmoji(field, emoji.emoji)}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-      <Textarea
-        id={field}
-        value={value}
-        onChange={(e) => onChange(field, e.target.value)}
-        className={minHeight}
-      />
-      <div className="flex justify-between items-center text-xs text-muted-foreground">
-        <span>{value.length} caracteres</span>
-      </div>
-    </div>
-  );
-}
-
-function WhatsappFormatGuide() {
-  return (
-    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6 text-sm">
-      <h4 className="font-semibold mb-2 flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-primary" />
-        Guia de Formatação
-      </h4>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-muted-foreground">
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">*texto*</code>
-          <p className="mt-1 font-bold text-foreground">Negrito</p>
-        </div>
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">_texto_</code>
-          <p className="mt-1 italic text-foreground">Itálico</p>
-        </div>
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">~texto~</code>
-          <p className="mt-1 line-through text-foreground">Tachado</p>
-        </div>
-        <div>
-          <code className="text-foreground bg-background px-1 rounded">`texto`</code>
-          <p className="mt-1 font-mono text-xs text-foreground">Monoespaçado</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const normalizeJson = (value: any): any => {
-  if (Array.isArray(value)) {
-    return value.map(normalizeJson);
-  }
-  if (value && typeof value === "object") {
-    const out: any = {};
-    for (const key of Object.keys(value).sort()) {
-      out[key] = normalizeJson(value[key]);
-    }
-    return out;
-  }
-  return value;
-};
-
-const stableStringify = (value: any) => {
-  return JSON.stringify(normalizeJson(value));
+type WhatsappGroupOption = {
+  id: string;
+  subject: string;
 };
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isHydrated, hydrate } = useAuthStore();
-  const [settings, setSettings] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { planName } = usePlanFeatures();
+  const isFreePlan = planName === "Free";
+
+  const [availableGroups, setAvailableGroups] = useState<WhatsappGroupOption[]>([]);
+  const [groupOptionsLoading, setGroupOptionsLoading] = useState(false);
+  const [groupConnectionReady, setGroupConnectionReady] = useState<boolean | null>(null);
+  const [groupSendTime, setGroupSendTime] = useState("08:00");
+  const [privateSendTime, setPrivateSendTime] = useState("08:00");
+  const [autoGroupTargets, setAutoGroupTargets] = useState<
+    Array<{ groupId: string; groupLevel: "LEVEL_1" | "LEVEL_2" | "LEVEL_3" }>
+  >([]);
+  const [groupSearch, setGroupSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false);
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { hydrate(); }, [hydrate]);
+  useEffect(() => { document.title = "Talkion - Configurações"; }, []);
 
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
-
-  const fetchSettings = useCallback(async () => {
     if (!isHydrated) return;
-    if (!user?.id) {
-      router.push("/login");
-      return;
-    }
-    try {
-      const res = await api.get(`/message-settings/${user.id}`);
-      setSettings(res.data);
-      setSavedSnapshot(stableStringify(res.data));
-    } catch (error) {
-      toast.error("Erro ao carregar configurações.");
-    } finally {
-      setLoading(false);
-    }
-  }, [isHydrated, user?.id, router]);
+    if (!user?.id) { router.push("/login"); }
+  }, [isHydrated, user?.id]);
 
-  useEffect(() => {
-    document.title = "Talkion - Configurações de Mensagens";
-    fetchSettings();
-  }, [fetchSettings]);
+  const fetchData = useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const [scheduleRes, groupsRes] = await Promise.allSettled([
+        api.get(`/message-settings/${user.id}`),
+        api.get(`/whatsapp/groups/cached/${user.id}`),
+      ]);
+
+      if (scheduleRes.status === "fulfilled") {
+        const s = scheduleRes.value.data;
+        if (s.private_news_send_time) setPrivateSendTime(s.private_news_send_time);
+        if (s.group_news_send_time) setGroupSendTime(s.group_news_send_time);
+        if (s.auto_group_targets) setAutoGroupTargets(s.auto_group_targets);
+      }
+
+      if (groupsRes.status === "fulfilled") {
+        const d = groupsRes.value.data;
+        setAvailableGroups(d.groups || []);
+        const connected = d.connected === true ? true : d.connected === false ? false : null;
+        if (connected === false) {
+          try {
+            const statusRes = await api.get(`/whatsapp/status/${user.id}`);
+            const raw = String(statusRes.data?.status || "").trim().toLowerCase();
+            setGroupConnectionReady(["open", "connected", "online"].includes(raw));
+          } catch { setGroupConnectionReady(false); }
+        } else {
+          setGroupConnectionReady(connected);
+        }
+      }
+    } catch { toast.error("Erro ao carregar configurações."); }
+    finally { setLoading(false); }
+  }, [user?.id]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const isGroupSelected = (groupId: string) => autoGroupTargets.some((t) => t.groupId === groupId);
+
+  const addAutoGroupTarget = (groupId: string) => {
+    if (isGroupSelected(groupId)) return;
+    setAutoGroupTargets((prev) => [...prev, { groupId, groupLevel: "LEVEL_1" }]);
+  };
+
+  const removeAutoGroupTarget = (groupId: string) => {
+    setAutoGroupTargets((prev) => prev.filter((t) => t.groupId !== groupId));
+  };
+
+  const setGroupLevelForTarget = (groupId: string, level: "LEVEL_1" | "LEVEL_2" | "LEVEL_3") => {
+    setAutoGroupTargets((prev) => prev.map((t) => (t.groupId === groupId ? { ...t, groupLevel: level } : t)));
+  };
 
   const handleSave = async () => {
     if (!user?.id) return;
     setSaving(true);
     try {
-      await api.put(`/message-settings/${user.id}`, settings);
-      setSavedSnapshot(stableStringify(settings));
-      toast.success("Configurações salvas com sucesso!");
-      return true;
-    } catch (error) {
-      toast.error("Erro ao salvar configurações.");
-      return false;
-    } finally {
-      setSaving(false);
-    }
+      await api.put(`/message-settings/${user.id}`, {
+        private_news_send_time: privateSendTime,
+        group_news_send_time: groupSendTime,
+        auto_group_targets: autoGroupTargets,
+      });
+      toast.success("Configurações salvas!");
+    } catch { toast.error("Erro ao salvar configurações."); }
+    finally { setSaving(false); }
   };
 
-  const handleReset = async () => {
-    if (!user?.id) return;
-    
-    setSaving(true);
-    try {
-      const res = await api.post(`/message-settings/${user.id}/reset`);
-      setSettings(res.data);
-      setSavedSnapshot(stableStringify(res.data));
-      toast.success("Configurações restauradas para o padrão.");
-    } catch (error) {
-      toast.error("Erro ao restaurar configurações.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleConfirmReset = async () => {
-    try {
-      await handleReset();
-    } finally {
-      setIsResetDialogOpen(false);
-    }
-  };
-
-  const updateSetting = (key: string, value: any) => {
-    setSettings((prev: any) => ({ ...prev, [key]: value }));
-  };
-
-  const currentSnapshot = useMemo(() => {
-    if (!settings) return "";
-    return stableStringify(settings);
-  }, [settings]);
-
-  const hasUnsavedChanges = Boolean(
-    settings && savedSnapshot && currentSnapshot !== savedSnapshot,
+  const availableGroupsFiltered = availableGroups.filter((g) =>
+    g.subject.toLowerCase().includes(groupSearch.toLowerCase()),
   );
-
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as any)?.detail as { href?: string } | undefined;
-      if (!hasUnsavedChanges || saving) return;
-      event.preventDefault();
-      setPendingHref(detail?.href || null);
-      setIsUnsavedDialogOpen(true);
-    };
-    window.addEventListener("talkion:before-navigate", handler as any);
-    return () => window.removeEventListener("talkion:before-navigate", handler as any);
-  }, [hasUnsavedChanges, saving]);
-
-  const handleLeaveWithoutSaving = () => {
-    const href = pendingHref;
-    setIsUnsavedDialogOpen(false);
-    setPendingHref(null);
-    if (href) {
-      router.push(href);
-    }
-  };
-
-  const handleSaveAndLeave = async () => {
-    const href = pendingHref;
-    const ok = await handleSave();
-    if (!ok) return;
-    setIsUnsavedDialogOpen(false);
-    setPendingHref(null);
-    if (href) {
-      router.push(href);
-    }
-  };
-
-  const insertTextAtCursor = (field: string, textToInsert: string) => {
-    const el = document.getElementById(field) as HTMLTextAreaElement;
-    if (!el) return;
-
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const currentValue = settings?.[field] || "";
-
-    const newValue = currentValue.substring(0, start) + textToInsert + currentValue.substring(end);
-    
-    updateSetting(field, newValue);
-
-    // Reposiciona o cursor após a renderização
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
-    }, 10);
-  };
 
   if (loading) {
     return (
-      <div className="flex min-h-[100dvh] w-full">
+      <>
         <Sidebar />
-        <main className="flex-1 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
-          <p>Carregando configurações...</p>
+        <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
+          <p className="text-muted-foreground">Carregando...</p>
         </main>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="flex min-h-[100dvh] w-full">
+    <>
       <Sidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 bg-muted/10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+      <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
+        <div className="max-w-4xl mx-auto space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Configurações de Mensagens</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
             <p className="text-muted-foreground mt-1">
-              Personalize o comportamento do bot e os textos padrão.
+              Configure o envio automático de notícias para grupos do WhatsApp.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setIsResetDialogOpen(true)}
-              disabled={saving}
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Restaurar Padrão
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Salvando..." : "Salvar Alterações"}
-            </Button>
-          </div>
-        </div>
 
-        <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Restaurar configurações padrão</DialogTitle>
-              <DialogDescription>
-                Isso vai apagar suas modificações e voltar ao padrão do Talkion.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsResetDialogOpen(false)}
-                disabled={saving}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleConfirmReset} disabled={saving}>
-                {saving ? "Restaurando..." : "Restaurar"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                Envio automático no privado
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Seus alunos cadastrados receberão notícias, quizzes e conteúdos de inglês automaticamente
+                no privado do WhatsApp todos os dias.
+              </p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <p>Será enviado diariamente às <strong>{isFreePlan ? "08:00" : privateSendTime}</strong></p>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Dialog
-          open={isUnsavedDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              setIsUnsavedDialogOpen(false);
-              setPendingHref(null);
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Alterações não salvas</DialogTitle>
-              <DialogDescription>
-                Você tem alterações pendentes. Deseja salvar antes de sair?
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsUnsavedDialogOpen(false)}
-                disabled={saving}
-              >
-                Cancelar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleLeaveWithoutSaving}
-                disabled={saving}
-              >
-                Sair sem salvar
-              </Button>
-              <Button onClick={handleSaveAndLeave} disabled={saving}>
-                {saving ? "Salvando..." : "Salvar"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Envio automático em grupos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <p>Será enviado diariamente às <strong>{isFreePlan ? "08:00" : groupSendTime}</strong></p>
+              </div>
 
-        <Tabs defaultValue="private" className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
-            <TabsTrigger value="private" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Privado</span>
-            </TabsTrigger>
-            <TabsTrigger value="group" className="flex items-center gap-2">
-              <Users className="w-4 h-4" /> <span className="hidden sm:inline">Grupo</span>
-            </TabsTrigger>
-            <TabsTrigger value="birthday" className="flex items-center gap-2">
-              <Cake className="w-4 h-4" /> <span className="hidden sm:inline">Aniversário</span>
-            </TabsTrigger>
-            <TabsTrigger value="vars" className="flex items-center gap-2">
-              <Variable className="w-4 h-4" /> <span className="hidden sm:inline">Variáveis</span>
-            </TabsTrigger>
-          </TabsList>
+              {groupConnectionReady === false ? (
+                <Alert variant="destructive">
+                  <AlertTitle>WhatsApp desconectado</AlertTitle>
+                  <AlertDescription>Conecte o WhatsApp para sincronizar os grupos.</AlertDescription>
+                </Alert>
+              ) : null}
 
-          <TabsContent value="private" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Comportamento em Conversas no Privado</CardTitle>
-                <CardDescription>Configure uma ideia de como a IA vai montar e enviar as mensagens no privado.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <WhatsappFormatGuide />
+              {groupConnectionReady && !groupOptionsLoading && availableGroups.length === 0 ? (
+                <Alert>
+                  <AlertTitle>Nenhum grupo capturado</AlertTitle>
+                  <AlertDescription>
+                    Seus grupos não foram encontrados. Vá para a tela de WhatsApp e sincronize novamente.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
-                <div className="space-y-6">
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <TextEditor
-                      label="Saudação"
-                      field="private_greeting_idea"
-                      value={settings?.private_greeting_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
+              {groupConnectionReady !== false && availableGroups.length > 0 ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-3">
+                    <Label htmlFor="group-search">Lista de grupos</Label>
+                    <Input
+                      id="group-search"
+                      placeholder="Buscar grupo..."
+                      value={groupSearch}
+                      onChange={(e) => setGroupSearch(e.target.value)}
                     />
-                    <TextEditor
-                      label="Cabeçalho do Desafio"
-                      field="private_speaking_intro_idea"
-                      value={settings?.private_speaking_intro_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                    <TextEditor
-                      label="Cabeçalho da Notícia"
-                      field="private_news_intro_idea"
-                      value={settings?.private_news_intro_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                    <TextEditor
-                      label="Confirmação de Aula"
-                      field="private_lesson_confirmation_idea"
-                      value={settings?.private_lesson_confirmation_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="group" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Comportamento em Conversas no Grupo</CardTitle>
-                <CardDescription>Configure uma ideia de como a IA vai montar e enviar as mensagens no grupo.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <WhatsappFormatGuide />
-
-                <div className="space-y-6">
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <TextEditor
-                      label="Saudação"
-                      field="group_greeting_idea"
-                      value={settings?.group_greeting_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                    <TextEditor
-                      label="Cabeçalho do Quiz do Dia Anterior"
-                      field="group_previous_quiz_header_idea"
-                      value={settings?.group_previous_quiz_header_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                    <TextEditor
-                      label="Cabeçalho da Notícia"
-                      field="group_news_intro_idea"
-                      value={settings?.group_news_intro_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                    <TextEditor
-                      label="Cabeçalho do Quiz"
-                      field="group_quiz_header_idea"
-                      value={settings?.group_quiz_header_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                    <TextEditor 
-                      label="Rodapé do Quiz" 
-                      field="group_quiz_footer_idea" 
-                      value={settings?.group_quiz_footer_idea || ""}
-                      onChange={updateSetting}
-                      onInsertEmoji={insertTextAtCursor}
-                      minHeight="min-h-[120px]"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* 
-            <TabsContent value="ai" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Ambiente e Inteligência Artificial</CardTitle>
-                  <CardDescription>Configure o prompt base da IA e limites de uso.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label>System Prompt (Comportamento da IA)</Label>
-                    <Textarea 
-                      value={settings?.system_prompt || ""} 
-                      onChange={(e) => updateSetting("system_prompt", e.target.value)}
-                      className="min-h-[150px]"
-                      placeholder="Ex: Você é um professor de inglês rigoroso..."
-                    />
-                    <p className="text-xs text-muted-foreground">Instruções globais passadas para a IA em todas as requisições.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Temperatura da IA (0.0 a 1.0)</Label>
-                      <Input 
-                        type="number" 
-                        step="0.1"
-                        min="0" max="1"
-                        value={settings?.ai_temperature ?? 0.7} 
-                        onChange={(e) => updateSetting("ai_temperature", parseFloat(e.target.value))}
-                      />
-                      <p className="text-xs text-muted-foreground">Valores altos = mais criatividade. Valores baixos = mais precisão.</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Modelo da IA</Label>
-                      <Input 
-                        type="text" 
-                        value={settings?.ai_model || "gpt-4o-mini"} 
-                        onChange={(e) => updateSetting("ai_model", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Limite de Mensagens por Minuto</Label>
-                      <Input 
-                        type="number" 
-                        value={settings?.messages_per_minute || 10} 
-                        onChange={(e) => updateSetting("messages_per_minute", parseInt(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Timeout de Resposta (segundos)</Label>
-                      <Input 
-                        type="number" 
-                        value={settings?.response_timeout || 30} 
-                        onChange={(e) => updateSetting("response_timeout", parseInt(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Horário Permitido (Início)</Label>
-                      <Input 
-                        type="time" 
-                        value={settings?.allowed_response_start || "00:00"} 
-                        onChange={(e) => updateSetting("allowed_response_start", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Horário Permitido (Fim)</Label>
-                      <Input 
-                        type="time" 
-                        value={settings?.allowed_response_end || "23:59"} 
-                        onChange={(e) => updateSetting("allowed_response_end", e.target.value)}
-                      />
+                    <div className="rounded-md border max-h-72 overflow-y-auto">
+                      {availableGroupsFiltered.length === 0 ? (
+                        <p className="p-4 text-sm text-muted-foreground">Nenhum grupo encontrado.</p>
+                      ) : (
+                        <div className="divide-y">
+                          {availableGroupsFiltered.map((group) => {
+                            const selected = isGroupSelected(group.id);
+                            return (
+                              <div key={group.id} className="grid grid-cols-[1fr_auto] items-center gap-3 p-3">
+                                <p className="truncate text-sm font-medium">{group.subject}</p>
+                                <Button
+                                  type="button"
+                                  variant={selected ? "outline" : "default"}
+                                  onClick={() => addAutoGroupTarget(group.id)}
+                                  disabled={selected}
+                                  size="sm"
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  {selected ? "Adicionado" : "Adicionar"}
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          */}
 
-          <TabsContent value="birthday" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Mensagem de Aniversário</CardTitle>
-                <CardDescription>Configure o modelo da mensagem de aniversário enviada para os alunos. Use as variáveis disponíveis para personalizar.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <WhatsappFormatGuide />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Selecionados ({autoGroupTargets.length})</p>
+                      {autoGroupTargets.length > 0 && (
+                        <Button type="button" variant="outline" onClick={() => setAutoGroupTargets([])} size="sm">
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
 
-                <TextEditor
-                  label="Modelo da Mensagem de Aniversário"
-                  field="birthday_message_template"
-                  value={settings?.birthday_message_template || ""}
-                  onChange={updateSetting}
-                  onInsertEmoji={insertTextAtCursor}
-                  minHeight="min-h-[200px]"
-                />
-
-
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="vars" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Variáveis Dinâmicas Disponíveis</CardTitle>
-                <CardDescription>
-                  Você pode usar essas tags em qualquer campo de texto para inserir dados reais no momento do envio.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    { tag: "{{nome}}", desc: "Nome do aluno" },
-                    { tag: "{{telefone}}", desc: "Número do WhatsApp" },
-                    { tag: "{{grupo}}", desc: "Nome do grupo (se houver)" },
-                    { tag: "{{data}}", desc: "Data atual (ex: 18/05/2026)" },
-                    { tag: "{{hora_en}}", desc: "Hora da aula (ex: 8am / 8:30pm)" },
-                    { tag: "{{period}}", desc: "Período do dia: morning / afternoon / evening" },
-                    { tag: "{{diasemana}}", desc: "Dia da semana (ex: Monday)" },
-                  ].map((v) => (
-                    <div key={v.tag} className="border p-4 rounded-lg bg-muted/20 flex flex-col justify-between items-start h-full">
-                      <div>
-                        <p className="font-mono text-primary font-bold">{v.tag}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{v.desc}</p>
+                    {autoGroupTargets.length === 0 ? (
+                      <Alert>
+                        <AlertTitle>Nenhum grupo selecionado</AlertTitle>
+                        <AlertDescription>Selecione grupos ao lado para habilitar o envio automático.</AlertDescription>
+                      </Alert>
+                    ) : (
+                      <div className="rounded-md border max-h-72 overflow-y-auto">
+                        <div className="divide-y">
+                          {autoGroupTargets.map((target) => {
+                            const groupName = availableGroups.find((g) => g.id === target.groupId)?.subject || target.groupId;
+                            return (
+                              <div key={target.groupId} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 p-3">
+                                <p className="truncate text-sm font-medium">{groupName}</p>
+                                <Select
+                                  value={target.groupLevel}
+                                  onValueChange={(value) =>
+                                    setGroupLevelForTarget(target.groupId, value as any)
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-28">
+                                    <SelectValue>
+                                      {target.groupLevel === "LEVEL_1" && "Nível 1"}
+                                      {target.groupLevel === "LEVEL_2" && "Nível 2"}
+                                      {target.groupLevel === "LEVEL_3" && "Nível 3"}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="LEVEL_1">Nível 1</SelectItem>
+                                    <SelectItem value="LEVEL_2">Nível 2</SelectItem>
+                                    <SelectItem value="LEVEL_3">Nível 3</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button type="button" variant="outline" onClick={() => removeAutoGroupTarget(target.groupId)} size="icon-sm">
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="mt-4 w-full"
-                        onClick={() => {
-                          navigator.clipboard.writeText(v.tag);
-                          toast.success(`${v.tag} copiado! Cole no campo desejado.`);
-                        }}
-                      >
-                        Copiar Variável
-                      </Button>
-                    </div>
-                  ))}
+                    )}
+                  </div>
                 </div>
-                <div className="mt-8 p-4 border rounded-lg bg-primary/5">
-                  <h4 className="font-medium mb-2">Exemplo Prático:</h4>
-                  <p className="font-mono text-sm">I would like to confirm our English Mentoring this {"{{diasemana}}"} at {"{{hora_en}}"}.</p>
-                  <p className="text-sm mt-2 text-muted-foreground">Como será enviado:</p>
-                  <p className="font-mono text-sm bg-background p-2 rounded border mt-1">I would like to confirm our English Mentoring this Tuesday at 8am.</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              ) : null}
 
-        </Tabs>
+              <div className="flex justify-end pt-2">
+                <Button onClick={handleSave} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </main>
-    </div>
+    </>
   );
 }

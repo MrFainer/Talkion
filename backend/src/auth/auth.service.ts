@@ -100,9 +100,9 @@ export class AuthService {
           'Créditos de boas-vindas para teste',
           'trial',
         );
-        return this.generateAuthResponse(updated);
+        return await this.generateAuthResponse(updated);
       }
-      return this.generateAuthResponse(user);
+      return await this.generateAuthResponse(user);
     }
     if (user.verification_token !== token) {
       throw new BadRequestException('Token inválido ou expirado.');
@@ -125,7 +125,7 @@ export class AuthService {
       'trial',
     );
 
-    return this.generateAuthResponse(updatedUser);
+    return await this.generateAuthResponse(updatedUser);
   }
 
   async login(data: any) {
@@ -158,7 +158,7 @@ export class AuthService {
       );
     }
 
-    return this.generateAuthResponse(user);
+    return await this.generateAuthResponse(user);
   }
 
   async resendVerification(data: { email: string }) {
@@ -296,8 +296,26 @@ export class AuthService {
     };
   }
 
-  private generateAuthResponse(user: any) {
+  private async generateAuthResponse(user: any) {
     const payload = { sub: user.id, email: user.email, role: user.role };
+
+    let subscriptionStatus: string | null = null;
+    let isFreePlan = false;
+    try {
+      const sub = await this.prisma.subscription.findFirst({
+        where: { user_id: user.id },
+        orderBy: { created_at: 'desc' },
+        select: {
+          status: true,
+          plan: { select: { is_free: true } },
+        },
+      });
+      subscriptionStatus = sub?.status || null;
+      isFreePlan = sub?.plan?.is_free || false;
+    } catch {
+      subscriptionStatus = null;
+    }
+
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -307,6 +325,8 @@ export class AuthService {
         role: user.role,
         news_group_title: user.news_group_title || null,
       },
+      subscription_status: subscriptionStatus,
+      is_free_plan: isFreePlan,
     };
   }
 

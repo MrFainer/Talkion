@@ -1,0 +1,563 @@
+"use client";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
+import { Sidebar } from "@/components/Sidebar";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
+import { toast } from "sonner";
+import { MessageSquare, Users, Variable, Save, RotateCcw, SmilePlus, Cake } from "lucide-react";
+import { usePlanFeatures } from "@/hooks/usePlanFeatures";
+
+type TextEditorProps = {
+  label: string;
+  field: string;
+  value: string;
+  onChange: (field: string, value: string) => void;
+  onInsertEmoji: (field: string, emoji: string) => void;
+  minHeight?: string;
+};
+
+function TextEditor({
+  label,
+  field,
+  value,
+  onChange,
+  onInsertEmoji,
+  minHeight = "min-h-[100px]",
+}: TextEditorProps) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <Popover>
+          <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-2 text-muted-foreground">
+            <SmilePlus className="w-4 h-4 mr-2" /> Emojis
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end" side="top">
+            <EmojiPicker
+              theme={Theme.AUTO}
+              onEmojiClick={(emoji: EmojiClickData) => onInsertEmoji(field, emoji.emoji)}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <Textarea
+        id={field}
+        value={value}
+        onChange={(e) => onChange(field, e.target.value)}
+        className={minHeight}
+      />
+      <div className="flex justify-between items-center text-xs text-muted-foreground">
+        <span>{value.length} caracteres</span>
+      </div>
+    </div>
+  );
+}
+
+function WhatsappFormatGuide() {
+  return (
+    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6 text-sm">
+      <h4 className="font-semibold mb-2 flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-primary" />
+        Guia de Formatação
+      </h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-muted-foreground">
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">*texto*</code>
+          <p className="mt-1 font-bold text-foreground">Negrito</p>
+        </div>
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">_texto_</code>
+          <p className="mt-1 italic text-foreground">Itálico</p>
+        </div>
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">~texto~</code>
+          <p className="mt-1 line-through text-foreground">Tachado</p>
+        </div>
+        <div>
+          <code className="text-foreground bg-background px-1 rounded">`texto`</code>
+          <p className="mt-1 font-mono text-xs text-foreground">Monoespaçado</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const normalizeJson = (value: any): any => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeJson);
+  }
+  if (value && typeof value === "object") {
+    const out: any = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = normalizeJson(value[key]);
+    }
+    return out;
+  }
+  return value;
+};
+
+const stableStringify = (value: any) => {
+  return JSON.stringify(normalizeJson(value));
+};
+
+export default function MessagesPage() {
+  const router = useRouter();
+  const { user, isHydrated, hydrate } = useAuthStore();
+  const { planName } = usePlanFeatures();
+  const isFreePlan = planName === "Free";
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
+
+  const fetchSettings = useCallback(async () => {
+    if (!isHydrated) return;
+    if (!user?.id) {
+      router.push("/login");
+      return;
+    }
+    try {
+      const res = await api.get(`/message-settings/${user.id}`);
+      setSettings(res.data);
+      setSavedSnapshot(stableStringify(res.data));
+    } catch (error) {
+      toast.error("Erro ao carregar configurações.");
+    } finally {
+      setLoading(false);
+    }
+  }, [isHydrated, user?.id, router]);
+
+  useEffect(() => {
+    document.title = "Talkion - Mensagens";
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const handleSave = async () => {
+    if (!user?.id) return;
+    setSaving(true);
+    try {
+      await api.put(`/message-settings/${user.id}`, settings);
+      setSavedSnapshot(stableStringify(settings));
+      toast.success("Configurações salvas com sucesso!");
+      return true;
+    } catch (error) {
+      toast.error("Erro ao salvar configurações.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!user?.id) return;
+    
+    setSaving(true);
+    try {
+      const res = await api.post(`/message-settings/${user.id}/reset`);
+      setSettings(res.data);
+      setSavedSnapshot(stableStringify(res.data));
+      toast.success("Configurações restauradas para o padrão.");
+    } catch (error) {
+      toast.error("Erro ao restaurar configurações.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    try {
+      await handleReset();
+    } finally {
+      setIsResetDialogOpen(false);
+    }
+  };
+
+  const updateSetting = (key: string, value: any) => {
+    setSettings((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const currentSnapshot = useMemo(() => {
+    if (!settings) return "";
+    return stableStringify(settings);
+  }, [settings]);
+
+  const hasUnsavedChanges = Boolean(
+    settings && savedSnapshot && currentSnapshot !== savedSnapshot,
+  );
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as any)?.detail as { href?: string } | undefined;
+      if (!hasUnsavedChanges || saving) return;
+      event.preventDefault();
+      setPendingHref(detail?.href || null);
+      setIsUnsavedDialogOpen(true);
+    };
+    window.addEventListener("talkion:before-navigate", handler as any);
+    return () => window.removeEventListener("talkion:before-navigate", handler as any);
+  }, [hasUnsavedChanges, saving]);
+
+  const handleLeaveWithoutSaving = () => {
+    const href = pendingHref;
+    setIsUnsavedDialogOpen(false);
+    setPendingHref(null);
+    if (href) {
+      router.push(href);
+    }
+  };
+
+  const handleSaveAndLeave = async () => {
+    const href = pendingHref;
+    const ok = await handleSave();
+    if (!ok) return;
+    setIsUnsavedDialogOpen(false);
+    setPendingHref(null);
+    if (href) {
+      router.push(href);
+    }
+  };
+
+  const insertTextAtCursor = (field: string, textToInsert: string) => {
+    const el = document.getElementById(field) as HTMLTextAreaElement;
+    if (!el) return;
+
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const currentValue = settings?.[field] || "";
+
+    const newValue = currentValue.substring(0, start) + textToInsert + currentValue.substring(end);
+    
+    updateSetting(field, newValue);
+
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
+    }, 10);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[100dvh] w-full">
+        <Sidebar />
+        <main className="flex-1 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
+          <p>Carregando configurações...</p>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[100dvh] w-full">
+      <Sidebar />
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 bg-muted/10">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Mensagens</h1>
+            <p className="text-muted-foreground mt-1">
+              Personalize o comportamento do bot e os textos padrão.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsResetDialogOpen(true)}
+              disabled={saving}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Restaurar Padrão
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </div>
+        </div>
+
+        <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Restaurar configurações padrão</DialogTitle>
+              <DialogDescription>
+                Isso vai apagar suas modificações e voltar ao padrão do Talkion.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsResetDialogOpen(false)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmReset} disabled={saving}>
+                {saving ? "Restaurando..." : "Restaurar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isUnsavedDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsUnsavedDialogOpen(false);
+              setPendingHref(null);
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Alterações não salvas</DialogTitle>
+              <DialogDescription>
+                Você tem alterações pendentes. Deseja salvar antes de sair?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsUnsavedDialogOpen(false)}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleLeaveWithoutSaving}
+                disabled={saving}
+              >
+                Sair sem salvar
+              </Button>
+              <Button onClick={handleSaveAndLeave} disabled={saving}>
+                {saving ? "Salvando..." : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+          <Tabs defaultValue="private" className="space-y-6">
+          <TabsList className={`grid w-full max-w-2xl ${isFreePlan ? "grid-cols-3" : "grid-cols-4"}`}>
+            <TabsTrigger value="private" className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Privado</span>
+            </TabsTrigger>
+            <TabsTrigger value="group" className="flex items-center gap-2">
+              <Users className="w-4 h-4" /> <span className="hidden sm:inline">Grupo</span>
+            </TabsTrigger>
+            {!isFreePlan && (
+            <TabsTrigger value="birthday" className="flex items-center gap-2">
+              <Cake className="w-4 h-4" /> <span className="hidden sm:inline">Aniversário</span>
+            </TabsTrigger>
+            )}
+            <TabsTrigger value="vars" className="flex items-center gap-2">
+              <Variable className="w-4 h-4" /> <span className="hidden sm:inline">Variáveis</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="private" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Comportamento em Conversas no Privado</CardTitle>
+                <CardDescription>Configure uma ideia de como a IA vai montar e enviar as mensagens no privado.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <WhatsappFormatGuide />
+
+                <div className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <TextEditor
+                      label="Saudação"
+                      field="private_greeting_idea"
+                      value={settings?.private_greeting_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho do Desafio"
+                      field="private_speaking_intro_idea"
+                      value={settings?.private_speaking_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho da Notícia"
+                      field="private_news_intro_idea"
+                      value={settings?.private_news_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Confirmação de Aula"
+                      field="private_lesson_confirmation_idea"
+                      value={settings?.private_lesson_confirmation_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="group" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Comportamento em Conversas no Grupo</CardTitle>
+                <CardDescription>Configure uma ideia de como a IA vai montar e enviar as mensagens no grupo.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <WhatsappFormatGuide />
+
+                <div className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <TextEditor
+                      label="Saudação"
+                      field="group_greeting_idea"
+                      value={settings?.group_greeting_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho do Quiz do Dia Anterior"
+                      field="group_previous_quiz_header_idea"
+                      value={settings?.group_previous_quiz_header_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho da Notícia"
+                      field="group_news_intro_idea"
+                      value={settings?.group_news_intro_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor
+                      label="Cabeçalho do Quiz"
+                      field="group_quiz_header_idea"
+                      value={settings?.group_quiz_header_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                    <TextEditor 
+                      label="Rodapé do Quiz" 
+                      field="group_quiz_footer_idea" 
+                      value={settings?.group_quiz_footer_idea || ""}
+                      onChange={updateSetting}
+                      onInsertEmoji={insertTextAtCursor}
+                      minHeight="min-h-[120px]"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {!isFreePlan && (
+          <TabsContent value="birthday" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Mensagem de Aniversário</CardTitle>
+                <CardDescription>Configure o modelo da mensagem de aniversário enviada para os alunos. Use as variáveis disponíveis para personalizar.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <WhatsappFormatGuide />
+
+                <TextEditor
+                  label="Modelo da Mensagem de Aniversário"
+                  field="birthday_message_template"
+                  value={settings?.birthday_message_template || ""}
+                  onChange={updateSetting}
+                  onInsertEmoji={insertTextAtCursor}
+                  minHeight="min-h-[200px]"
+                />
+
+
+              </CardContent>
+            </Card>
+          </TabsContent>
+          )}
+
+          <TabsContent value="vars" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Variáveis Dinâmicas Disponíveis</CardTitle>
+                <CardDescription>
+                  Você pode usar essas tags em qualquer campo de texto para inserir dados reais no momento do envio.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    { tag: "{{nome}}", desc: "Nome do aluno" },
+                    { tag: "{{telefone}}", desc: "Número do WhatsApp" },
+                    { tag: "{{grupo}}", desc: "Nome do grupo (se houver)" },
+                    { tag: "{{data}}", desc: "Data atual (ex: 18/05/2026)" },
+                    { tag: "{{hora_en}}", desc: "Hora da aula (ex: 8am / 8:30pm)" },
+                    { tag: "{{period}}", desc: "Período do dia: morning / afternoon / evening" },
+                    { tag: "{{diasemana}}", desc: "Dia da semana (ex: Monday)" },
+                  ].map((v) => (
+                    <div key={v.tag} className="border p-4 rounded-lg bg-muted/20 flex flex-col justify-between items-start h-full">
+                      <div>
+                        <p className="font-mono text-primary font-bold">{v.tag}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{v.desc}</p>
+                      </div>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="mt-4 w-full"
+                        onClick={() => {
+                          navigator.clipboard.writeText(v.tag);
+                          toast.success(`${v.tag} copiado! Cole no campo desejado.`);
+                        }}
+                      >
+                        Copiar Variável
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-8 p-4 border rounded-lg bg-primary/5">
+                  <h4 className="font-medium mb-2">Exemplo Prático:</h4>
+                  <p className="font-mono text-sm">I would like to confirm our English Mentoring this {"{{diasemana}}"} at {"{{hora_en}}"}.</p>
+                  <p className="text-sm mt-2 text-muted-foreground">Como será enviado:</p>
+                  <p className="font-mono text-sm bg-background p-2 rounded border mt-1">I would like to confirm our English Mentoring this Tuesday at 8am.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
+      </main>
+    </div>
+  );
+}

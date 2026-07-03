@@ -149,7 +149,7 @@ export default function AffiliatePage() {
               </div>
             )}
             <p className="mt-3 text-xs text-muted-foreground">
-              Seu código: <strong>{code}</strong> &mdash; Compartilhe este link no Instagram, WhatsApp ou onde preferir.
+              Seu código: <strong>{code}</strong> — Compartilhe este link no Instagram, WhatsApp ou onde preferir.
             </p>
           </CardContent>
         </Card>

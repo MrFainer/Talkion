@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import {
   ArrowRight,
   ArrowUp,
   Check,
+  CheckCircle2,
   ChevronDown,
   Globe,
   GraduationCap,
@@ -31,6 +33,8 @@ import {
   Award,
   CalendarCheck,
   HelpCircle,
+  TrendingUp,
+  Building2,
 } from "lucide-react";
 
 const features = [
@@ -178,24 +182,34 @@ const depoimentos = [
 
 const faq = [
   {
-    question: "O que está incluso nos planos?",
+    question: "Todos os planos possuem as mesmas funcionalidades?",
     answer:
-      "Todos os planos incluem acesso completo às funcionalidades da plataforma, incluindo envio de mensagens, comunicação com grupos, criação de conteúdos com IA e gerenciamento de alunos.",
+      "Sim! Todos os planos têm acesso às mesmas funcionalidades da plataforma. A diferença está na quantidade de alunos, créditos de IA e professores que você pode gerenciar.",
   },
   {
-    question: "Como funcionam os créditos?",
+    question: "O plano gratuito tem limite de tempo?",
     answer:
-      "Cada funcionalidade da plataforma consome uma quantidade de créditos. Por exemplo, gerar uma notícia, criar um quiz, enviar uma mensagem ou transcrever um áudio de speaking — cada ação gasta uma pequena parcela dos seus créditos mensais. Os créditos são renovados todo mês e você acompanha o consumo em tempo real pelo painel de controle.",
+      "Não! O plano Free é totalmente gratuito por tempo ilimitado. Você pode usar para sempre sem pagar nada, com 5.000 créditos mensais e até 10 alunos.",
   },
   {
-    question: "Posso trocar de plano depois?",
+    question: "Os créditos acumulam?",
     answer:
-      "Sim. Você pode alterar seu plano conforme o crescimento da sua turma.",
+      "Créditos do plano são resetados todo mês na renovação. Já os créditos extras comprados à parte nunca expiram e se acumulam com os créditos do seu plano.",
   },
   {
-    question: "Como funciona a cobrança de alunos excedentes?",
+    question: "Posso comprar mais créditos?",
     answer:
-      "Caso a quantidade de alunos ultrapasse o limite do plano contratado, será cobrado apenas o valor correspondente aos alunos adicionais ativos.",
+      "Sim! Oferecemos pacotes de créditos extras a partir de R$ 39,90. Basta acessar a página de assinatura e escolher o pacote desejado.",
+  },
+  {
+    question: "Posso mudar de plano?",
+    answer:
+      "Sim! Você pode fazer upgrade ou downgrade quando quiser. O valor é recalculado proporcionalmente aos dias restantes do ciclo de faturamento.",
+  },
+  {
+    question: "Como funciona o suporte?",
+    answer:
+      "Todos os planos têm suporte por e-mail. Planos pagos contam com suporte online e o School tem suporte dedicado com onboarding personalizado.",
   },
 ];
 
@@ -210,6 +224,7 @@ export default function LandingPage() {
   const [showContactHint, setShowContactHint] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const turnstileRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const onScroll = () => {
@@ -270,8 +285,6 @@ export default function LandingPage() {
     }, 100);
   };
 
-
-
   const flagUrl = (code: string) => `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 
   return (
@@ -300,10 +313,10 @@ export default function LandingPage() {
           <div className="hidden items-center gap-8 md:flex">
             {[
               { label: "Por que usar?", target: "benefits" },
-              { label: "Planos", target: "plans" },
-              { label: "Funcionalidades", target: "features" },
               { label: "Como funciona", target: "how-it-works" },
+              { label: "Funcionalidades", target: "features" },
               { label: "Idiomas", target: "languages" },
+              { label: "Planos", target: "plans" },
               { label: "Contato", target: "contact" },
             ].map((item) => (
               <button
@@ -456,162 +469,30 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Planos */}
-      <section id="plans" className="relative bg-slate-50 py-24">
+      {/* Como funciona */}
+      <section id="how-it-works" className="relative bg-white py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
-              <CreditCard className="h-3.5 w-3.5" />
-              Planos
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
+              <BookOpen className="h-3.5 w-3.5" />
+              Como Funciona
             </span>
             <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              Escolha o plano ideal para sua turma
+              Coloque no ar em minutos
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-slate-500">
-              Automatize a comunicação com seus alunos, economize tempo e mantenha o engajamento das suas aulas.
+              Conecte seu WhatsApp, cadastre seus alunos e o Talkion faz o resto.
             </p>
           </div>
-          <div className="mx-auto mt-16 grid max-w-5xl gap-8 lg:grid-cols-2">
-            {/* Plano Base */}
-            <div className="relative flex flex-col rounded-2xl border border-slate-200 bg-white p-8 transition hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5">
-              <h3 className="text-lg font-semibold text-slate-500">Plano Base</h3>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-slate-900">R$ 84,90</span>
-                <span className="text-sm text-slate-500">/mês</span>
-              </div>
-              <p className="mt-4 text-sm leading-relaxed text-slate-500">
-                Ideal para professores que estão começando a automatizar a comunicação com seus alunos.
-              </p>
-              <ul className="mt-6 flex-1 space-y-3">
-                {[
-                  "Acesso a todas as funcionalidades da plataforma",
-                  "Envio de mensagens para grupos e conversas privadas",
-                  "Criação de quizzes e conteúdos com IA",
-                  "Gestão simplificada dos alunos",
-                  "Suporte online",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-6 space-y-2 border-t border-slate-100 pt-6">
-                <p className="text-xs text-slate-400">
-                  Inclui a quantidade de alunos prevista para o plano
-                </p>
-                <p className="text-xs text-slate-400">
-                  Aluno adicional: R$ 2,99 por aluno/mês
-                </p>
-                <div className="flex items-center gap-1.5 pt-1">
-                  <Zap className="h-3.5 w-3.5 text-amber-500" />
-                  <span className="text-xs font-medium text-slate-500">15.000 créditos/mês</span>
-                </div>
-              </div>
-              <button
-                onClick={() => goToContact("Base")}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-6 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-              >
-                Começar Agora
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Plano Premium (Destacado) */}
-            <div className="relative flex flex-col rounded-2xl border-2 border-blue-500 bg-white p-8 shadow-xl shadow-blue-500/10">
-              <div className="absolute -top-3.5 left-6 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-1 text-xs font-semibold text-white shadow-lg">
-                <Star className="h-3 w-3 fill-white" />
-                Recomendado
-              </div>
-              <h3 className="text-lg font-semibold text-slate-500">Plano Premium</h3>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-4xl font-bold text-slate-900">R$ 159,90</span>
-                <span className="text-sm text-slate-500">/mês</span>
-              </div>
-              <p className="mt-4 text-sm leading-relaxed text-slate-500">
-                Perfeito para professores com maior volume de alunos e necessidade de comunicação frequente.
-              </p>
-              <ul className="mt-6 flex-1 space-y-3">
-                {[
-                  "Todas as funcionalidades do Plano Base",
-                  "Maior capacidade de utilização da plataforma",
-                  "Mais créditos mensais para recursos com IA",
-                  "Melhor custo-benefício para turmas maiores",
-                  "Suporte prioritário",
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-6 space-y-2 border-t border-slate-100 pt-6">
-                <p className="text-xs text-slate-400">
-                  Inclui a quantidade de alunos prevista para o plano
-                </p>
-                <p className="text-xs text-slate-400">
-                  Aluno adicional: R$ 2,99 por aluno/mês
-                </p>
-                <div className="flex items-center gap-1.5 pt-1">
-                  <Zap className="h-3.5 w-3.5 text-amber-500" />
-                  <span className="text-xs font-medium text-slate-500">30.000 créditos/mês</span>
-                </div>
-              </div>
-              <button
-                onClick={() => goToContact("Premium")}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition hover:from-blue-500 hover:to-indigo-500"
-              >
-                Quero o Premium
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-          <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-slate-400">
-            Todos os recursos da plataforma estão disponíveis em qualquer plano. A diferença entre os planos está na capacidade de utilização e quantidade de alunos atendidos.
-          </p>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="relative bg-white py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700">
-              <HelpCircle className="h-3.5 w-3.5" />
-              Perguntas Frequentes
-            </span>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              Ainda com dúvidas?
-            </h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-500">
-              As principais perguntas que nossos professores fazem antes de começar.
-            </p>
-          </div>
-          <div className="mx-auto mt-12 max-w-3xl space-y-3">
-            {faq.map((item, index) => (
-              <div
-                key={index}
-                className="overflow-hidden rounded-2xl border border-slate-200 transition hover:border-slate-300"
-              >
-                <button
-                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                  className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-slate-50"
-                >
-                  <span className="text-base font-semibold text-slate-900">{item.question}</span>
-                  <ChevronDown
-                    className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 ${
-                      openFaq === index ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-                <div
-                  className={`overflow-hidden transition-all duration-200 ${
-                    openFaq === index ? "max-h-48" : "max-h-0"
-                  }`}
-                >
-                  <p className="border-t border-slate-100 px-6 py-5 text-sm leading-relaxed text-slate-500">
-                    {item.answer}
-                  </p>
+          <div className="mt-16 grid gap-8 md:grid-cols-4">
+            {steps.map((step) => (
+              <div key={step.number}>
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg font-bold text-white shadow-lg shadow-emerald-500/20">
+                    {step.number}
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold text-slate-900">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500">{step.desc}</p>
                 </div>
               </div>
             ))}
@@ -646,37 +527,6 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900">{feature.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-500">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Como funciona */}
-      <section id="how-it-works" className="relative bg-white py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700">
-              <BookOpen className="h-3.5 w-3.5" />
-              Como Funciona
-            </span>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              Coloque no ar em minutos
-            </h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-500">
-              Conecte seu WhatsApp, cadastre seus alunos e o Talkion faz o resto.
-            </p>
-          </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-4">
-            {steps.map((step) => (
-              <div key={step.number}>
-                <div className="flex flex-col items-center text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg font-bold text-white shadow-lg shadow-emerald-500/20">
-                    {step.number}
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold text-slate-900">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-500">{step.desc}</p>
-                </div>
               </div>
             ))}
           </div>
@@ -834,6 +684,401 @@ export default function LandingPage() {
                   i === depoimentoIndex ? "w-6 bg-blue-600" : "w-2 bg-slate-300"
                 }`}
               />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Planos + Tabela Comparativa */}
+      <section id="plans" className="relative bg-slate-50 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700">
+              <CreditCard className="h-3.5 w-3.5" />
+              Planos
+            </span>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Escolha o plano ideal para sua turma
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-500">
+              Automatize a comunicação com seus alunos, economize tempo e mantenha o engajamento das suas aulas.
+            </p>
+          </div>
+          <div className="mx-auto mt-16 grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+
+            {/* Free */}
+            <div className="relative flex flex-col rounded-xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
+              <div className="text-center pb-2">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50">
+                  <Zap className="h-6 w-6 text-emerald-600" />
+                </div>
+                <h3 className="text-xl text-emerald-600 font-semibold">Free</h3>
+                <p className="text-xs text-muted-foreground mt-1">Comece gratuitamente. Sem cartão de crédito.</p>
+              </div>
+              <div className="text-center flex-1 flex flex-col px-2">
+                <div className="mb-3">
+                  <div className="text-3xl font-bold text-emerald-600">R$ 0</div>
+                  <p className="text-xs text-muted-foreground">/mês</p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600 mx-auto mb-4">
+                  <Zap className="h-3 w-3" />
+                  5.000 créditos/mês
+                </div>
+                <ul className="space-y-2 text-left mb-4 flex-1">
+                  {[
+                    "Até 10 alunos",
+                    "Conteúdo diário IA",
+                    "Speaking IA",
+                    "Quiz inteligente",
+                    "Fluxos privados e grupo",
+                    "Suporte por e-mail",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-muted-foreground mb-3">Aluno adicional: R$ 3,90/mês</p>
+                <button
+                  onClick={() => router.push("/login?register=true&plan=Free")}
+                  className="mt-auto w-full rounded-lg bg-emerald-50 text-emerald-700 px-3 py-2.5 text-xs font-semibold hover:opacity-80 transition-opacity"
+                >
+                  Começar Gratuitamente
+                </button>
+              </div>
+            </div>
+
+            {/* Essentials */}
+            <div className="relative flex flex-col rounded-xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
+              <div className="text-center pb-2">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50">
+                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="text-xl text-blue-600 font-semibold">Essentials</h3>
+                <p className="text-xs text-muted-foreground mt-1">Para professores que querem automatizar suas aulas.</p>
+              </div>
+              <div className="text-center flex-1 flex flex-col px-2">
+                <div className="mb-3">
+                  <div className="text-3xl font-bold">R$ 99,90</div>
+                  <p className="text-xs text-muted-foreground">/mês</p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600 mx-auto mb-4">
+                  <Zap className="h-3 w-3" />
+                  20.000 créditos/mês
+                </div>
+                <ul className="space-y-2 text-left mb-4 flex-1">
+                  {[
+                    "Até 50 alunos",
+                    "Tudo do Free",
+                    "Confirmação de aulas",
+                    "Relatórios de evolução",
+                    "Suporte online",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-muted-foreground mb-3">Aluno adicional: R$ 3,90/mês</p>
+                <button
+                  onClick={() => router.push("/login?register=true&plan=Essentials")}
+                  className="mt-auto w-full rounded-lg bg-blue-50 text-blue-700 px-3 py-2.5 text-xs font-semibold hover:opacity-80 transition-opacity"
+                >
+                  Assinar Essentials
+                </button>
+              </div>
+            </div>
+
+            {/* Professional (Destacado) */}
+            <div className="relative flex flex-col rounded-xl border-2 border-primary/30 bg-white p-6 shadow-lg scale-[1.02] transition-all duration-200 ring-2 ring-primary">
+              <div className="flex justify-center -mt-3 mb-0 relative">
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary px-4 py-1 text-xs font-semibold text-primary-foreground shadow-sm">
+                  <Star className="h-3 w-3" />
+                  MAIS POPULAR
+                </span>
+              </div>
+              <div className="text-center pb-2 pt-2">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                  <Award className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl text-primary font-semibold">Professional</h3>
+                <p className="text-xs text-muted-foreground mt-1">Cresça sem aumentar sua carga de trabalho.</p>
+              </div>
+              <div className="text-center flex-1 flex flex-col px-2">
+                <div className="mb-3">
+                  <div className="text-3xl font-bold">R$ 199,90</div>
+                  <p className="text-xs text-muted-foreground">/mês</p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary mx-auto mb-4">
+                  <Zap className="h-3 w-3" />
+                  50.000 créditos/mês
+                </div>
+                <ul className="space-y-2 text-left mb-4 flex-1">
+                  {[
+                    "Até 100 alunos",
+                    "Tudo do Essentials",
+                    "Suporte prioritário",
+                    "Maior capacidade de IA",
+                    "Melhor custo por aluno",
+                    "Relatórios completos",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-muted-foreground mb-3">Aluno adicional: R$ 3,90/mês</p>
+                <button
+                  onClick={() => router.push("/login?register=true&plan=Professional")}
+                  className="mt-auto w-full rounded-lg bg-primary/10 text-primary px-3 py-2.5 text-xs font-semibold hover:opacity-80 transition-opacity"
+                >
+                  Quero o Professional
+                </button>
+              </div>
+            </div>
+
+            {/* School */}
+            <div className="relative flex flex-col rounded-xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
+              <div className="text-center pb-2">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50">
+                  <GraduationCap className="h-6 w-6 text-orange-600" />
+                </div>
+                <h3 className="text-xl text-orange-600 font-semibold">School</h3>
+                <p className="text-xs text-muted-foreground mt-1">Para escolas e equipes de professores.</p>
+              </div>
+              <div className="text-center flex-1 flex flex-col px-2">
+                <div className="mb-3">
+                  <div className="text-3xl font-bold">R$ 399,90</div>
+                  <p className="text-xs text-muted-foreground">/mês</p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-600 mx-auto mb-4">
+                  <Zap className="h-3 w-3" />
+                  120.000 créditos/mês
+                </div>
+                <ul className="space-y-2 text-left mb-4 flex-1">
+                  {[
+                    "Até 250 alunos",
+                    "Tudo do Professional",
+                    "Até 5 professores",
+                    "Dashboard administrativo",
+                    "Onboarding personalizado",
+                    "Suporte dedicado",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-muted-foreground mb-3">Aluno adicional: R$ 3,90/mês</p>
+                <button
+                  onClick={() => goToContact("School")}
+                  className="mt-auto w-full rounded-lg bg-orange-50 text-orange-700 px-3 py-2.5 text-xs font-semibold hover:bg-orange-100 transition-colors"
+                >
+                  Falar com Especialista
+                </button>
+              </div>
+            </div>
+
+            {/* Enterprise */}
+            <div className="relative flex flex-col rounded-xl border bg-white p-6 transition-all duration-200 hover:shadow-md">
+              <div className="text-center pb-2">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
+                  <Building2 className="h-6 w-6 text-slate-700" />
+                </div>
+                <h3 className="text-xl text-slate-700 font-semibold">Enterprise</h3>
+                <p className="text-xs text-muted-foreground mt-1">Para escolas e redes de ensino.</p>
+              </div>
+              <div className="text-center flex-1 flex flex-col px-2">
+                <div className="mb-3">
+                  <div className="text-lg font-bold text-slate-700">Sob consulta</div>
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 mx-auto mb-4">
+                  <Zap className="h-3 w-3" />
+                  Créditos personalizados
+                </div>
+                <ul className="space-y-2 text-left mb-4 flex-1">
+                  {[
+                    "Professores ilimitados",
+                    "API e integrações",
+                    "SLA dedicado",
+                    "Gerente de sucesso",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-muted-foreground mb-3">&nbsp;</p>
+                <button
+                  onClick={() => goToContact("Enterprise")}
+                  className="mt-auto w-full rounded-lg bg-slate-900 text-white px-3 py-2.5 text-xs font-semibold hover:bg-slate-800 transition-colors inline-flex items-center justify-center gap-1.5"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Solicitar Proposta
+                </button>
+              </div>
+            </div>
+          </div>
+          <p className="mx-auto mt-10 max-w-2xl text-center text-sm text-muted-foreground">
+            Todos os planos possuem as mesmas funcionalidades. A diferença está na quantidade de alunos,
+            créditos de IA e professores que você pode gerenciar.
+          </p>
+        </div>
+
+        <div className="mx-auto max-w-7xl px-6 mt-20">
+          <h2 className="text-2xl font-bold mb-8">Compare todos os planos</h2>
+          <div className="grid gap-6 lg:grid-cols-[1fr_auto]">
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Recursos</th>
+                    {["Free", "Essentials", "Professional", "School"].map(name => {
+                      const colors: Record<string, string> = {
+                        Free: "text-emerald-600",
+                        Essentials: "text-blue-600",
+                        Professional: "text-primary",
+                        School: "text-orange-600",
+                      };
+                      return (
+                        <th key={name} className={`px-4 py-3 text-center font-semibold ${colors[name] || ""}`}>
+                          {name}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: "Alunos", free: "10", essentials: "50", professional: "100", school: "250" },
+                    { label: "Créditos mensais", free: "5.000", essentials: "20.000", professional: "50.000", school: "120.000" },
+                    { label: "Conteúdo diário IA", free: true, essentials: true, professional: true, school: true },
+                    { label: "Speaking IA", free: true, essentials: true, professional: true, school: true },
+                    { label: "Quiz inteligente", free: true, essentials: true, professional: true, school: true },
+                    { label: "Dashboard completo", free: "—", essentials: true, professional: true, school: true },
+                    { label: "Fluxos privados", free: true, essentials: true, professional: true, school: true },
+                    { label: "Fluxos em grupo", free: true, essentials: true, professional: true, school: true },
+                    { label: "Gestão de alunos", free: true, essentials: true, professional: true, school: true },
+                    { label: "Automações", free: "—", essentials: true, professional: true, school: true },
+                    { label: "Confirmação de aulas", free: "—", essentials: true, professional: true, school: true },
+                    { label: "Agendamento", free: "—", essentials: true, professional: true, school: true },
+                    { label: "Suporte prioritário", free: "—", essentials: "—", professional: true, school: true },
+                    { label: "Até 5 professores", free: "—", essentials: "—", professional: "—", school: true },
+                  ].map((row, i) => (
+                    <tr key={i} className={i % 2 === 0 ? "bg-muted/20" : ""}>
+                      <td className="px-4 py-2.5 text-muted-foreground">{row.label}</td>
+                      {(["free", "essentials", "professional", "school"] as const).map(key => {
+                        const val = row[key];
+                        return (
+                          <td key={key} className="px-4 py-2.5 text-center">
+                            {val === true ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
+                            ) : (
+                              <span className="text-muted-foreground">{String(val)}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-4 w-full lg:w-72">
+              <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+                <div className="pt-5 p-5">
+                  <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-amber-500" />
+                    Créditos adicionais
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Pacotes de créditos extras que nunca expiram.
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      { credits: "5.000", price: "R$ 29,90" },
+                      { credits: "20.000", price: "R$ 99,90" },
+                      { credits: "50.000", price: "R$ 199,90" },
+                      { credits: "100.000", price: "R$ 299,90" },
+                    ].map((pack, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{pack.credits} créditos</span>
+                        <span className="font-semibold">{pack.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+                <div className="pt-5 p-5">
+                  <h3 className="font-semibold text-sm mb-3">O que são créditos?</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                    Cada recurso de IA consome créditos. Seus créditos são renovados mensalmente com a assinatura.
+                  </p>
+                  <ul className="space-y-1.5">
+                    {["Conteúdo personalizado", "Quizzes", "Speaking", "Transcrição", "Texto para voz", "Geração de imagens"].map((item, i) => (
+                      <li key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="relative bg-white py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700">
+              <HelpCircle className="h-3.5 w-3.5" />
+              Perguntas Frequentes
+            </span>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              Ainda com dúvidas?
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-500">
+              As principais perguntas que nossos professores fazem antes de começar.
+            </p>
+          </div>
+          <div className="mx-auto mt-12 max-w-3xl space-y-3">
+            {faq.map((item, index) => (
+              <div
+                key={index}
+                className="overflow-hidden rounded-2xl border border-slate-200 transition hover:border-slate-300"
+              >
+                <button
+                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                  className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-slate-50"
+                >
+                  <span className="text-base font-semibold text-slate-900">{item.question}</span>
+                  <ChevronDown
+                    className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 ${
+                      openFaq === index ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <div
+                  className={`overflow-hidden transition-all duration-200 ${
+                    openFaq === index ? "max-h-48" : "max-h-0"
+                  }`}
+                >
+                  <p className="border-t border-slate-100 px-6 py-5 text-sm leading-relaxed text-slate-500">
+                    {item.answer}
+                  </p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -1041,14 +1286,14 @@ export default function LandingPage() {
               <span className="text-lg font-semibold tracking-tight">Talkion</span>
             </Link>
             <div className="flex items-center gap-6 text-sm text-slate-500">
-              <button onClick={() => scrollTo("plans")} className="transition hover:text-slate-300">
-                Planos
-              </button>
               <button onClick={() => scrollTo("benefits")} className="transition hover:text-slate-300">
                 Por que usar?
               </button>
               <button onClick={() => scrollTo("features")} className="transition hover:text-slate-300">
                 Funcionalidades
+              </button>
+              <button onClick={() => scrollTo("plans")} className="transition hover:text-slate-300">
+                Planos
               </button>
               <button onClick={() => scrollTo("faq")} className="transition hover:text-slate-300">
                 FAQ

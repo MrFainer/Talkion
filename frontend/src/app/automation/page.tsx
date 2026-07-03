@@ -631,6 +631,18 @@ export default function AutomationPage() {
     }
   };
 
+  const handleToggleGroupSend = async () => {
+    if (!user?.id) return;
+    const nextValue = !groupSendEnabled;
+    setGroupSendEnabled(nextValue);
+    try {
+      await api.put(`/message-settings/${user.id}`, { group_send_enabled: nextValue });
+    } catch {
+      setGroupSendEnabled(!nextValue);
+      toast.error("Erro ao atualizar envio em grupo.");
+    }
+  };
+
   const toggleAutomationDay = (day: number) => {
     setAutomationDays((prev) => {
       if (prev.includes(day)) {
@@ -869,17 +881,54 @@ export default function AutomationPage() {
               </div>
               )}
               {initialGroupSendEnabled && (
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="group-send-time" className="text-xs whitespace-nowrap">Grupos</Label>
-                <Input
-                  id="group-send-time"
-                  type="time"
-                  value={groupSendTime}
-                  onChange={(e) => setGroupSendTime(e.target.value)}
-                  disabled={scheduleLoading || scheduleSaving || !hasAutoGroupsSelected}
-                  className="h-8 w-28"
-                />
-              </div>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="group-send-time" className="text-xs whitespace-nowrap">Grupo</Label>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <div className="inline-block">
+                          <Input
+                            id="group-send-time"
+                            type="time"
+                            value={groupSendTime}
+                            onChange={(e) => setGroupSendTime(e.target.value)}
+                            disabled={scheduleLoading || scheduleSaving || !hasAutoGroupsSelected}
+                            className={`h-8 w-28 ${!hasAutoGroupsSelected ? "opacity-50 cursor-not-allowed" : ""}`}
+                          />
+                        </div>
+                      }
+                    />
+                    {!hasAutoGroupsSelected && (
+                      <TooltipContent>
+                        <p>Selecione grupos em Configurações para liberar o envio automático.</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={handleToggleGroupSend}
+                          disabled={!hasAutoGroupsSelected}
+                          className={groupSendEnabled && hasAutoGroupsSelected ? "text-red-500" : "text-green-500"}
+                          aria-label={groupSendEnabled ? "Desativar envio em grupo" : "Ativar envio em grupo"}
+                        >
+                          {groupSendEnabled && hasAutoGroupsSelected ? (
+                            <PowerOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Power className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>
+                      <p>{groupSendEnabled ? "Desativar Grupo" : "Ativar Grupo"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               )}
               {initialLessonsConfirmationEnabled && (
               <div className="flex items-center gap-1.5">
@@ -1031,14 +1080,14 @@ export default function AutomationPage() {
               )}
             </div>
 
-            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialGroupSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && !initialQuickTipEnabled && !initialBirthdayEnabled && user?.role !== "ADMIN" && (
+            {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && !initialQuickTipEnabled && !initialBirthdayEnabled && user?.role !== "ADMIN" && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 As funções de automação estão desativadas para a sua conta. Entre em contato com o administrador do
                 Talkion para mais informações.
               </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Dias da semana (automático)</Label>
               <div className="flex flex-wrap gap-2">
@@ -1059,168 +1108,7 @@ export default function AutomationPage() {
             </div>
             )}
 
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Grupos do envio automático</p>
-                  <p className="text-xs text-muted-foreground">
-                    Selecione quais grupos recebem a notícia automaticamente no horário configurado.
-                  </p>
-                </div>
-              </div>
-
-              {groupConnectionReady === false ? (
-                <Alert variant="destructive">
-                  <AlertTitle>WhatsApp desconectado</AlertTitle>
-                  <AlertDescription>Conecte o WhatsApp para sincronizar os grupos e liberar a seleção.</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {groupConnectionReady && !groupOptionsLoading && availableGroups.length === 0 ? (
-                <Alert>
-                  <AlertTitle>Nenhum grupo capturado</AlertTitle>
-                  <AlertDescription>
-                    {groupSyncStatus?.inProgress
-                      ? "A sincronização está em andamento. Aguarde alguns instantes."
-                      : "Seus grupos não foram encontrados no banco. Vá para a tela de WhatsApp e sincronize novamente."}
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-
-              {groupConnectionReady !== false && availableGroups.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="group-search">Lista de grupos</Label>
-                      <Input
-                        id="group-search"
-                        placeholder="Buscar grupo..."
-                        value={groupSearch}
-                        onChange={(e) => setGroupSearch(e.target.value)}
-                        disabled={scheduleLoading || scheduleSaving || groupOptionsLoading}
-                      />
-                    </div>
-
-                    <div className="rounded-md border max-h-[50vh] overflow-y-auto overscroll-contain md:max-h-80">
-                      {availableGroupsFiltered.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">Nenhum grupo encontrado para este filtro.</p>
-                      ) : (
-                        <div className="divide-y">
-                          {availableGroupsFiltered.map((group) => {
-                            const selected = isGroupSelected(group.id);
-                            return (
-                              <div key={group.id} className="grid grid-cols-[1fr_auto] items-center gap-3 p-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium">{group.subject}</p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant={selected ? "outline" : "default"}
-                                  onClick={() => addAutoGroupTarget(group.id)}
-                                  disabled={selected || scheduleLoading || scheduleSaving || groupOptionsLoading}
-                                  size="sm"
-                                  className="shrink-0"
-                                >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Adicionar
-                                </Button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">Selecionados ({autoGroupTargets.length})</p>
-                        <p className="text-xs text-muted-foreground">Esses grupos receberão automaticamente.</p>
-                      </div>
-                      {autoGroupTargets.length > 0 ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setAutoGroupTargets([])}
-                          disabled={scheduleLoading || scheduleSaving}
-                          size="sm"
-                          className="shrink-0"
-                        >
-                          Limpar
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    {!hasAutoGroupsSelected ? (
-                      <Alert>
-                        <AlertTitle>Nenhum grupo selecionado</AlertTitle>
-                        <AlertDescription>
-                          Selecione pelo menos 1 grupo para habilitar o envio automático em grupos.
-                        </AlertDescription>
-                      </Alert>
-                    ) : (
-                      <div className="rounded-md border max-h-[40vh] overflow-y-auto overscroll-contain md:max-h-80">
-                        <div className="divide-y">
-                          {autoGroupTargets.map((target) => {
-                            const groupName = availableGroups.find((g) => g.id === target.groupId)?.subject || target.groupId;
-                            return (
-                              <div key={target.groupId} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 p-3">
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-medium">{groupName}</p>
-                                </div>
-
-                                <div className="min-w-0 shrink md:w-32">
-                                  <Select
-                                    value={target.groupLevel}
-                                    onValueChange={(value) =>
-                                      setGroupLevelForTarget(
-                                        target.groupId,
-                                        (value === "LEVEL_2" ? "LEVEL_2" : value === "LEVEL_3" ? "LEVEL_3" : "LEVEL_1") as any,
-                                      )
-                                    }
-                                    disabled={scheduleLoading || scheduleSaving}
-                                  >
-                                    <SelectTrigger className="h-9">
-                                      <SelectValue placeholder="Selecione o nível">
-                                        {target.groupLevel === "LEVEL_1" && "Nível 1"}
-                                        {target.groupLevel === "LEVEL_2" && "Nível 2"}
-                                        {target.groupLevel === "LEVEL_3" && "Nível 3"}
-                                      </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="LEVEL_1">Nível 1</SelectItem>
-                                      <SelectItem value="LEVEL_2">Nível 2</SelectItem>
-                                      <SelectItem value="LEVEL_3">Nível 3</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => removeAutoGroupTarget(target.groupId)}
-                                  disabled={scheduleLoading || scheduleSaving}
-                                  size="icon-sm"
-                                  className="shrink-0"
-                                  aria-label="Remover"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            )}
-
-            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialGroupSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
+            {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
             <div className="flex justify-end">
               <Button onClick={handleSaveSchedule} disabled={scheduleSaving || scheduleLoading}>
                 {scheduleSaving ? "Salvando..." : "Salvar"}

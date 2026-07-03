@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import api from "@/lib/api";
 import { Loader2, AlertTriangle, CreditCard, Zap } from "lucide-react";
 
-const EXEMPT_PATHS = ["/login", "/", "/subscriptions", "/admin", "/billing"];
+const EXEMPT_PATHS = ["/login", "/", "/subscriptions", "/admin", "/billing", "/welcome"];
 
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   const { user, isHydrated, subscriptionStatus, subscriptionNextBillingDate, setSubscriptionData } = useAuthStore();

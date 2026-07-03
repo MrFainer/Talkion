@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/auth";
 import { useSettingsStore } from "@/store/settings";
 import api from "@/lib/api";
 import {
+  Home,
   Users,
   Wallet,
   LayoutDashboard,
@@ -18,8 +19,9 @@ import {
   Menu,
   X,
   LogOut,
+  MessageSquare,
+  Settings,
   ShieldAlert,
-  Settings2,
   ChevronDown,
   Link2,
   CalendarDays,
@@ -61,6 +63,7 @@ type SidebarNavProps = {
   whatsappStatus: string;
   creditBalance?: number | null;
   hasActivePlan?: boolean | null;
+  planName?: string | null;
   onLogout: () => void;
 };
 
@@ -82,6 +85,7 @@ function SidebarNav({
   whatsappStatus,
   creditBalance,
   hasActivePlan,
+  planName,
   onLogout,
 }: SidebarNavProps) {
   return (
@@ -168,7 +172,9 @@ function SidebarNav({
                       }`}
                     >
                       {child.href === "/settings" ? (
-                        <Settings2 className="h-4 w-4" />
+                        <Settings className="h-4 w-4" />
+                      ) : child.href === "/messages" ? (
+                        <MessageSquare className="h-4 w-4" />
                       ) : child.href === "/whatsapp" ? (
                         <Link2 className="h-4 w-4" />
                       ) : (
@@ -201,11 +207,15 @@ function SidebarNav({
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className="flex-1">Assinatura</span>
-                {hasActivePlan === false && (
+                {planName === "Free" ? (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 leading-tight">
+                    Grátis
+                  </span>
+                ) : hasActivePlan === false ? (
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 leading-tight">
                     Sem plano
                   </span>
-                )}
+                ) : null}
               </Link>
             );
           })()}
@@ -282,6 +292,8 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
+  const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
+  const [planName, setPlanName] = useState<string | null>(null);
 
   useEffect(() => {
     setLogoSrc(`/logo.png?v=${Date.now()}`);
@@ -317,8 +329,12 @@ export function Sidebar() {
       try {
         const res = await api.get(`/subscriptions/user/${user.id}`);
         setHasActivePlan(res.data?.status === 'active');
+        setPlanFeatures(res.data?.plan?.features || null);
+        setPlanName(res.data?.plan?.name || null);
       } catch {
         setHasActivePlan(false);
+        setPlanFeatures(null);
+        setPlanName(null);
       }
     };
     fetchSubscription();
@@ -360,13 +376,15 @@ export function Sidebar() {
   const isAdmin = user?.role === "ADMIN";
   const dashboardHref = isAdmin ? "/billing" : "/dashboard";
   const dashboardLabel = isAdmin ? "Faturamento" : "Dashboard";
+  const hasFeature = (f: string) => isAdmin || planFeatures?.[f] === true;
   const links = [
-    { href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard },
+    ...(planName === "Free" ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
+    ...((isAdmin || hasFeature("dashboard")) ? [{ href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard }] : []),
     { href: "/students", label: "Alunos", icon: Users },
-    ...(admin_lessons_confirmation_enabled !== false ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
-    { href: "/content", label: "Conteúdo", icon: FileText },
-    { href: "/automation", label: "Automação", icon: Bot },
-    ...((hasActivePlan || isAdmin) ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
+    ...(admin_lessons_confirmation_enabled !== false && hasFeature("lesson_confirmation") ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
+    ...(hasFeature("content_studio") ? [{ href: "/content", label: "Conteúdo", icon: FileText }] : []),
+    ...(hasFeature("automations") ? [{ href: "/automation", label: "Automação", icon: Bot }] : []),
+    ...((hasActivePlan || isAdmin) && hasFeature("affiliate_program") ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
   ];
   const adminLink =
     user?.role === "ADMIN"
@@ -375,12 +393,15 @@ export function Sidebar() {
 
   const whatsappChildren = [
     { href: "/whatsapp", label: "Conexão" },
+    { href: "/messages", label: "Mensagens" },
     { href: "/settings", label: "Configurações" },
   ];
 
   const isWhatsappSectionActive =
     pathname === "/whatsapp" ||
     pathname.startsWith("/whatsapp/") ||
+    pathname === "/messages" ||
+    pathname.startsWith("/messages/") ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/");
 
@@ -419,6 +440,8 @@ export function Sidebar() {
       !(
         href === "/whatsapp" ||
         href.startsWith("/whatsapp/") ||
+        href === "/messages" ||
+        href.startsWith("/messages/") ||
         href === "/settings" ||
         href.startsWith("/settings/")
       );
@@ -507,6 +530,7 @@ export function Sidebar() {
               whatsappStatus={whatsappStatus}
               creditBalance={creditBalance}
               hasActivePlan={hasActivePlan}
+              planName={planName}
               onLogout={logout}
             />
           </div>
@@ -524,6 +548,7 @@ export function Sidebar() {
           isWhatsappSectionActive={isWhatsappSectionActive}
           isWhatsappMenuOpen={isWhatsappMenuOpen}
           hasActivePlan={hasActivePlan}
+          planName={planName}
           onToggleWhatsappMenu={() => setIsWhatsappMenuOpen((current) => !current)}
           shouldInterceptClick={shouldInterceptClick}
           onNavigate={handleNavigate}

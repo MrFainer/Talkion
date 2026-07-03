@@ -133,16 +133,6 @@ export class SubscriptionsController {
     return { count };
   }
 
-  @Get('test-mp')
-  async testMpConnection() {
-    return this.mpService.testConnection();
-  }
-
-  @Post('test-preapproval')
-  async testPreApproval() {
-    return this.mpService.testPreApprovalDirect();
-  }
-
   @Post('user/:userId/direct-pay')
   async directPay(
     @Param('userId') userId: string,

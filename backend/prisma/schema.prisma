@@ -90,6 +90,7 @@ model User {
   credit_balance     Float    @default(0)
   referral_code      String?  @unique
   referred_by        String?
+  last_low_credits_notified_at DateTime?
   created_at         DateTime @default(now())
 
   student         Student?
@@ -477,13 +478,30 @@ model SubscriptionPlan {
   description String?
   price       Float
   credits     Int
-  max_students Int    @default(50)
+  max_students Int    @default(10)
+  max_teachers Int    @default(1)
+  is_free     Boolean @default(false)
+  features    Json    @default("{}")
   mercadopago_plan_id String? @unique
   active      Boolean  @default(true)
+  sort_order  Int      @default(0)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
   subscriptions Subscription[]
+}
+
+model CreditPack {
+  id          String   @id @default(uuid())
+  name        String
+  credits     Int
+  price       Float
+  active      Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@index([active])
 }
 
 model Subscription {

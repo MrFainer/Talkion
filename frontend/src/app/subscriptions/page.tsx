@@ -53,13 +53,7 @@ const getStartOfWeek = () => {
   return monday;
 };
 
-const topUpPacks = [
-  { id: 'topup_5000', name: '5.000 Créditos', price: 29.90, credits: 5000 },
-  { id: 'topup_10000', name: '10.000 Créditos', price: 49.90, credits: 10000 },
-  { id: 'topup_20000', name: '20.000 Créditos', price: 89.90, credits: 20000 },
-];
-
-const additionalStudentPrice = 2.99;
+const additionalStudentPrice = 3.90;
 
 export default function SubscriptionsPage() {
   const router = useRouter();
@@ -81,21 +75,24 @@ export default function SubscriptionsPage() {
   const [additionalStep, setAdditionalStep] = useState<"select" | "payment">("select");
   const [additionalLoading, setAdditionalLoading] = useState(false);
   const [additionalError, setAdditionalError] = useState<string | null>(null);
+  const [topUpPacks, setTopUpPacks] = useState<any[]>([]);
 
   const fetchSubscription = useCallback(async () => {
     if (!isHydrated || !user?.id) return;
     try {
       setLoading(true);
-      const [subRes, creditsRes, txnRes, studentsRes] = await Promise.allSettled([
+      const [subRes, creditsRes, txnRes, studentsRes, topUpRes] = await Promise.allSettled([
         api.get(`/subscriptions/user/${user.id}`),
         api.get(`/credits/balance/${user.id}`),
         api.get(`/credits/transactions/${user.id}?limit=10`),
         api.get(`/subscriptions/user/${user.id}/current-students`),
+        api.get(`/subscriptions/topup-plans`),
       ]);
       if (subRes.status === "fulfilled") setSubscription(subRes.value.data);
       if (creditsRes.status === "fulfilled") setCreditBalance(creditsRes.value.data.balance);
       if (txnRes.status === "fulfilled") setTransactions(txnRes.value.data.data || []);
       if (studentsRes.status === "fulfilled") setCurrentStudents(studentsRes.value.data.count);
+      if (topUpRes.status === "fulfilled") setTopUpPacks(topUpRes.value.data);
     } catch {
       setSubscription(null);
     } finally {
@@ -112,7 +109,7 @@ export default function SubscriptionsPage() {
   const isTrial = !loading && !subscription && creditBalance > 0;
 
   useEffect(() => {
-    if (!loading && !subscription && !creditBalance) {
+    if (!loading && !subscription && creditBalance !== null && !creditBalance) {
       router.replace("/subscriptions/checkout");
     }
   }, [loading, subscription, creditBalance, router]);
@@ -337,7 +334,11 @@ export default function SubscriptionsPage() {
                     <div className="flex items-center justify-between pb-3 border-b">
                       <span className="text-sm text-muted-foreground">Valor Mensal</span>
                       <span className="text-sm font-semibold">
-                        {formatCurrency(subscription.plan?.price || 0)}
+                        {subscription.plan?.is_free ? (
+                          <span className="text-emerald-600">Grátis</span>
+                        ) : (
+                          formatCurrency(subscription.plan?.price || 0)
+                        )}
                       </span>
                     </div>
                     {subscription.additional_students > 0 && (
@@ -387,6 +388,7 @@ export default function SubscriptionsPage() {
                         </span>
                       )}
                     </div>
+                    {!subscription.plan?.is_free && (
                     <div className="flex items-center justify-between pb-3 border-b">
                       <span className="text-sm text-muted-foreground">
                         {subscription.status === "cancelled" ? "Ativa até" : "Próxima Cobrança"}
@@ -395,6 +397,7 @@ export default function SubscriptionsPage() {
                         {formatDate(subscription.next_billing_date)}
                       </span>
                     </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Cartão</span>
                       <span className="text-sm font-semibold">
@@ -533,7 +536,7 @@ export default function SubscriptionsPage() {
                       Alterar Plano
                     </button>
                   )}
-                  {subscription.status === "active" || subscription.status === "pending" ? (
+                  {!subscription.plan?.is_free && (subscription.status === "active" || subscription.status === "pending") ? (
                     <button
                       onClick={() => setShowCancelDialog(true)}
                       disabled={cancelling}

@@ -13,28 +13,7 @@ import { AffiliateService } from '../affiliate/affiliate.service';
 
 const COMMISSION_PERCENT = 0.3;
 
-const TOP_UP_PLANS = [
-  {
-    id: 'topup_5000',
-    name: '5.000 Créditos Extras',
-    price: 29.9,
-    credits: 5000,
-  },
-  {
-    id: 'topup_10000',
-    name: '10.000 Créditos Extras',
-    price: 49.9,
-    credits: 10000,
-  },
-  {
-    id: 'topup_20000',
-    name: '20.000 Créditos Extras',
-    price: 89.9,
-    credits: 20000,
-  },
-];
-
-const ADDITIONAL_STUDENT_PRICE = 2.99;
+const ADDITIONAL_STUDENT_PRICE = 3.90;
 
 @Injectable()
 export class SubscriptionsService {
@@ -51,7 +30,7 @@ export class SubscriptionsService {
   async listPlans() {
     return this.prisma.subscriptionPlan.findMany({
       where: { active: true },
-      orderBy: { price: 'asc' },
+      orderBy: { sort_order: 'asc' },
     });
   }
 
@@ -78,14 +57,20 @@ export class SubscriptionsService {
   }
 
   async getTopUpPlans() {
-    return TOP_UP_PLANS;
+    return this.prisma.creditPack.findMany({
+      where: { active: true },
+      orderBy: { sort_order: 'asc' },
+      select: { id: true, name: true, credits: true, price: true },
+    });
   }
 
   async purchaseTopUp(
     userId: string,
     dto: { packId: string; cardToken: string },
   ) {
-    const pack = TOP_UP_PLANS.find((p) => p.id === dto.packId);
+    const pack = await this.prisma.creditPack.findUnique({
+      where: { id: dto.packId },
+    });
     if (!pack) throw new NotFoundException('Pacote de créditos não encontrado');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -280,11 +265,47 @@ export class SubscriptionsService {
 
     const existing = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
+      include: { plan: true },
     });
-    if (existing)
-      throw new ConflictException(
-        'Usuário já possui uma assinatura ativa ou pendente',
+    if (existing) {
+      if (existing.plan?.is_free) {
+        await this.prisma.subscription.update({
+          where: { id: existing.id },
+          data: { status: 'cancelled' },
+        });
+      } else {
+        throw new ConflictException(
+          'Usuário já possui uma assinatura ativa ou pendente',
+        );
+      }
+    }
+
+    if (plan.is_free) {
+      const existingFree = await this.prisma.subscription.findFirst({
+        where: { user_id: userId, plan: { is_free: true }, status: 'active' },
+      });
+      if (existingFree)
+        throw new ConflictException('Usuário já possui o plano gratuito');
+
+      const subscription = await this.prisma.subscription.create({
+        data: {
+          user_id: userId,
+          plan_id: plan.id,
+          status: 'active',
+          max_students: plan.max_students,
+        },
+      });
+
+      await this.creditsService.resetAndAddCredits(
+        userId,
+        plan.credits,
+        `Créditos do plano ${plan.name}`,
+        'free_plan',
+        subscription.id,
       );
+
+      return { subscription };
+    }
 
     const currentStudents = await this.prisma.student.count({
       where: { teacher_id: userId },
@@ -461,7 +482,9 @@ export class SubscriptionsService {
   }
 
   async purchaseTopUpWithCard(userId: string, dto: { packId: string }) {
-    const pack = TOP_UP_PLANS.find((p) => p.id === dto.packId);
+    const pack = await this.prisma.creditPack.findUnique({
+      where: { id: dto.packId },
+    });
     if (!pack) throw new NotFoundException('Pacote de créditos não encontrado');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -592,6 +615,43 @@ export class SubscriptionsService {
     });
     if (!newPlan || !newPlan.active)
       throw new NotFoundException('Plano não encontrado ou inativo');
+
+    if (newPlan.is_free) {
+      if (sub.mercadopago_subscription_id) {
+        try {
+          await this.mp.cancelSubscription(sub.mercadopago_subscription_id);
+        } catch (err) {
+          this.logger.warn(
+            `Failed to cancel MP subscription: ${(err as Error).message}`,
+          );
+        }
+      }
+
+      await this.creditsService.resetAndAddCredits(
+        userId,
+        newPlan.credits,
+        `Créditos do plano ${newPlan.name}`,
+        'free_plan',
+        sub.id,
+      );
+
+      return this.prisma.subscription.update({
+        where: { id: sub.id },
+        data: {
+          plan_id: newPlanId,
+          status: 'active',
+          max_students: newPlan.max_students,
+          additional_students: 0,
+          mercadopago_subscription_id: null,
+          mercadopago_card_id: null,
+          mercadopago_customer_id: null,
+          card_last_four: null,
+          card_holder_name: null,
+          next_billing_date: null,
+          payment_method: null,
+        },
+      });
+    }
 
     const currentStudents = await this.prisma.student.count({
       where: { teacher_id: userId },
@@ -923,7 +983,7 @@ export class SubscriptionsService {
     userId: string,
     packId: string,
   ) {
-    const pack = TOP_UP_PLANS.find((p) => p.id === packId);
+    const pack = await this.prisma.creditPack.findUnique({ where: { id: packId } });
     if (!pack) {
       this.logger.warn(
         `Top-up pack not found: ${packId} for payment ${mpPaymentId}`,
@@ -1008,3 +1068,4 @@ export class SubscriptionsService {
     return map[mpStatus] || 'pending';
   }
 }
+

@@ -86,13 +86,13 @@ export default function LoginPage() {
   const [refParam] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const urlRef = params.get('ref');
-    const shouldRegister = params.get('register') === 'true';
+    const planParam = params.get('plan');
+    if (planParam) {
+      sessionStorage.setItem('selectedPlan', planParam);
+    }
     console.log('[Affiliate] useState init - urlRef:', urlRef, 'cookie:', getAffiliateCookie(), 'search:', window.location.search);
     if (urlRef) {
       document.cookie = `affiliate_ref=${encodeURIComponent(urlRef)}; path=/; max-age=86400; SameSite=Lax`;
-    }
-    if (shouldRegister) {
-      setTimeout(() => setView('register'), 0);
     }
     return urlRef || getAffiliateCookie();
   });
@@ -104,9 +104,37 @@ export default function LoginPage() {
   }, [hydrate]);
 
   useEffect(() => {
-    if (isHydrated && isAuthenticated) {
-      router.push("/dashboard");
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('register') === 'true') {
+      setView('register');
+      params.delete('register');
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated || !isAuthenticated || sessionStorage.getItem('selectedPlan')) return;
+      const { subscriptionStatus, isFreePlan } = useAuthStore.getState();
+    if (subscriptionStatus) {
+      router.push(subscriptionStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
+      return;
+    }
+    const storedUser = useAuthStore.getState().user;
+    if (!storedUser?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const subRes = await api.get(`/subscriptions/user/${storedUser.id}`);
+        if (cancelled) return;
+        const subStatus = subRes.data?.status;
+        const isFreePlan = subRes.data?.plan?.is_free;
+        router.push(!subStatus || subStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
+      } catch {
+        if (!cancelled) router.push("/welcome");
+      }
+    })();
+    return () => { cancelled = true; };
   }, [isHydrated, isAuthenticated, router]);
 
   const [email, setEmail] = useState("");
@@ -174,9 +202,15 @@ export default function LoginPage() {
     setLoginErrorMessage(null);
     try {
       const response = await api.post("/auth/login", { email: normalizedEmail, password });
-      login(response.data.user, response.data.access_token, rememberMe);
+      const userData = response.data.user;
+      login(userData, response.data.access_token, rememberMe, response.data.subscription_status, response.data.is_free_plan);
+
+      const subStatus = response.data.subscription_status;
+      const isFreePlan = response.data.is_free_plan;
+      const redirectPath = (!subStatus || subStatus === "none" || isFreePlan) ? "/welcome" : "/dashboard";
+
       toast.success("Login realizado com sucesso!");
-      router.push("/dashboard");
+      router.push(redirectPath);
     } catch (error: any) {
       if (error.response?.data?.message?.includes("não verificado")) {
         setRegisteredEmail(normalizedEmail);
@@ -218,8 +252,10 @@ export default function LoginPage() {
         toast.success("Conta criada! Verifique seu e-mail para ativar o teste grátis.");
       } else {
         login(response.data.user, response.data.access_token, true);
+        const plan = sessionStorage.getItem('selectedPlan');
+        sessionStorage.removeItem('selectedPlan');
         toast.success("Conta criada com sucesso!");
-        router.push("/dashboard");
+        router.push(plan ? `/subscriptions/checkout?plan=${plan}` : "/welcome");
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Erro ao criar conta.");
@@ -238,9 +274,11 @@ export default function LoginPage() {
         token: verificationToken,
       });
       if (response.data?.access_token && response.data?.user) {
-        login(response.data.user, response.data.access_token, true);
+        login(response.data.user, response.data.access_token, true, response.data.subscription_status);
+        const plan = sessionStorage.getItem('selectedPlan');
+        sessionStorage.removeItem('selectedPlan');
         toast.success("E-mail verificado com sucesso!");
-        router.push("/dashboard");
+        router.push(plan ? `/subscriptions/checkout?plan=${plan}` : "/welcome");
       } else {
         toast.success(response.data?.message || "E-mail verificado.");
         setView("login");
