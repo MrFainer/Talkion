@@ -15,6 +15,7 @@
     "start:prod": "node dist/src/main.js",
     "seed": "prisma db seed",
     "setup:prod": "node ./prisma/setup-prod.js",
+    "migrate:plans": "node ./prisma/migrate-plans.mjs",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

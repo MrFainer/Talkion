@@ -7,11 +7,25 @@
 // 3. Updates MP preapproval amounts to new prices
 // 4. Deactivates orphan old plans
 
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-});
+const { Pool } = pg;
+
+function buildPrisma() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL não está definido.');
+  }
+
+  const pool = new Pool({ connectionString });
+  const adapter = new PrismaPg(pool);
+  return { prisma: new PrismaClient({ adapter }), pool };
+}
+
+const { prisma, pool } = buildPrisma();
 
 const ADDITIONAL_STUDENT_PRICE = 3.90;
 
@@ -189,4 +203,7 @@ main()
     console.error('Migration failed:', e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+    await pool.end();
+  });
