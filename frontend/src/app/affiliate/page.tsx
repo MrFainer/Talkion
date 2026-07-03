@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ const formatNumber = (value: number) =>
   new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value);
 
 export default function AffiliatePage() {
+  const router = useRouter();
   const { user, isHydrated, hydrate, subscriptionStatus, setSubscriptionData } = useAuthStore();
   const [link, setLink] = useState("");
   const [code, setCode] = useState("");
@@ -26,7 +28,16 @@ export default function AffiliatePage() {
   useEffect(() => { hydrate(); }, [hydrate]);
 
   useEffect(() => {
-    if (subscriptionStatus) {
+    if (isHydrated && user?.role === "ADMIN") {
+      router.replace("/admin/affiliates");
+    }
+  }, [isHydrated, router, user?.role]);
+
+  useEffect(() => {
+    if (user?.role === "ADMIN") {
+      setHasActivePlan(true);
+      setCheckingPlan(false);
+    } else if (subscriptionStatus) {
       setHasActivePlan(subscriptionStatus === 'active');
       setCheckingPlan(false);
     } else if (user?.id) {
@@ -41,7 +52,7 @@ export default function AffiliatePage() {
     } else if (!user) {
       setCheckingPlan(false);
     }
-  }, [user?.id, subscriptionStatus, setSubscriptionData]);
+  }, [user?.id, user?.role, subscriptionStatus, setSubscriptionData]);
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
@@ -75,6 +86,14 @@ export default function AffiliatePage() {
   };
 
   if (!isHydrated || !user) {
+    return (
+      <div className="flex min-h-[100dvh] w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (user.role === "ADMIN") {
     return (
       <div className="flex min-h-[100dvh] w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

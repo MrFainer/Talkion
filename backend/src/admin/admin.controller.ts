@@ -1,29 +1,44 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   Query,
+  Req,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { AdminGuard } from '../auth/admin.guard';
 
+@UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Get('teachers')
+  @Get('users')
   async listTeachers(@Query('from') from?: string, @Query('to') to?: string) {
     return this.adminService.listTeachers(from, to);
   }
 
-  @Patch('teachers/:id/toggle')
+  @Get('affiliates')
+  async listAffiliates() {
+    return this.adminService.listAffiliates();
+  }
+
+  @Get('site-visits')
+  async listSiteVisits(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.adminService.listSiteVisits(from, to);
+  }
+
+  @Patch('users/:id/toggle')
   async toggleTeacherStatus(@Param('id') id: string) {
     return this.adminService.toggleTeacherStatus(id);
   }
 
-  @Patch('teachers/:id/plan')
+  @Patch('users/:id/plan')
   async updateTeacherPlan(
     @Param('id') id: string,
     @Body() body: { planId: string },
@@ -32,7 +47,7 @@ export class AdminController {
     return this.adminService.updateTeacherPlan(id, body.planId);
   }
 
-  @Patch('teachers/:id/credits')
+  @Patch('users/:id/credits')
   async updateCredits(
     @Param('id') id: string,
     @Body()
@@ -47,5 +62,13 @@ export class AdminController {
       body.mode || 'set',
       body.description,
     );
+  }
+
+  @Delete('users/:id')
+  async deleteUser(
+    @Param('id') id: string,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    return this.adminService.deleteUser(id, request.user?.sub);
   }
 }

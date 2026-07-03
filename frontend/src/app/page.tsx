@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
+import { trackSiteVisit } from "@/lib/siteVisitTracking";
 import {
   ArrowRight,
   ArrowUp,
@@ -226,6 +227,10 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    void trackSiteVisit("HOME");
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {

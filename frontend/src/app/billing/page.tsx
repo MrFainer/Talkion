@@ -87,9 +87,30 @@ export default function BillingPage() {
   }, [hydrate]);
 
   useEffect(() => {
-    if (isHydrated && user && user.role !== 'ADMIN') {
-      router.push('/dashboard');
-    }
+    if (!isHydrated || !user || user.role === "ADMIN") return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await api.get(`/subscriptions/user/${user.id}`);
+        if (cancelled) return;
+
+        const status = res.data?.status;
+        const isFreePlan = Boolean(res.data?.plan?.is_free);
+        const shouldGoToWelcome = !status || status === "none" || isFreePlan;
+
+        router.push(shouldGoToWelcome ? "/welcome" : "/dashboard");
+      } catch {
+        if (!cancelled) {
+          router.push("/welcome");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isHydrated, user, router]);
 
   const fetchData = useCallback(async () => {
@@ -123,7 +144,7 @@ export default function BillingPage() {
         if (appliedFrom) params.append("from", appliedFrom + "T00:00:00");
         if (appliedTo) params.append("to", appliedTo + "T00:00:00");
 
-        const res = await api.get(`/admin/teachers?${params.toString()}`);
+        const res = await api.get(`/admin/users?${params.toString()}`);
         setTeachers(res.data.data || []);
         setPeriodInfo(res.data.period);
 

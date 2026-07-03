@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Coins, Save, ArrowLeft, RotateCcw } from "lucide-react";
+import { Coins, Save, RotateCcw } from "lucide-react";
 
 const categoryLabels: Record<string, string> = {
   content: "Conteúdo",
@@ -196,12 +196,9 @@ export default function AdminCreditConfigPage() {
   return (
     <>
       <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
-        <div className="mb-6 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/admin")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+        <div className="mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Configuração de Créditos</h1>
+            <h1 className="text-3xl font-bold">Créditos</h1>
             <p className="text-muted-foreground mt-1">
               Defina quantos créditos cada ação da plataforma consumirá
             </p>
@@ -291,4 +288,3 @@ export default function AdminCreditConfigPage() {
     </>
   );
 }
-

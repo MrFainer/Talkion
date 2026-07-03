@@ -21,12 +21,12 @@ import {
   LogOut,
   MessageSquare,
   Settings,
-  ShieldAlert,
   ChevronDown,
   Link2,
   CalendarDays,
   Coins,
   FileText,
+  Activity,
 } from "lucide-react";
 
 const normalizeWhatsappStatus = (value: unknown) => {
@@ -47,9 +47,9 @@ type SidebarNavChildLink = {
 
 type SidebarNavProps = {
   compact?: boolean;
+  isAdmin: boolean;
   logoSrc: string;
   links: SidebarNavLink[];
-  adminLink: SidebarNavLink | null;
   whatsappChildren: SidebarNavChildLink[];
   pathname: string;
   isWhatsappSectionActive: boolean;
@@ -69,9 +69,9 @@ type SidebarNavProps = {
 
 function SidebarNav({
   compact,
+  isAdmin,
   logoSrc,
   links,
-  adminLink,
   whatsappChildren,
   pathname,
   isWhatsappSectionActive,
@@ -112,9 +112,17 @@ function SidebarNav({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+        {isAdmin ? (
+          <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Administração
+          </div>
+        ) : null}
         {links.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+          const isUsersRootLink = link.href === "/admin/users";
+          const isActive = isUsersRootLink
+            ? pathname === link.href
+            : pathname === link.href || pathname.startsWith(`${link.href}/`);
           return (
             <Link
               key={link.href}
@@ -134,114 +142,95 @@ function SidebarNav({
           );
         })}
 
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={onToggleWhatsappMenu}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              isWhatsappSectionActive
-                ? "bg-primary text-primary-foreground"
-                : "hover:bg-muted text-muted-foreground"
-            }`}
-          >
-            <MessageCircle className="h-4 w-4" />
-            <span className="flex-1 text-left">WhatsApp</span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isWhatsappMenuOpen ? "rotate-180" : ""}`} />
-          </button>
+        {!isAdmin ? (
+          <>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={onToggleWhatsappMenu}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  isWhatsappSectionActive
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="flex-1 text-left">WhatsApp</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isWhatsappMenuOpen ? "rotate-180" : ""}`} />
+              </button>
 
-          <div
-            className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
-              isWhatsappMenuOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-            }`}
-          >
-            <div className="min-h-0 overflow-hidden">
-              <div className="mt-1 space-y-1 pl-6">
-                {whatsappChildren.map((child) => {
-                  const isActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
-                  return (
-                    <Link
-                      key={child.href}
-                      href={child.href}
-                      onClick={(e) => {
-                        if (!shouldInterceptClick(e)) return;
-                        e.preventDefault();
-                        onNavigate(child.href);
-                      }}
-                      className={`flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition-colors ${
-                        isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {child.href === "/settings" ? (
-                        <Settings className="h-4 w-4" />
-                      ) : child.href === "/messages" ? (
-                        <MessageSquare className="h-4 w-4" />
-                      ) : child.href === "/whatsapp" ? (
-                        <Link2 className="h-4 w-4" />
-                      ) : (
-                        <span className="h-4 w-4" />
-                      )}
-                      {child.label}
-                    </Link>
-                  );
-                })}
+              <div
+                className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+                  isWhatsappMenuOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                }`}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <div className="mt-1 space-y-1 pl-6">
+                    {whatsappChildren.map((child) => {
+                      const isActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={(e) => {
+                            if (!shouldInterceptClick(e)) return;
+                            e.preventDefault();
+                            onNavigate(child.href);
+                          }}
+                          className={`flex items-center gap-2 rounded-md px-3 py-2 text-[13px] font-medium transition-colors ${
+                            isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {child.href === "/settings" ? (
+                            <Settings className="h-4 w-4" />
+                          ) : child.href === "/messages" ? (
+                            <MessageSquare className="h-4 w-4" />
+                          ) : child.href === "/whatsapp" ? (
+                            <Link2 className="h-4 w-4" />
+                          ) : (
+                            <span className="h-4 w-4" />
+                          )}
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="pt-2">
-          {(() => {
-            const Icon = CreditCard;
-            const isActive = pathname === "/subscriptions" || pathname.startsWith("/subscriptions/");
-            return (
-              <Link
-                href="/subscriptions"
-                onClick={(e) => {
-                  if (!shouldInterceptClick(e)) return;
-                  e.preventDefault();
-                  onNavigate("/subscriptions");
-                }}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">Assinatura</span>
-                {planName === "Free" ? (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 leading-tight">
-                    Grátis
-                  </span>
-                ) : hasActivePlan === false ? (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 leading-tight">
-                    Sem plano
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })()}
-        </div>
-
-        {adminLink ? (
-          (() => {
-            const AdminIcon = adminLink.icon;
-            const isActive = pathname === adminLink.href || pathname.startsWith(`${adminLink.href}/`);
-            return (
-              <Link
-                href={adminLink.href}
-                onClick={(e) => {
-                  if (!shouldInterceptClick(e)) return;
-                  e.preventDefault();
-                  onNavigate(adminLink.href);
-                }}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                }`}
-              >
-                <AdminIcon className="h-4 w-4" />
-                {adminLink.label}
-              </Link>
-            );
-          })()
+            <div className="pt-2">
+              {(() => {
+                const Icon = CreditCard;
+                const isActive = pathname === "/subscriptions" || pathname.startsWith("/subscriptions/");
+                return (
+                  <Link
+                    href="/subscriptions"
+                    onClick={(e) => {
+                      if (!shouldInterceptClick(e)) return;
+                      e.preventDefault();
+                      onNavigate("/subscriptions");
+                    }}
+                    className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">Assinatura</span>
+                    {planName === "Free" ? (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 leading-tight">
+                        Grátis
+                      </span>
+                    ) : hasActivePlan === false ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 leading-tight">
+                        Sem plano
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+              })()}
+            </div>
+          </>
         ) : null}
       </nav>
 
@@ -253,13 +242,15 @@ function SidebarNav({
           <p className="text-xs text-muted-foreground truncate" title={userEmail || ""}>
             {userEmail || ""}
           </p>
-          <div className="flex items-center gap-2 mt-2 pt-2">
-            <div
-              className={`h-2 w-2 rounded-full ${whatsappStatus === "Conectado" ? "bg-green-500" : "bg-red-500"}`}
-            />
-            <span className="text-xs text-muted-foreground font-medium">WhatsApp {whatsappStatus}</span>
-          </div>
-          {creditBalance != null && (
+          {!isAdmin ? (
+            <div className="flex items-center gap-2 mt-2 pt-2">
+              <div
+                className={`h-2 w-2 rounded-full ${whatsappStatus === "Conectado" ? "bg-green-500" : "bg-red-500"}`}
+              />
+              <span className="text-xs text-muted-foreground font-medium">WhatsApp {whatsappStatus}</span>
+            </div>
+          ) : null}
+          {!isAdmin && creditBalance != null && (
             <div className="flex items-center gap-1.5 mt-1.5">
               <Coins className="h-3.5 w-3.5 text-amber-500" />
               <span className="text-xs font-medium text-amber-600">
@@ -298,7 +289,7 @@ export function Sidebar() {
     let intervalId: NodeJS.Timeout;
 
     const fetchStatus = async () => {
-      if (!user?.id) return;
+      if (!user?.id || user.role === "ADMIN") return;
       try {
         const res = await api.get(`/whatsapp/status/${user.id}`);
         const normalized = normalizeWhatsappStatus(res.data?.status);
@@ -308,7 +299,7 @@ export function Sidebar() {
       }
     };
 
-    if (user?.id) {
+    if (user?.id && user.role !== "ADMIN") {
       fetchStatus();
       intervalId = setInterval(fetchStatus, 15000);
     }
@@ -316,7 +307,7 @@ export function Sidebar() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     const fetchSubscription = async () => {
@@ -372,20 +363,23 @@ export function Sidebar() {
   const dashboardHref = isAdmin ? "/billing" : "/dashboard";
   const dashboardLabel = isAdmin ? "Faturamento" : "Dashboard";
   const hasFeature = (f: string) => isAdmin || planFeatures?.[f] === true;
-  const links = [
-    ...(planName === "Free" ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
-    ...((isAdmin || hasFeature("dashboard")) ? [{ href: dashboardHref, label: dashboardLabel, icon: isAdmin ? Wallet : LayoutDashboard }] : []),
-    { href: "/students", label: "Alunos", icon: Users },
-    ...(admin_lessons_confirmation_enabled !== false && hasFeature("lesson_confirmation") ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
-    ...(hasFeature("content_studio") ? [{ href: "/content", label: "Conteúdo", icon: FileText }] : []),
-    ...(hasFeature("automations") ? [{ href: "/automation", label: "Automação", icon: Bot }] : []),
-    ...((hasActivePlan || isAdmin) && hasFeature("affiliate_program") ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
-  ];
-  const adminLink =
-    user?.role === "ADMIN"
-      ? { href: "/admin", label: "Admin", icon: ShieldAlert }
-      : null;
-
+  const links = isAdmin
+    ? [
+        { href: "/billing", label: "Faturamento", icon: Wallet },
+        { href: "/admin/users", label: "Usuários", icon: Users },
+        { href: "/admin/credit-config", label: "Créditos", icon: Coins },
+        { href: "/admin/affiliates", label: "Afiliados", icon: Link2 },
+        { href: "/admin/accesses", label: "Acessos", icon: Activity },
+      ]
+    : [
+        ...(planName === "Free" ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
+        ...(hasFeature("dashboard") ? [{ href: dashboardHref, label: dashboardLabel, icon: LayoutDashboard }] : []),
+        { href: "/students", label: "Alunos", icon: Users },
+        ...(admin_lessons_confirmation_enabled !== false && hasFeature("lesson_confirmation") ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
+        ...(hasFeature("content_studio") ? [{ href: "/content", label: "Conteúdo", icon: FileText }] : []),
+        ...(hasFeature("automations") ? [{ href: "/automation", label: "Automação", icon: Bot }] : []),
+        ...(hasActivePlan && hasFeature("affiliate_program") ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
+      ];
   const whatsappChildren = [
     { href: "/whatsapp", label: "Conexão" },
     { href: "/messages", label: "Mensagens" },
@@ -419,7 +413,8 @@ export function Sidebar() {
   };
 
   const handleNavigate = (href: string) => {
-    if (href === pathname || pathname.startsWith(`${href}/`)) return;
+    if (href === pathname) return;
+    if (href !== "/admin/users" && pathname.startsWith(`${href}/`)) return;
 
     const ev = new CustomEvent("talkion:before-navigate", {
       detail: { href },
@@ -479,9 +474,9 @@ export function Sidebar() {
           <div className="absolute inset-y-0 left-0 flex w-72 flex-col border-r bg-background shadow-2xl">
             <SidebarNav
               compact
+              isAdmin={isAdmin}
               logoSrc={logoSrc}
               links={links}
-              adminLink={adminLink}
               whatsappChildren={whatsappChildren}
               pathname={pathname}
               isWhatsappSectionActive={isWhatsappSectionActive}
@@ -505,9 +500,9 @@ export function Sidebar() {
       <div className="hidden w-64 shrink-0 md:block" aria-hidden="true" />
       <div className="fixed left-0 top-0 z-40 hidden h-[100dvh] w-64 flex-col border-r bg-muted/30 overflow-hidden md:flex">
         <SidebarNav
+          isAdmin={isAdmin}
           logoSrc={logoSrc}
           links={links}
-          adminLink={adminLink}
           whatsappChildren={whatsappChildren}
           pathname={pathname}
           isWhatsappSectionActive={isWhatsappSectionActive}

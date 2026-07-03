@@ -73,6 +73,17 @@ enum LessonKind {
   EXTRA
 }
 
+enum SiteVisitPageType {
+  HOME
+  LOGIN
+  REGISTER
+}
+
+enum SiteVisitSourceType {
+  DIRECT
+  REFERRAL_LINK
+}
+
 model User {
   id                 String   @id @default(uuid())
   name               String
@@ -123,6 +134,35 @@ model AffiliateCommission {
 
   @@index([referrer_id])
   @@index([status])
+}
+
+model SiteVisit {
+  id              String              @id @default(uuid())
+  page_type       SiteVisitPageType
+  source_type     SiteVisitSourceType @default(DIRECT)
+  path            String
+  full_url        String?
+  referral_code   String?
+  referrer_url    String?
+  referer_header  String?
+  ip_address      String?
+  user_agent      String?
+  browser_name    String?
+  os_name         String?
+  device_type     String?
+  device_vendor   String?
+  device_model    String?
+  platform        String?
+  language        String?
+  screen_width    Int?
+  screen_height   Int?
+  timezone        String?
+  created_at      DateTime            @default(now())
+
+  @@index([created_at])
+  @@index([page_type])
+  @@index([source_type])
+  @@index([referral_code])
 }
 
 model Student {

@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Settings2, Power, PowerOff, ChevronDown, ChevronRight, CreditCard } from "lucide-react";
+import { ShieldCheck, Ban, CheckCircle2, Download, Coins, Power, PowerOff, ChevronDown, ChevronRight, CreditCard, Trash2, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,6 +18,7 @@ import * as XLSX from "xlsx";
 
 export default function AdminPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, isHydrated, hydrate } = useAuthStore();
   const [teachers, setTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,10 @@ export default function AdminPage() {
   const [planDialogTeacherId, setPlanDialogTeacherId] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [savingPlan, setSavingPlan] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteDialogTeacher, setDeleteDialogTeacher] = useState<any>(null);
+  const [deletingTeacherId, setDeletingTeacherId] = useState<string | null>(null);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
 
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -47,6 +52,12 @@ export default function AdminPage() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (pathname === "/admin") {
+      router.replace("/admin/users");
+    }
+  }, [pathname, router]);
 
   const fetchTeachers = useCallback(async () => {
     if (!isHydrated) return;
@@ -61,7 +72,7 @@ export default function AdminPage() {
       if (appliedFrom) params.append("from", appliedFrom + "T00:00:00");
       if (appliedTo) params.append("to", appliedTo + "T00:00:00");
 
-      const res = await api.get(`/admin/teachers?${params.toString()}`);
+      const res = await api.get(`/admin/users?${params.toString()}`);
       setTeachers(res.data.data);
 
       if (!appliedFrom && res.data?.period?.from) {
@@ -80,7 +91,7 @@ export default function AdminPage() {
   }, [isHydrated, user, router, appliedFrom, appliedTo]);
 
   useEffect(() => {
-    document.title = "Talkion - Administra��o";
+    document.title = "Talkion - Usuários";
     api.get("/subscriptions/plans").then((res) => setPlans(res.data || [])).catch(() => {});
   }, []);
 
@@ -95,7 +106,7 @@ export default function AdminPage() {
 
   const handleExportExcel = () => {
     if (teachers.length === 0) {
-      toast.error("N�o h� dados para exportar.");
+      toast.error("Não há dados para exportar.");
       return;
     }
 
@@ -110,7 +121,7 @@ export default function AdminPage() {
       "Tokens Cache": t.cachedTokens || 0,
       "Whisper (Segundos)": t.audioSeconds || 0,
       "TTS (Caracteres)": t.ttsCharacters || 0,
-      "Cr�ditos": t.creditBalance || 0,
+      "Créditos": t.creditBalance || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -125,13 +136,13 @@ export default function AdminPage() {
     }
 
     XLSX.writeFile(workbook, fileName);
-    toast.success("Relat�rio exportado com sucesso!");
+    toast.success("Relatório exportado com sucesso!");
   };
 
   const toggleStatus = async (teacherId: string) => {
     setToggling(teacherId);
     try {
-      await api.patch(`/admin/teachers/${teacherId}/toggle`);
+      await api.patch(`/admin/users/${teacherId}/toggle`);
       toast.success("Status atualizado com sucesso!");
       await fetchTeachers();
     } catch (error: any) {
@@ -144,40 +155,40 @@ export default function AdminPage() {
   const handleSaveCredits = async (teacherId: string) => {
     const value = parseFloat(creditValues[teacherId]);
     if (isNaN(value) || value < 0) {
-      toast.error("Valor inv�lido para cr�ditos.");
+      toast.error("Valor inválido para créditos.");
       return;
     }
     try {
-      await api.patch(`/admin/teachers/${teacherId}/credits`, { amount: value, mode: "set" });
-      toast.success("Cr�ditos atualizados com sucesso!");
+      await api.patch(`/admin/users/${teacherId}/credits`, { amount: value, mode: "set" });
+      toast.success("Créditos atualizados com sucesso!");
       setCreditDialogOpen(false);
       setCreditDialogTeacher(null);
       await fetchTeachers();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar cr�ditos");
+      toast.error(error.response?.data?.message || "Erro ao atualizar créditos");
     }
   };
 
   const CREDIT_ACTION_COPY: Record<string, { name: string; description: string }> = {
-    news_capture_level_1: { name: "Captura de not�cia N�vel 1", description: "" },
-    news_capture_level_2: { name: "Captura de not�cia N�vel 2", description: "" },
-    news_capture_level_3: { name: "Captura de not�cia N�vel 3", description: "" },
-    news_ai_fallback: { name: "Not�cia gerada por IA (fallback)", description: "" },
-    news_tts: { name: "�udio TTS da not�cia", description: "" },
-    quiz_generation: { name: "Quiz gerado para um n�vel", description: "" },
-    quick_tip_generation: { name: "Gera��o de Quick Tip", description: "" },
-    news_quiz_group_send: { name: "Envio da not�cia + quiz para grupo", description: "" },
+    news_capture_level_1: { name: "Captura de notícia Nível 1", description: "" },
+    news_capture_level_2: { name: "Captura de notícia Nível 2", description: "" },
+    news_capture_level_3: { name: "Captura de notícia Nível 3", description: "" },
+    news_ai_fallback: { name: "Notícia gerada por IA (fallback)", description: "" },
+    news_tts: { name: "Áudio TTS da notícia", description: "" },
+    quiz_generation: { name: "Quiz gerado para um nível", description: "" },
+    quick_tip_generation: { name: "Geração de Quick Tip", description: "" },
+    news_quiz_group_send: { name: "Envio da notícia + quiz para grupo", description: "" },
     quiz_response_received: { name: "Receber resposta do quiz", description: "" },
-    quiz_response_metrics: { name: "Salvar m�tricas da resposta", description: "" },
-    news_individual_send: { name: "Envio individual de not�cia", description: "" },
-    speaking_transcription: { name: "Transcri��o de �udio", description: "" },
+    quiz_response_metrics: { name: "Salvar métricas da resposta", description: "" },
+    news_individual_send: { name: "Envio individual de notícia", description: "" },
+    speaking_transcription: { name: "Transcrição de áudio", description: "" },
     speaking_feedback: { name: "Feedback da IA", description: "" },
-    lesson_confirmation_send: { name: "Envio de confirma��o de aula", description: "" },
-    lesson_confirmation_process: { name: "Interpreta��o da resposta pela IA", description: "" },
+    lesson_confirmation_send: { name: "Envio de confirmação de aula", description: "" },
+    lesson_confirmation_process: { name: "Interpretação da resposta pela IA", description: "" },
     weekly_summary_send: { name: "Envio de resumo semanal", description: "" },
     weekly_summary_process: { name: "Processamento de resposta do resumo semanal", description: "" },
-    content_generation: { name: "Gera��o de conte�do educacional", description: "" },
-    birthday_send: { name: "Envio de mensagem de anivers�rio", description: "" },
+    content_generation: { name: "Geração de conteúdo educacional", description: "" },
+    birthday_send: { name: "Envio de mensagem de aniversário", description: "" },
     admin_adjustment: { name: "Ajuste manual (admin)", description: "" },
     admin_plan_change: { name: "Troca de plano", description: "" },
   };
@@ -198,11 +209,38 @@ export default function AdminPage() {
     }
   };
 
+  const openDeleteDialog = (teacher: any) => {
+    setDeleteDialogTeacher(teacher);
+    setDeleteConfirmationText("");
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteTeacher = async () => {
+    if (!deleteDialogTeacher?.id) return;
+
+    setDeletingTeacherId(deleteDialogTeacher.id);
+    try {
+      await api.delete(`/admin/users/${deleteDialogTeacher.id}`);
+      toast.success("Usuário excluído com sucesso!");
+      setDeleteDialogOpen(false);
+      if (expandedTeacherId === deleteDialogTeacher.id) {
+        setExpandedTeacherId(null);
+      }
+      setDeleteDialogTeacher(null);
+      setDeleteConfirmationText("");
+      await fetchTeachers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao excluir usuário");
+    } finally {
+      setDeletingTeacherId(null);
+    }
+  };
+
   const handleChangePlan = async () => {
     if (!planDialogTeacherId || !selectedPlanId) return;
     setSavingPlan(true);
     try {
-      await api.patch(`/admin/teachers/${planDialogTeacherId}/plan`, { planId: selectedPlanId });
+      await api.patch(`/admin/users/${planDialogTeacherId}/plan`, { planId: selectedPlanId });
       toast.success("Plano alterado com sucesso!");
       setPlanDialogOpen(false);
       await fetchTeachers();
@@ -225,7 +263,7 @@ export default function AdminPage() {
         const res = await api.get(`/message-settings/${teacherId}`);
         setTeacherSettings((prev) => ({ ...prev, [teacherId]: res.data }));
       } catch {
-        toast.error("Erro ao carregar configura��es do professor.");
+        toast.error("Erro ao carregar configurações do professor.");
       } finally {
         setSettingsLoading((prev) => ({ ...prev, [teacherId]: false }));
       }
@@ -245,7 +283,7 @@ export default function AdminPage() {
         ...prev,
         [teacherId]: { ...prev[teacherId], [field]: currentValue },
       }));
-      toast.error("Erro ao atualizar configura��o.");
+      toast.error("Erro ao atualizar configuração.");
     }
   };
 
@@ -260,10 +298,14 @@ export default function AdminPage() {
     return (
       <>
         <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
-          <p>Carregando administra��o...</p>
+          <p>Carregando administração...</p>
         </main>
       </>
     );
+  }
+
+  if (pathname === "/admin") {
+    return null;
   }
 
   return (
@@ -271,14 +313,10 @@ export default function AdminPage() {
       <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Administra��o</h1>
-            <p className="text-muted-foreground mt-1">Gerencie os professores da plataforma</p>
+            <h1 className="text-3xl font-bold">Usuários</h1>
+            <p className="text-muted-foreground mt-1">Gerencie os professores da plataforma e suas permissões</p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-            <Button onClick={() => router.push("/admin/credit-config")} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
-              <Settings2 className="w-4 h-4" />
-              Cr�ditos
-            </Button>
             <Button onClick={handleExportExcel} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
               <Download className="w-4 h-4" />
               Exportar Excel
@@ -291,13 +329,13 @@ export default function AdminPage() {
                 className="h-9 w-full min-w-0 sm:w-40"
                 aria-label="De"
               />
-              <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">at�</span>
+              <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">até</span>
               <Input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
                 className="h-9 w-full min-w-0 sm:w-40"
-                aria-label="At�"
+                aria-label="Até"
               />
             </div>
             <Button onClick={handleFilter} variant="secondary" className="w-full sm:w-auto">
@@ -330,9 +368,9 @@ export default function AdminPage() {
                     <TableHead>Cache</TableHead>
                     <TableHead>Whisper (s)</TableHead>
                     <TableHead>TTS (carac.)</TableHead>
-                    <TableHead>Cr�ditos</TableHead>
+                    <TableHead>Créditos</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">A��o</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -376,7 +414,10 @@ export default function AdminPage() {
                         <TableCell>{teacher.ttsCharacters?.toLocaleString("pt-BR") || 0}</TableCell>
                         <TableCell>
                             <button
-                              onClick={() => openCreditDialog(teacher)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCreditDialog(teacher);
+                              }}
                               className="inline-flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors"
                             >
                               <Coins className="h-3.5 w-3.5" />
@@ -400,25 +441,44 @@ export default function AdminPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant={teacher.active ? "destructive" : "default"}
-                            size="sm"
-                            onClick={() => toggleStatus(teacher.id)}
-                            disabled={toggling === teacher.id}
-                          >
-                            {toggling === teacher.id ? "Aguarde..." : teacher.active ? "Bloquear Acesso" : "Liberar Acesso"}
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant={teacher.active ? "destructive" : "default"}
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleStatus(teacher.id);
+                              }}
+                              disabled={toggling === teacher.id || deletingTeacherId === teacher.id}
+                            >
+                              {toggling === teacher.id ? "Aguarde..." : teacher.active ? "Bloquear Acesso" : "Liberar Acesso"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDeleteDialog(teacher);
+                              }}
+                              disabled={toggling === teacher.id || deletingTeacherId === teacher.id}
+                              aria-label={`Excluir ${teacher.name}`}
+                              title={`Excluir ${teacher.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                       {expandedTeacherId === teacher.id && (
                         <TableRow>
                           <TableCell colSpan={13} className="bg-muted/30 p-4">
                             {settingsLoading[teacher.id] ? (
-                              <p className="text-sm text-muted-foreground">Carregando configura��es...</p>
+                              <p className="text-sm text-muted-foreground">Carregando configurações...</p>
                             ) : teacherSettings[teacher.id] ? (
                               <div className="flex flex-wrap items-center gap-6">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Capturar not�cia</span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Capturar notícia</span>
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={
@@ -558,7 +618,7 @@ export default function AdminPage() {
                                   </Tooltip>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Conte�do</span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Conteúdo</span>
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={
@@ -581,7 +641,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? "Desativar Conte�do" : "Ativar Conte�do"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? "Desativar Conteúdo" : "Ativar Conteúdo"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
@@ -614,7 +674,7 @@ export default function AdminPage() {
                                   </Tooltip>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Anivers�rio</span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Aniversário</span>
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={
@@ -637,13 +697,13 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? "Desativar Anivers�rio" : "Ativar Anivers�rio"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? "Desativar Aniversário" : "Ativar Aniversário"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground">Erro ao carregar configura��es.</p>
+                              <p className="text-sm text-muted-foreground">Erro ao carregar configurações.</p>
                             )}
                           </TableCell>
                         </TableRow>
@@ -662,7 +722,7 @@ export default function AdminPage() {
           <DialogHeader>
             <DialogTitle>Alterar Plano</DialogTitle>
             <DialogDescription>
-              Selecione o novo plano para este professor. Os cr�ditos ser�o redefinidos para o valor do plano escolhido.
+              Selecione o novo plano para este professor. Os créditos serão redefinidos para o valor do plano escolhido.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -675,7 +735,7 @@ export default function AdminPage() {
                 <SelectContent>
                   {plans.map((plan) => (
                     <SelectItem key={plan.id} value={plan.id}>
-                      {plan.name} � R$ {plan.price?.toFixed(2)} / {plan.credits?.toLocaleString("pt-BR")} cr�ditos
+                      {plan.name} - R$ {plan.price?.toFixed(2)} / {plan.credits?.toLocaleString("pt-BR")} créditos
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -697,10 +757,10 @@ export default function AdminPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {creditDialogTeacher?.name || "Professor"} � Cr�ditos
+              {creditDialogTeacher?.name || "Professor"} - Créditos
             </DialogTitle>
             <DialogDescription>
-              Saldo atual: <strong>{Number(creditDialogTeacher?.creditBalance ?? 0).toLocaleString("pt-BR")}</strong> cr�ditos
+              Saldo atual: <strong>{Number(creditDialogTeacher?.creditBalance ?? 0).toLocaleString("pt-BR")}</strong> créditos
             </DialogDescription>
           </DialogHeader>
 
@@ -710,13 +770,13 @@ export default function AdminPage() {
                 Ajustar saldo
               </Button>
               <Button variant={!editMode ? "default" : "outline"} size="sm" onClick={() => setEditMode(false)}>
-                Hist�rico
+                Histórico
               </Button>
             </div>
 
             {editMode ? (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Defina um novo saldo de cr�ditos para este professor.</p>
+                <p className="text-sm text-muted-foreground">Defina um novo saldo de créditos para este professor.</p>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -738,20 +798,20 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">�ltimas transa��es de cr�dito deste professor.</p>
+                <p className="text-sm text-muted-foreground">Últimas transações de crédito deste professor.</p>
                 {transactionsLoading ? (
                   <p className="text-sm text-muted-foreground">Carregando...</p>
                 ) : transactions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma transa��o encontrada.</p>
+                  <p className="text-sm text-muted-foreground">Nenhuma transação encontrada.</p>
                 ) : (
                   <div className="max-h-80 overflow-y-auto border rounded-lg">
                     <table className="w-full text-sm">
                       <thead className="bg-muted sticky top-0">
                         <tr>
                           <th className="text-left p-2 font-medium">Data</th>
-                          <th className="text-left p-2 font-medium">A��o</th>
+                          <th className="text-left p-2 font-medium">Ação</th>
                           <th className="text-right p-2 font-medium">Valor</th>
-                          <th className="text-right p-2 font-medium">Saldo ap�s</th>
+                          <th className="text-right p-2 font-medium">Saldo após</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -763,7 +823,7 @@ export default function AdminPage() {
                                 {new Date(tx.created_at).toLocaleDateString("pt-BR")}
                               </td>
                               <td className="p-2">
-                                {copy?.name || tx.action_key || tx.description || tx.reference_type || "�"}
+                                {copy?.name || tx.action_key || tx.description || tx.reference_type || "-"}
                               </td>
                               <td className={`p-2 text-right font-medium ${tx.type === "CREDIT" ? "text-green-600" : "text-red-600"}`}>
                                 {tx.type === "CREDIT" ? "+" : "-"}{tx.amount}
@@ -785,6 +845,86 @@ export default function AdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCreditDialogOpen(false); setCreditDialogTeacher(null); }}>
               Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open && !deletingTeacherId) {
+            setDeleteDialogTeacher(null);
+            setDeleteConfirmationText("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <TriangleAlert className="h-6 w-6" />
+            </div>
+            <DialogTitle>Excluir usuário</DialogTitle>
+            <DialogDescription>
+              Essa ação remove o usuário e os dados vinculados a ele. Não será possível desfazer depois.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-700">
+                Você está prestes a excluir:
+              </p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {deleteDialogTeacher?.name || "Usuário"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {deleteDialogTeacher?.email || ""}
+              </p>
+            </div>
+
+            <div className="rounded-xl border bg-muted/40 p-4">
+              <p className="text-sm text-muted-foreground">
+                Serão removidos os vínculos e registros relacionados desse usuário no painel administrativo.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirmation">
+                Digite <span className="font-semibold text-foreground">EXCLUIR</span> para confirmar
+              </Label>
+              <Input
+                id="delete-confirmation"
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="EXCLUIR"
+                autoComplete="off"
+                disabled={Boolean(deletingTeacherId)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setDeleteDialogTeacher(null);
+                setDeleteConfirmationText("");
+              }}
+              disabled={Boolean(deletingTeacherId)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteTeacher}
+              disabled={Boolean(deletingTeacherId) || deleteConfirmationText !== "EXCLUIR"}
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deletingTeacherId ? "Excluindo..." : "Excluir usuário"}
             </Button>
           </DialogFooter>
         </DialogContent>

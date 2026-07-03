@@ -20,6 +20,7 @@ import { ContactModule } from './contact/contact.module';
 import { TrendsModule } from './trends/trends.module';
 import { ContentModule } from './content/content.module';
 import { AffiliateModule } from './affiliate/affiliate.module';
+import { SiteVisitsModule } from './site-visits/site-visits.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { AffiliateModule } from './affiliate/affiliate.module';
     TrendsModule,
     ContentModule,
     AffiliateModule,
+    SiteVisitsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

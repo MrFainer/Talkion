@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -15,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import api from "@/lib/api";
+import { trackSiteVisit } from "@/lib/siteVisitTracking";
 import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,7 +116,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isHydrated || !isAuthenticated || sessionStorage.getItem('selectedPlan')) return;
-      const { subscriptionStatus, isFreePlan } = useAuthStore.getState();
+    const { subscriptionStatus, isFreePlan, user } = useAuthStore.getState();
+    if (user?.role === "ADMIN") {
+      router.push("/billing");
+      return;
+    }
     if (subscriptionStatus) {
       router.push(subscriptionStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
       return;
@@ -159,6 +164,18 @@ export default function LoginPage() {
   const [loginErrorMessage, setLoginErrorMessage] = useState<string | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
+  const registerTurnstileRef = useRef<HTMLDivElement>(null);
+  const registerTurnstileWidgetIdRef = useRef<string | number | null>(null);
+
+  useEffect(() => {
+    if (view === "login") {
+      void trackSiteVisit("LOGIN");
+    }
+
+    if (view === "register") {
+      void trackSiteVisit("REGISTER");
+    }
+  }, [view]);
 
   const validatePassword = (pass: string) => {
     const minLength = 8;
@@ -178,6 +195,70 @@ export default function LoginPage() {
     }, 1000);
     return () => window.clearInterval(intervalId);
   }, [view, resendCooldownSeconds]);
+
+  useEffect(() => {
+    if (view !== "register") {
+      if (
+        registerTurnstileWidgetIdRef.current !== null &&
+        (window as any).turnstile?.remove
+      ) {
+        try {
+          (window as any).turnstile.remove(registerTurnstileWidgetIdRef.current);
+        } catch {}
+      }
+      if (registerTurnstileRef.current) {
+        registerTurnstileRef.current.innerHTML = "";
+      }
+      registerTurnstileWidgetIdRef.current = null;
+      return;
+    }
+
+    const el = registerTurnstileRef.current;
+    if (!el) return;
+
+    const renderWidget = () => {
+      const currentEl = registerTurnstileRef.current;
+      if (!(window as any).turnstile || !currentEl) return;
+      if (
+        registerTurnstileWidgetIdRef.current !== null &&
+        (window as any).turnstile?.remove
+      ) {
+        try {
+          (window as any).turnstile.remove(registerTurnstileWidgetIdRef.current);
+        } catch {}
+      }
+      currentEl.innerHTML = "";
+
+      registerTurnstileWidgetIdRef.current = (window as any).turnstile.render(
+        currentEl,
+        {
+          sitekey:
+            process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+            "1x00000000000000000000AA",
+          theme: "light",
+        },
+      );
+    };
+
+    if ((window as any).turnstile) {
+      renderWidget();
+    } else {
+      const existingScript = document.querySelector(
+        'script[src*="turnstile/v0/api.js"]',
+      ) as HTMLScriptElement | null;
+
+      if (existingScript) {
+        existingScript.addEventListener("load", renderWidget, { once: true });
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+        script.async = true;
+        script.defer = true;
+        script.onload = renderWidget;
+        document.head.appendChild(script);
+      }
+    }
+  }, [view]);
 
   const passwordChecks = {
     minLength: password.length >= 8,
@@ -207,7 +288,12 @@ export default function LoginPage() {
 
       const subStatus = response.data.subscription_status;
       const isFreePlan = response.data.is_free_plan;
-      const redirectPath = (!subStatus || subStatus === "none" || isFreePlan) ? "/welcome" : "/dashboard";
+      const redirectPath =
+        userData?.role === "ADMIN"
+          ? "/billing"
+          : (!subStatus || subStatus === "none" || isFreePlan)
+            ? "/welcome"
+            : "/dashboard";
 
       toast.success("Login realizado com sucesso!");
       router.push(redirectPath);
@@ -240,11 +326,40 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
+      let turnstileToken = "";
+      try {
+        const widgetId = registerTurnstileWidgetIdRef.current;
+        turnstileToken =
+          widgetId !== null
+            ? (window as any).turnstile?.getResponse(widgetId) || ""
+            : (window as any).turnstile?.getResponse() || "";
+
+        if (!turnstileToken) {
+          toast.error("Verifique o Captcha antes de criar a conta.");
+          setLoading(false);
+          return;
+        }
+      } catch {
+        toast.error("Erro ao verificar Captcha.");
+        setLoading(false);
+        return;
+      }
+
       console.log('[Affiliate] Register - referralCode:', referralCode);
-      const payload: any = { name, email: normalizedEmail, password };
+      const payload: any = {
+        name,
+        email: normalizedEmail,
+        password,
+        turnstileToken,
+      };
       if (referralCode) payload.ref = referralCode;
       const response = await api.post("/auth/register", payload);
       document.cookie = 'affiliate_ref=; path=/; max-age=0';
+      if (registerTurnstileWidgetIdRef.current !== null) {
+        (window as any).turnstile?.reset(registerTurnstileWidgetIdRef.current);
+      } else {
+        (window as any).turnstile?.reset?.();
+      }
       if (response.data.requiresVerification) {
         setRegisteredEmail(response.data.email);
         setView("verify");
@@ -258,6 +373,11 @@ export default function LoginPage() {
         router.push(plan ? `/subscriptions/checkout?plan=${plan}` : "/welcome");
       }
     } catch (error: any) {
+      if (registerTurnstileWidgetIdRef.current !== null) {
+        (window as any).turnstile?.reset(registerTurnstileWidgetIdRef.current);
+      } else {
+        (window as any).turnstile?.reset?.();
+      }
       toast.error(error.response?.data?.message || "Erro ao criar conta.");
     } finally {
       setLoading(false);
@@ -720,6 +840,10 @@ export default function LoginPage() {
                         </p>
                       </div>
                     )}
+
+                    <div className="flex justify-center pt-1">
+                        <div ref={registerTurnstileRef} className="cf-turnstile-widget" />
+                    </div>
 
                     <Button
                       type="submit"
