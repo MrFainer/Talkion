@@ -78,63 +78,79 @@ const OLD_TO_NEW = {
   'Talkion Premium': 'Professional',
 };
 
-let hasSubscriptionPlanMaxTeachers = null;
+let subscriptionPlanColumnsCache = null;
 
-async function subscriptionPlanHasMaxTeachersColumn() {
-  if (typeof hasSubscriptionPlanMaxTeachers === 'boolean') {
-    return hasSubscriptionPlanMaxTeachers;
+async function getSubscriptionPlanColumns() {
+  if (subscriptionPlanColumnsCache) {
+    return subscriptionPlanColumnsCache;
   }
 
   const rows = await prisma.$queryRawUnsafe(`
-    SELECT 1
+    SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name = 'SubscriptionPlan'
-      AND column_name = 'max_teachers'
-    LIMIT 1
   `);
 
-  hasSubscriptionPlanMaxTeachers = Array.isArray(rows) && rows.length > 0;
-  return hasSubscriptionPlanMaxTeachers;
+  subscriptionPlanColumnsCache = new Set(
+    Array.isArray(rows)
+      ? rows.map((row) => String(row.column_name || ''))
+      : [],
+  );
+
+  return subscriptionPlanColumnsCache;
+}
+
+async function subscriptionPlanHasColumn(columnName) {
+  const columns = await getSubscriptionPlanColumns();
+  return columns.has(columnName);
+}
+
+async function buildSubscriptionPlanSelect() {
+  const columns = await getSubscriptionPlanColumns();
+
+  return {
+    id: true,
+    name: true,
+    ...(columns.has('description') ? { description: true } : {}),
+    ...(columns.has('price') ? { price: true } : {}),
+    ...(columns.has('credits') ? { credits: true } : {}),
+    ...(columns.has('max_students') ? { max_students: true } : {}),
+    ...(columns.has('max_teachers') ? { max_teachers: true } : {}),
+    ...(columns.has('is_free') ? { is_free: true } : {}),
+    ...(columns.has('features') ? { features: true } : {}),
+    ...(columns.has('active') ? { active: true } : {}),
+    ...(columns.has('sort_order') ? { sort_order: true } : {}),
+  };
+}
+
+async function buildSubscriptionPlanData(def) {
+  const columns = await getSubscriptionPlanColumns();
+
+  return {
+    name: def.name,
+    ...(columns.has('description') ? { description: def.desc } : {}),
+    ...(columns.has('price') ? { price: def.price } : {}),
+    ...(columns.has('credits') ? { credits: def.credits } : {}),
+    ...(columns.has('max_students') ? { max_students: def.max_students } : {}),
+    ...(columns.has('max_teachers') ? { max_teachers: def.max_teachers || 1 } : {}),
+    ...(columns.has('is_free') ? { is_free: def.is_free } : {}),
+    ...(columns.has('features') ? { features: def.features } : {}),
+    ...(columns.has('active') ? { active: true } : {}),
+    ...(columns.has('sort_order') ? { sort_order: def.sort_order } : {}),
+  };
 }
 
 async function findPlanByName(name) {
-  const includeMaxTeachers = await subscriptionPlanHasMaxTeachersColumn();
-
   return prisma.subscriptionPlan.findFirst({
     where: { name },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      price: true,
-      credits: true,
-      max_students: true,
-      is_free: true,
-      features: true,
-      active: true,
-      sort_order: true,
-      ...(includeMaxTeachers ? { max_teachers: true } : {}),
-    },
+    select: await buildSubscriptionPlanSelect(),
   });
 }
 
 async function upsertPlan(def) {
   const existing = await findPlanByName(def.name);
-  const includeMaxTeachers = await subscriptionPlanHasMaxTeachersColumn();
-
-  const planData = {
-    name: def.name,
-    description: def.desc,
-    price: def.price,
-    credits: def.credits,
-    max_students: def.max_students,
-    is_free: def.is_free,
-    features: def.features,
-    active: true,
-    sort_order: def.sort_order,
-    ...(includeMaxTeachers ? { max_teachers: def.max_teachers || 1 } : {}),
-  };
+  const planData = await buildSubscriptionPlanData(def);
 
   if (!existing) {
     await prisma.subscriptionPlan.create({
@@ -145,14 +161,9 @@ async function upsertPlan(def) {
     await prisma.subscriptionPlan.update({
       where: { id: existing.id },
       data: {
-        description: planData.description,
-        price: planData.price,
-        credits: planData.credits,
-        max_students: planData.max_students,
-        is_free: planData.is_free,
-        features: planData.features,
-        sort_order: planData.sort_order,
-        ...(includeMaxTeachers ? { max_teachers: planData.max_teachers } : {}),
+        ...Object.fromEntries(
+          Object.entries(planData).filter(([key]) => key !== 'name'),
+        ),
       },
     });
     console.log(`  ✓ Updated plan: ${def.name} (R$${def.price})`);
@@ -234,11 +245,15 @@ async function main() {
 
   // Step 3: Deactivate old plans
   console.log('\nStep 3: Deactivating old plans...');
-  await prisma.subscriptionPlan.updateMany({
-    where: { name: { in: Object.keys(OLD_TO_NEW) } },
-    data: { active: false },
-  });
-  console.log('  ✓ Talkion Base and Talkion Premium deactivated');
+  if (await subscriptionPlanHasColumn('active')) {
+    await prisma.subscriptionPlan.updateMany({
+      where: { name: { in: Object.keys(OLD_TO_NEW) } },
+      data: { active: false },
+    });
+    console.log('  ✓ Talkion Base and Talkion Premium deactivated');
+  } else {
+    console.log('  [SKIP] A coluna active nao existe em SubscriptionPlan.');
+  }
 
   console.log('\n=== Migration complete ===');
 }
