@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import AppShell from "@/components/AppShell";
 const inter = Inter({ subsets: ["latin"] });
 
 
@@ -36,7 +37,7 @@ export default function RootLayout({
           <ProtectedRoute>
             <SubscriptionGuard>
               <div className="flex min-h-[100dvh] w-full [overflow-x:clip]">
-                {children}
+                <AppShell>{children}</AppShell>
               </div>
             </SubscriptionGuard>
           </ProtectedRoute>

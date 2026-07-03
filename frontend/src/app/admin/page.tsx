@@ -1,10 +1,9 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -81,7 +80,7 @@ export default function AdminPage() {
   }, [isHydrated, user, router, appliedFrom, appliedTo]);
 
   useEffect(() => {
-    document.title = "Talkion - Administração";
+    document.title = "Talkion - Administra��o";
     api.get("/subscriptions/plans").then((res) => setPlans(res.data || [])).catch(() => {});
   }, []);
 
@@ -96,7 +95,7 @@ export default function AdminPage() {
 
   const handleExportExcel = () => {
     if (teachers.length === 0) {
-      toast.error("Não há dados para exportar.");
+      toast.error("N�o h� dados para exportar.");
       return;
     }
 
@@ -111,7 +110,7 @@ export default function AdminPage() {
       "Tokens Cache": t.cachedTokens || 0,
       "Whisper (Segundos)": t.audioSeconds || 0,
       "TTS (Caracteres)": t.ttsCharacters || 0,
-      "Créditos": t.creditBalance || 0,
+      "Cr�ditos": t.creditBalance || 0,
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -126,7 +125,7 @@ export default function AdminPage() {
     }
 
     XLSX.writeFile(workbook, fileName);
-    toast.success("Relatório exportado com sucesso!");
+    toast.success("Relat�rio exportado com sucesso!");
   };
 
   const toggleStatus = async (teacherId: string) => {
@@ -145,40 +144,40 @@ export default function AdminPage() {
   const handleSaveCredits = async (teacherId: string) => {
     const value = parseFloat(creditValues[teacherId]);
     if (isNaN(value) || value < 0) {
-      toast.error("Valor inválido para créditos.");
+      toast.error("Valor inv�lido para cr�ditos.");
       return;
     }
     try {
       await api.patch(`/admin/teachers/${teacherId}/credits`, { amount: value, mode: "set" });
-      toast.success("Créditos atualizados com sucesso!");
+      toast.success("Cr�ditos atualizados com sucesso!");
       setCreditDialogOpen(false);
       setCreditDialogTeacher(null);
       await fetchTeachers();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao atualizar créditos");
+      toast.error(error.response?.data?.message || "Erro ao atualizar cr�ditos");
     }
   };
 
   const CREDIT_ACTION_COPY: Record<string, { name: string; description: string }> = {
-    news_capture_level_1: { name: "Captura de notícia Nível 1", description: "" },
-    news_capture_level_2: { name: "Captura de notícia Nível 2", description: "" },
-    news_capture_level_3: { name: "Captura de notícia Nível 3", description: "" },
-    news_ai_fallback: { name: "Notícia gerada por IA (fallback)", description: "" },
-    news_tts: { name: "Áudio TTS da notícia", description: "" },
-    quiz_generation: { name: "Quiz gerado para um nível", description: "" },
-    quick_tip_generation: { name: "Geração de Quick Tip", description: "" },
-    news_quiz_group_send: { name: "Envio da notícia + quiz para grupo", description: "" },
+    news_capture_level_1: { name: "Captura de not�cia N�vel 1", description: "" },
+    news_capture_level_2: { name: "Captura de not�cia N�vel 2", description: "" },
+    news_capture_level_3: { name: "Captura de not�cia N�vel 3", description: "" },
+    news_ai_fallback: { name: "Not�cia gerada por IA (fallback)", description: "" },
+    news_tts: { name: "�udio TTS da not�cia", description: "" },
+    quiz_generation: { name: "Quiz gerado para um n�vel", description: "" },
+    quick_tip_generation: { name: "Gera��o de Quick Tip", description: "" },
+    news_quiz_group_send: { name: "Envio da not�cia + quiz para grupo", description: "" },
     quiz_response_received: { name: "Receber resposta do quiz", description: "" },
-    quiz_response_metrics: { name: "Salvar métricas da resposta", description: "" },
-    news_individual_send: { name: "Envio individual de notícia", description: "" },
-    speaking_transcription: { name: "Transcrição de áudio", description: "" },
+    quiz_response_metrics: { name: "Salvar m�tricas da resposta", description: "" },
+    news_individual_send: { name: "Envio individual de not�cia", description: "" },
+    speaking_transcription: { name: "Transcri��o de �udio", description: "" },
     speaking_feedback: { name: "Feedback da IA", description: "" },
-    lesson_confirmation_send: { name: "Envio de confirmação de aula", description: "" },
-    lesson_confirmation_process: { name: "Interpretação da resposta pela IA", description: "" },
+    lesson_confirmation_send: { name: "Envio de confirma��o de aula", description: "" },
+    lesson_confirmation_process: { name: "Interpreta��o da resposta pela IA", description: "" },
     weekly_summary_send: { name: "Envio de resumo semanal", description: "" },
     weekly_summary_process: { name: "Processamento de resposta do resumo semanal", description: "" },
-    content_generation: { name: "Geração de conteúdo educacional", description: "" },
-    birthday_send: { name: "Envio de mensagem de aniversário", description: "" },
+    content_generation: { name: "Gera��o de conte�do educacional", description: "" },
+    birthday_send: { name: "Envio de mensagem de anivers�rio", description: "" },
     admin_adjustment: { name: "Ajuste manual (admin)", description: "" },
     admin_plan_change: { name: "Troca de plano", description: "" },
   };
@@ -226,7 +225,7 @@ export default function AdminPage() {
         const res = await api.get(`/message-settings/${teacherId}`);
         setTeacherSettings((prev) => ({ ...prev, [teacherId]: res.data }));
       } catch {
-        toast.error("Erro ao carregar configurações do professor.");
+        toast.error("Erro ao carregar configura��es do professor.");
       } finally {
         setSettingsLoading((prev) => ({ ...prev, [teacherId]: false }));
       }
@@ -246,7 +245,7 @@ export default function AdminPage() {
         ...prev,
         [teacherId]: { ...prev[teacherId], [field]: currentValue },
       }));
-      toast.error("Erro ao atualizar configuração.");
+      toast.error("Erro ao atualizar configura��o.");
     }
   };
 
@@ -260,9 +259,8 @@ export default function AdminPage() {
   if (!isHydrated || loading) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
-          <p>Carregando administração...</p>
+          <p>Carregando administra��o...</p>
         </main>
       </>
     );
@@ -270,17 +268,16 @@ export default function AdminPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Administração</h1>
+            <h1 className="text-3xl font-bold">Administra��o</h1>
             <p className="text-muted-foreground mt-1">Gerencie os professores da plataforma</p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <Button onClick={() => router.push("/admin/credit-config")} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
               <Settings2 className="w-4 h-4" />
-              Créditos
+              Cr�ditos
             </Button>
             <Button onClick={handleExportExcel} variant="outline" className="gap-2 w-full sm:w-auto justify-center">
               <Download className="w-4 h-4" />
@@ -294,13 +291,13 @@ export default function AdminPage() {
                 className="h-9 w-full min-w-0 sm:w-40"
                 aria-label="De"
               />
-              <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">até</span>
+              <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">at�</span>
               <Input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
                 className="h-9 w-full min-w-0 sm:w-40"
-                aria-label="Até"
+                aria-label="At�"
               />
             </div>
             <Button onClick={handleFilter} variant="secondary" className="w-full sm:w-auto">
@@ -333,9 +330,9 @@ export default function AdminPage() {
                     <TableHead>Cache</TableHead>
                     <TableHead>Whisper (s)</TableHead>
                     <TableHead>TTS (carac.)</TableHead>
-                    <TableHead>Créditos</TableHead>
+                    <TableHead>Cr�ditos</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead className="text-right">A��o</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -417,11 +414,11 @@ export default function AdminPage() {
                         <TableRow>
                           <TableCell colSpan={13} className="bg-muted/30 p-4">
                             {settingsLoading[teacher.id] ? (
-                              <p className="text-sm text-muted-foreground">Carregando configurações...</p>
+                              <p className="text-sm text-muted-foreground">Carregando configura��es...</p>
                             ) : teacherSettings[teacher.id] ? (
                               <div className="flex flex-wrap items-center gap-6">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Capturar notícia</span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Capturar not�cia</span>
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={
@@ -561,7 +558,7 @@ export default function AdminPage() {
                                   </Tooltip>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Conteúdo</span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Conte�do</span>
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={
@@ -584,7 +581,7 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? "Desativar Conteúdo" : "Ativar Conteúdo"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_content_generation_enabled !== false ? "Desativar Conte�do" : "Ativar Conte�do"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
@@ -617,7 +614,7 @@ export default function AdminPage() {
                                   </Tooltip>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Aniversário</span>
+                                  <span className="text-sm text-muted-foreground whitespace-nowrap">Anivers�rio</span>
                                   <Tooltip>
                                     <TooltipTrigger
                                       render={
@@ -640,13 +637,13 @@ export default function AdminPage() {
                                       }
                                     />
                                     <TooltipContent>
-                                      <p>{teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? "Desativar Aniversário" : "Ativar Aniversário"}</p>
+                                      <p>{teacherSettings[teacher.id]?.admin_birthday_enabled !== false ? "Desativar Anivers�rio" : "Ativar Anivers�rio"}</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground">Erro ao carregar configurações.</p>
+                              <p className="text-sm text-muted-foreground">Erro ao carregar configura��es.</p>
                             )}
                           </TableCell>
                         </TableRow>
@@ -665,7 +662,7 @@ export default function AdminPage() {
           <DialogHeader>
             <DialogTitle>Alterar Plano</DialogTitle>
             <DialogDescription>
-              Selecione o novo plano para este professor. Os créditos serão redefinidos para o valor do plano escolhido.
+              Selecione o novo plano para este professor. Os cr�ditos ser�o redefinidos para o valor do plano escolhido.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -678,7 +675,7 @@ export default function AdminPage() {
                 <SelectContent>
                   {plans.map((plan) => (
                     <SelectItem key={plan.id} value={plan.id}>
-                      {plan.name} — R$ {plan.price?.toFixed(2)} / {plan.credits?.toLocaleString("pt-BR")} créditos
+                      {plan.name} � R$ {plan.price?.toFixed(2)} / {plan.credits?.toLocaleString("pt-BR")} cr�ditos
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -700,10 +697,10 @@ export default function AdminPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {creditDialogTeacher?.name || "Professor"} — Créditos
+              {creditDialogTeacher?.name || "Professor"} � Cr�ditos
             </DialogTitle>
             <DialogDescription>
-              Saldo atual: <strong>{Number(creditDialogTeacher?.creditBalance ?? 0).toLocaleString("pt-BR")}</strong> créditos
+              Saldo atual: <strong>{Number(creditDialogTeacher?.creditBalance ?? 0).toLocaleString("pt-BR")}</strong> cr�ditos
             </DialogDescription>
           </DialogHeader>
 
@@ -713,13 +710,13 @@ export default function AdminPage() {
                 Ajustar saldo
               </Button>
               <Button variant={!editMode ? "default" : "outline"} size="sm" onClick={() => setEditMode(false)}>
-                Histórico
+                Hist�rico
               </Button>
             </div>
 
             {editMode ? (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Defina um novo saldo de créditos para este professor.</p>
+                <p className="text-sm text-muted-foreground">Defina um novo saldo de cr�ditos para este professor.</p>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -741,20 +738,20 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Últimas transações de crédito deste professor.</p>
+                <p className="text-sm text-muted-foreground">�ltimas transa��es de cr�dito deste professor.</p>
                 {transactionsLoading ? (
                   <p className="text-sm text-muted-foreground">Carregando...</p>
                 ) : transactions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma transação encontrada.</p>
+                  <p className="text-sm text-muted-foreground">Nenhuma transa��o encontrada.</p>
                 ) : (
                   <div className="max-h-80 overflow-y-auto border rounded-lg">
                     <table className="w-full text-sm">
                       <thead className="bg-muted sticky top-0">
                         <tr>
                           <th className="text-left p-2 font-medium">Data</th>
-                          <th className="text-left p-2 font-medium">Ação</th>
+                          <th className="text-left p-2 font-medium">A��o</th>
                           <th className="text-right p-2 font-medium">Valor</th>
-                          <th className="text-right p-2 font-medium">Saldo após</th>
+                          <th className="text-right p-2 font-medium">Saldo ap�s</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -766,7 +763,7 @@ export default function AdminPage() {
                                 {new Date(tx.created_at).toLocaleDateString("pt-BR")}
                               </td>
                               <td className="p-2">
-                                {copy?.name || tx.action_key || tx.description || tx.reference_type || "—"}
+                                {copy?.name || tx.action_key || tx.description || tx.reference_type || "�"}
                               </td>
                               <td className={`p-2 text-right font-medium ${tx.type === "CREDIT" ? "text-green-600" : "text-red-600"}`}>
                                 {tx.type === "CREDIT" ? "+" : "-"}{tx.amount}
@@ -795,3 +792,4 @@ export default function AdminPage() {
     </>
   );
 }
+

@@ -16,7 +16,6 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sidebar } from "@/components/Sidebar";
 import Link from "next/link";
 
 export default function WelcomePage() {
@@ -82,7 +81,6 @@ export default function WelcomePage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 overflow-y-auto">
         <div className="min-h-full bg-gradient-to-br from-slate-50 to-blue-50 p-4 pt-20 md:p-8 md:pt-8">
           <div className="mx-auto max-w-4xl">
@@ -217,3 +215,4 @@ export default function WelcomePage() {
     </>
   );
 }
+

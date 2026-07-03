@@ -1,9 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Sidebar } from "@/components/Sidebar";
 import { useAuthStore } from "@/store/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -140,7 +139,7 @@ export default function AutomationPage() {
   const [groupSearch, setGroupSearch] = useState("");
 
   useEffect(() => {
-    document.title = "Talkion - Automação";
+    document.title = "Talkion - Automa��o";
   }, []);
 
   useEffect(() => {
@@ -186,30 +185,30 @@ export default function AutomationPage() {
     progressIntervalRef.current = setInterval(() => {
       setDailyRunProgress((current) => (current >= 88 ? current : current + 8));
     }, 350);
-    const toastId = toast.loading("Gerando notícia e quiz do dia...");
+    const toastId = toast.loading("Gerando not�cia e quiz do dia...");
 
     try {
       const res = await api.post("/news/daily-run", { teacherId: user.id });
       const payload = res.data as DailyRunResponse;
       const summary = [
-        payload?.news?.created ? `${payload.news.created} notícia(s) criada(s)` : null,
+        payload?.news?.created ? `${payload.news.created} not�cia(s) criada(s)` : null,
         payload?.news?.skippedSameDay ? `${payload.news.skippedSameDay} bloqueio(s) por dia` : null,
-        payload?.news?.skippedSameNews ? `${payload.news.skippedSameNews} bloqueio(s) por mesma notícia` : null,
+        payload?.news?.skippedSameNews ? `${payload.news.skippedSameNews} bloqueio(s) por mesma not�cia` : null,
         payload?.quizzes?.created ? `${payload.quizzes.created} quiz(es) criado(s)` : null,
-        payload?.quizzes?.existing ? `${payload.quizzes.existing} quiz(es) já existente(s)` : null,
+        payload?.quizzes?.existing ? `${payload.quizzes.existing} quiz(es) j� existente(s)` : null,
       ].filter(Boolean);
 
       stopProgressTimer();
       setDailyRunProgress(100);
       setDailyRunResult(payload);
-      toast.success(summary.length ? summary.join(" | ") : "Processamento concluído com sucesso.", {
+      toast.success(summary.length ? summary.join(" | ") : "Processamento conclu�do com sucesso.", {
         id: toastId,
       });
     } catch (error: any) {
       stopProgressTimer();
       setDailyRunProgress(100);
-      setDailyRunError(error.response?.data?.message || "Erro ao gerar notícia e quiz.");
-      toast.error(error.response?.data?.message || "Erro ao gerar notícia e quiz.", { id: toastId });
+      setDailyRunError(error.response?.data?.message || "Erro ao gerar not�cia e quiz.");
+      toast.error(error.response?.data?.message || "Erro ao gerar not�cia e quiz.", { id: toastId });
     } finally {
       setRunningDailyNews(false);
     }
@@ -317,7 +316,7 @@ export default function AutomationPage() {
       clearInterval(progressInterval);
 
       if (error.message === "WHATSAPP_NOT_CONNECTED") {
-        toast.error("O WhatsApp não está conectado. Acesse a tela 'WhatsApp' e escaneie o QR Code.");
+        toast.error("O WhatsApp n�o est� conectado. Acesse a tela 'WhatsApp' e escaneie o QR Code.");
       } else if (error.message === "GROUP_REQUIRED") {
         toast.error("Selecione um grupo sincronizado para enviar no grupo.");
       } else {
@@ -378,7 +377,7 @@ export default function AutomationPage() {
         : [];
       setAutoGroupTargets(parsedTargets as any);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao carregar horários.");
+      toast.error(error.response?.data?.message || "Erro ao carregar hor�rios.");
     } finally {
       setScheduleLoading(false);
     }
@@ -397,7 +396,7 @@ export default function AutomationPage() {
   const handleSaveSchedule = async () => {
     if (!user?.id) return;
     setScheduleSaving(true);
-    const toastId = toast.loading("Salvando horários...");
+    const toastId = toast.loading("Salvando hor�rios...");
     try {
       await api.put(`/message-settings/${user.id}`, {
         news_capture_time: newsCaptureTime || "08:00",
@@ -418,9 +417,9 @@ export default function AutomationPage() {
         automation_days: automationDays,
         auto_group_targets: autoGroupTargets,
       });
-      toast.success("Horários salvos com sucesso.", { id: toastId });
+      toast.success("Hor�rios salvos com sucesso.", { id: toastId });
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao salvar horários.", { id: toastId });
+      toast.error(error.response?.data?.message || "Erro ao salvar hor�rios.", { id: toastId });
     } finally {
       setScheduleSaving(false);
     }
@@ -441,15 +440,15 @@ export default function AutomationPage() {
         lessons_confirmation_enabled: nextValue,
       });
       if (nextValue) {
-        toast.success("Função de Envio de Confirmação de Aula Ativada.");
+        toast.success("Fun��o de Envio de Confirma��o de Aula Ativada.");
       } else {
-        toast("Função de Envio de Confirmação de Aula Desativada.", {
+        toast("Fun��o de Envio de Confirma��o de Aula Desativada.", {
           icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
         });
       }
     } catch (error: any) {
       setLessonsConfirmationEnabled(previousValue);
-      toast.error(error.response?.data?.message || "Erro ao atualizar confirmação de aula.");
+      toast.error(error.response?.data?.message || "Erro ao atualizar confirma��o de aula.");
     } finally {
       setLessonsConfirmationSaving(false);
     }
@@ -470,9 +469,9 @@ export default function AutomationPage() {
         weekly_summary_enabled: nextValue,
       });
       if (nextValue) {
-        toast.success("Função de Resumo Semanal Ativada.");
+        toast.success("Fun��o de Resumo Semanal Ativada.");
       } else {
-        toast("Função de Resumo Semanal Desativada.", {
+        toast("Fun��o de Resumo Semanal Desativada.", {
           icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
         });
       }
@@ -499,15 +498,15 @@ export default function AutomationPage() {
         birthday_message_enabled: nextValue,
       });
       if (nextValue) {
-        toast.success("Função de Mensagem de Aniversário Ativada.");
+        toast.success("Fun��o de Mensagem de Anivers�rio Ativada.");
       } else {
-        toast("Função de Mensagem de Aniversário Desativada.", {
+        toast("Fun��o de Mensagem de Anivers�rio Desativada.", {
           icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
         });
       }
     } catch (error: any) {
       setBirthdayMessageEnabled(previousValue);
-      toast.error(error.response?.data?.message || "Erro ao atualizar mensagem de aniversário.");
+      toast.error(error.response?.data?.message || "Erro ao atualizar mensagem de anivers�rio.");
     } finally {
       setBirthdaySaving(false);
     }
@@ -516,15 +515,15 @@ export default function AutomationPage() {
   const handleSendBirthdayMessages = async () => {
     if (!user?.id) return;
     setSendingBirthdayMessages(true);
-    const toastId = toast.loading("Enviando mensagens de aniversário...");
+    const toastId = toast.loading("Enviando mensagens de anivers�rio...");
     try {
       const res = await api.post("/whatsapp/send-birthday-messages", { teacherId: user.id });
       toast.success(
-        res.data?.sent ? `${res.data.sent} mensagem(ns) enviada(s)` : "Mensagens de aniversário enviadas com sucesso.",
+        res.data?.sent ? `${res.data.sent} mensagem(ns) enviada(s)` : "Mensagens de anivers�rio enviadas com sucesso.",
         { id: toastId },
       );
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao enviar mensagens de aniversário.", { id: toastId });
+      toast.error(error.response?.data?.message || "Erro ao enviar mensagens de anivers�rio.", { id: toastId });
     } finally {
       setSendingBirthdayMessages(false);
     }
@@ -545,9 +544,9 @@ export default function AutomationPage() {
         quick_tip_enabled: nextValue,
       });
       if (nextValue) {
-        toast.success("Função de Quick Tip Ativada.");
+        toast.success("Fun��o de Quick Tip Ativada.");
       } else {
-        toast("Função de Quick Tip Desativada.", {
+        toast("Fun��o de Quick Tip Desativada.", {
           icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
         });
       }
@@ -579,15 +578,15 @@ export default function AutomationPage() {
   const handleSendLessonConfirmations = async () => {
     if (!user?.id) return;
     setSendingLessonConfirmations(true);
-    const toastId = toast.loading("Enviando confirmações de aula...");
+    const toastId = toast.loading("Enviando confirma��es de aula...");
     try {
       const res = await api.post("/whatsapp/send-lesson-confirmations", { teacherId: user.id });
       toast.success(
-        res.data?.sent ? `${res.data.sent} confirmação(ões) enviada(s)` : "Confirmações enviadas com sucesso.",
+        res.data?.sent ? `${res.data.sent} confirma��o(�es) enviada(s)` : "Confirma��es enviadas com sucesso.",
         { id: toastId },
       );
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Erro ao enviar confirmações de aula.", { id: toastId });
+      toast.error(error.response?.data?.message || "Erro ao enviar confirma��es de aula.", { id: toastId });
     } finally {
       setSendingLessonConfirmations(false);
     }
@@ -615,7 +614,7 @@ export default function AutomationPage() {
       await api.put(`/message-settings/${user.id}`, { news_capture_enabled: nextValue });
     } catch {
       setNewsCaptureEnabled(!nextValue);
-      toast.error("Erro ao atualizar captura de notícia.");
+      toast.error("Erro ao atualizar captura de not�cia.");
     }
   };
 
@@ -627,7 +626,7 @@ export default function AutomationPage() {
       await api.put(`/message-settings/${user.id}`, { auto_send_enabled: nextValue });
     } catch {
       setAutoSendEnabled(!nextValue);
-      toast.error("Erro ao atualizar envio automático.");
+      toast.error("Erro ao atualizar envio autom�tico.");
     }
   };
 
@@ -653,7 +652,7 @@ export default function AutomationPage() {
     });
   };
 
-  const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "S�b"];
 
   const isGroupSelected = (groupId: string) => {
     return autoGroupTargets.some((item) => item.groupId === groupId);
@@ -685,19 +684,18 @@ export default function AutomationPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 space-y-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl sm:text-3xl font-bold">Automação</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Automa��o</h1>
         </div>
 
         {initialNewsCaptureEnabled && (
         <Card>
           <CardHeader>
-            <CardTitle>Gerar Notícia e Quiz</CardTitle>
+            <CardTitle>Gerar Not�cia e Quiz</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">Busca a notícia do dia e valida/cria os quizzes de cada nível.</p>
+            <p className="text-sm text-muted-foreground">Busca a not�cia do dia e valida/cria os quizzes de cada n�vel.</p>
             <Button onClick={handleRunDailyNews} disabled={runningDailyNews} className="h-9 shrink-0">
               {runningDailyNews ? "Processando..." : "Gerar"}
             </Button>
@@ -708,7 +706,7 @@ export default function AutomationPage() {
         {initialNewsCaptureEnabled && (
         <Card>
           <CardHeader>
-            <CardTitle>Disparar Notícia</CardTitle>
+            <CardTitle>Disparar Not�cia</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
@@ -728,7 +726,7 @@ export default function AutomationPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Envia manualmente o resumo semanal de aulas para os alunos (disponível apenas às segundas-feiras).
+              Envia manualmente o resumo semanal de aulas para os alunos (dispon�vel apenas �s segundas-feiras).
             </p>
             <Button onClick={handleSendWeeklySummary} disabled={sendingWeeklySummary} className="h-9 shrink-0">
               {sendingWeeklySummary ? "Enviando..." : "Enviar Resumo Semanal"}
@@ -740,14 +738,14 @@ export default function AutomationPage() {
         {initialLessonsConfirmationEnabled && lessonsConfirmationEnabled && (
         <Card>
           <CardHeader>
-            <CardTitle>Confirmações de Aula</CardTitle>
+            <CardTitle>Confirma��es de Aula</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Envia manualmente as confirmações de aula de hoje para os alunos.
+              Envia manualmente as confirma��es de aula de hoje para os alunos.
             </p>
             <Button onClick={handleSendLessonConfirmations} disabled={sendingLessonConfirmations} className="h-9 shrink-0">
-              {sendingLessonConfirmations ? "Enviando..." : "Enviar Confirmações"}
+              {sendingLessonConfirmations ? "Enviando..." : "Enviar Confirma��es"}
             </Button>
           </CardContent>
         </Card>
@@ -760,7 +758,7 @@ export default function AutomationPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Gera e envia manualmente uma dica de inglês (Quick Tip) para os grupos configurados.
+              Gera e envia manualmente uma dica de ingl�s (Quick Tip) para os grupos configurados.
             </p>
             <Tooltip>
               <TooltipTrigger
@@ -774,7 +772,7 @@ export default function AutomationPage() {
               />
               {!hasAutoGroupsSelected && (
               <TooltipContent>
-                <p>Selecione pelo menos 1 grupo em &ldquo;Grupos do envio automático&rdquo;.</p>
+                <p>Selecione pelo menos 1 grupo em &ldquo;Grupos do envio autom�tico&rdquo;.</p>
               </TooltipContent>
               )}
             </Tooltip>
@@ -785,14 +783,14 @@ export default function AutomationPage() {
         {initialBirthdayEnabled && birthdayMessageEnabled && (
         <Card>
           <CardHeader>
-            <CardTitle>Mensagem de Aniversário</CardTitle>
+            <CardTitle>Mensagem de Anivers�rio</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Envia manualmente as mensagens de aniversário para os alunos que fazem aniversário hoje.
+              Envia manualmente as mensagens de anivers�rio para os alunos que fazem anivers�rio hoje.
             </p>
             <Button onClick={handleSendBirthdayMessages} disabled={sendingBirthdayMessages} className="h-9 shrink-0">
-              {sendingBirthdayMessages ? "Enviando..." : "Enviar Mensagens de Aniversário"}
+              {sendingBirthdayMessages ? "Enviando..." : "Enviar Mensagens de Anivers�rio"}
             </Button>
           </CardContent>
         </Card>
@@ -800,11 +798,11 @@ export default function AutomationPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Automação</CardTitle>
+            <CardTitle>Automa��o</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Configure os horários de captura e envios automáticos.
+              Configure os hor�rios de captura e envios autom�ticos.
             </p>
 
             <div className="flex flex-wrap gap-x-4 gap-y-2 items-end">
@@ -828,7 +826,7 @@ export default function AutomationPage() {
                         size="icon-sm"
                         onClick={handleToggleNewsCapture}
                         className={newsCaptureEnabled ? "text-red-500" : "text-green-500"}
-                        aria-label={newsCaptureEnabled ? "Desativar captura de notícia" : "Ativar captura de notícia"}
+                        aria-label={newsCaptureEnabled ? "Desativar captura de not�cia" : "Ativar captura de not�cia"}
                       >
                         {newsCaptureEnabled ? (
                           <PowerOff className="h-3.5 w-3.5" />
@@ -864,7 +862,7 @@ export default function AutomationPage() {
                         size="icon-sm"
                         onClick={handleToggleAutoSend}
                         className={autoSendEnabled ? "text-red-500" : "text-green-500"}
-                        aria-label={autoSendEnabled ? "Desativar envio automático" : "Ativar envio automático"}
+                        aria-label={autoSendEnabled ? "Desativar envio autom�tico" : "Ativar envio autom�tico"}
                       >
                         {autoSendEnabled ? (
                           <PowerOff className="h-3.5 w-3.5" />
@@ -900,7 +898,7 @@ export default function AutomationPage() {
                     />
                     {!hasAutoGroupsSelected && (
                       <TooltipContent>
-                        <p>Selecione grupos em Configurações para liberar o envio automático.</p>
+                        <p>Selecione grupos em Configura��es para liberar o envio autom�tico.</p>
                       </TooltipContent>
                     )}
                   </Tooltip>
@@ -951,7 +949,7 @@ export default function AutomationPage() {
                         onClick={handleToggleLessonsConfirmationEnabled}
                         disabled={scheduleLoading || scheduleSaving || lessonsConfirmationSaving}
                         className={lessonsConfirmationEnabled ? "text-red-500" : "text-green-500"}
-                        aria-label={lessonsConfirmationEnabled ? "Desativar confirmação de aula" : "Ativar confirmação de aula"}
+                        aria-label={lessonsConfirmationEnabled ? "Desativar confirma��o de aula" : "Ativar confirma��o de aula"}
                       >
                         {lessonsConfirmationEnabled ? (
                           <PowerOff className="h-3.5 w-3.5" />
@@ -1043,7 +1041,7 @@ export default function AutomationPage() {
               )}
               {initialBirthdayEnabled && (
               <div className="flex items-center gap-1.5">
-                <Label htmlFor="birthday-time" className="text-xs whitespace-nowrap">Aniversário</Label>
+                <Label htmlFor="birthday-time" className="text-xs whitespace-nowrap">Anivers�rio</Label>
                 <Input
                   id="birthday-time"
                   type="time"
@@ -1062,7 +1060,7 @@ export default function AutomationPage() {
                         onClick={handleToggleBirthdayMessage}
                         disabled={scheduleLoading || scheduleSaving || birthdaySaving}
                         className={birthdayMessageEnabled ? "text-red-500" : "text-green-500"}
-                        aria-label={birthdayMessageEnabled ? "Desativar aniversário" : "Ativar aniversário"}
+                        aria-label={birthdayMessageEnabled ? "Desativar anivers�rio" : "Ativar anivers�rio"}
                       >
                         {birthdayMessageEnabled ? (
                           <PowerOff className="h-3.5 w-3.5" />
@@ -1073,7 +1071,7 @@ export default function AutomationPage() {
                     }
                   />
                   <TooltipContent>
-                    <p>{birthdayMessageEnabled ? "Desativar Aniversário" : "Ativar Aniversário"}</p>
+                    <p>{birthdayMessageEnabled ? "Desativar Anivers�rio" : "Ativar Anivers�rio"}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -1082,14 +1080,14 @@ export default function AutomationPage() {
 
             {!initialNewsCaptureEnabled && !initialAutoSendEnabled && !initialLessonsConfirmationEnabled && !initialWeeklySummaryEnabled && !initialQuickTipEnabled && !initialBirthdayEnabled && user?.role !== "ADMIN" && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                As funções de automação estão desativadas para a sua conta. Entre em contato com o administrador do
-                Talkion para mais informações.
+                As fun��es de automa��o est�o desativadas para a sua conta. Entre em contato com o administrador do
+                Talkion para mais informa��es.
               </div>
             )}
 
             {(initialNewsCaptureEnabled || initialAutoSendEnabled || initialLessonsConfirmationEnabled || initialQuickTipEnabled || initialBirthdayEnabled || user?.role === "ADMIN") && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Dias da semana (automático)</Label>
+              <Label className="text-sm font-medium">Dias da semana (autom�tico)</Label>
               <div className="flex flex-wrap gap-2">
                 {dayLabels.map((label, index) => (
                   <Button
@@ -1122,9 +1120,9 @@ export default function AutomationPage() {
       <Dialog open={dailyRunDialogOpen} onOpenChange={handleDailyRunDialogChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Gerar Notícia e Quiz</DialogTitle>
+            <DialogTitle>Gerar Not�cia e Quiz</DialogTitle>
             <DialogDescription>
-              {runningDailyNews ? "Buscando a notícia do dia e validando o quiz." : "Confira o status da geração diária."}
+              {runningDailyNews ? "Buscando a not�cia do dia e validando o quiz." : "Confira o status da gera��o di�ria."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1133,10 +1131,10 @@ export default function AutomationPage() {
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
                   {runningDailyNews
-                    ? "Processando notícias e quizzes..."
+                    ? "Processando not�cias e quizzes..."
                     : dailyRunError
                       ? "Processamento finalizado com erro"
-                      : "Processamento concluído"}
+                      : "Processamento conclu�do"}
                 </span>
                 <span>{dailyRunProgress}%</span>
               </div>
@@ -1153,11 +1151,11 @@ export default function AutomationPage() {
               <div className="space-y-2 rounded-lg border p-3 text-sm">
                 <p className="font-medium">Resumo</p>
                 <p className="text-muted-foreground">
-                  Notícias: {dailyRunResult?.news?.created || 0} criada(s) | {dailyRunResult?.news?.skippedSameDay || 0} bloqueio(s)
-                  por dia | {dailyRunResult?.news?.skippedSameNews || 0} bloqueio(s) por mesma notícia
+                  Not�cias: {dailyRunResult?.news?.created || 0} criada(s) | {dailyRunResult?.news?.skippedSameDay || 0} bloqueio(s)
+                  por dia | {dailyRunResult?.news?.skippedSameNews || 0} bloqueio(s) por mesma not�cia
                 </p>
                 <p className="text-muted-foreground">
-                  Quiz: {dailyRunResult?.quizzes?.created || 0} criado(s) | {dailyRunResult?.quizzes?.existing || 0} já existente(s)
+                  Quiz: {dailyRunResult?.quizzes?.created || 0} criado(s) | {dailyRunResult?.quizzes?.existing || 0} j� existente(s)
                 </p>
               </div>
             ) : null}
@@ -1168,8 +1166,8 @@ export default function AutomationPage() {
       <Dialog open={dispatchDialogOpen} onOpenChange={handleDispatchDialogChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Disparar Notícias em Lote</DialogTitle>
-            <DialogDescription>Configure abaixo onde a notícia deve ser enviada. O envio roda em segundo plano.</DialogDescription>
+            <DialogTitle>Disparar Not�cias em Lote</DialogTitle>
+            <DialogDescription>Configure abaixo onde a not�cia deve ser enviada. O envio roda em segundo plano.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
@@ -1177,7 +1175,7 @@ export default function AutomationPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Destinos do disparo</p>
-                  <p className="text-xs text-muted-foreground">Escolha para onde a notícia será enviada.</p>
+                  <p className="text-xs text-muted-foreground">Escolha para onde a not�cia ser� enviada.</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1213,8 +1211,8 @@ export default function AutomationPage() {
             {sendGroupNews ? (
               <div className="space-y-3 rounded-lg border p-4">
                 <div>
-                  <p className="text-sm font-medium">Grupo da Notícia</p>
-                  <p className="text-xs text-muted-foreground">Selecione um grupo já capturado na sincronização do WhatsApp.</p>
+                  <p className="text-sm font-medium">Grupo da Not�cia</p>
+                  <p className="text-xs text-muted-foreground">Selecione um grupo j� capturado na sincroniza��o do WhatsApp.</p>
                 </div>
 
                 <div className="space-y-4">
@@ -1244,7 +1242,7 @@ export default function AutomationPage() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="group-level-select">Nível da Notícia para o Grupo</Label>
+                      <Label htmlFor="group-level-select">N�vel da Not�cia para o Grupo</Label>
                     </div>
                     <Select
                       value={selectedGroupLevel}
@@ -1252,16 +1250,16 @@ export default function AutomationPage() {
                       disabled={dispatching || groupOptionsLoading || availableGroups.length === 0}
                     >
                       <SelectTrigger id="group-level-select" className="w-full h-10">
-                        <SelectValue placeholder="Selecione o nível">
-                          {selectedGroupLevel === "LEVEL_1" && "Nível 1"}
-                          {selectedGroupLevel === "LEVEL_2" && "Nível 2"}
-                          {selectedGroupLevel === "LEVEL_3" && "Nível 3"}
+                        <SelectValue placeholder="Selecione o n�vel">
+                          {selectedGroupLevel === "LEVEL_1" && "N�vel 1"}
+                          {selectedGroupLevel === "LEVEL_2" && "N�vel 2"}
+                          {selectedGroupLevel === "LEVEL_3" && "N�vel 3"}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="LEVEL_1">Nível 1</SelectItem>
-                        <SelectItem value="LEVEL_2">Nível 2</SelectItem>
-                        <SelectItem value="LEVEL_3">Nível 3</SelectItem>
+                        <SelectItem value="LEVEL_1">N�vel 1</SelectItem>
+                        <SelectItem value="LEVEL_2">N�vel 2</SelectItem>
+                        <SelectItem value="LEVEL_3">N�vel 3</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1279,8 +1277,8 @@ export default function AutomationPage() {
                     <AlertTitle>Nenhum grupo capturado</AlertTitle>
                     <AlertDescription>
                       {groupSyncStatus?.inProgress
-                        ? "A sincronização está em andamento. Aguarde alguns instantes."
-                        : "Seus grupos não foram encontrados no banco de dados. Vá para a tela de WhatsApp e sincronize novamente."}
+                        ? "A sincroniza��o est� em andamento. Aguarde alguns instantes."
+                        : "Seus grupos n�o foram encontrados no banco de dados. V� para a tela de WhatsApp e sincronize novamente."}
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -1311,3 +1309,4 @@ export default function AutomationPage() {
     </>
   );
 }
+

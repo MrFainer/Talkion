@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Sidebar } from "@/components/Sidebar";
 import { useAuthStore } from "@/store/auth";
 import { usePlanFeatures } from "@/hooks/usePlanFeatures";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,7 +117,6 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p className="text-muted-foreground">Carregando...</p>
         </main>
@@ -128,7 +126,6 @@ export default function SettingsPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <div>

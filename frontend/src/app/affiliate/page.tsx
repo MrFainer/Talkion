@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Link2, Copy, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -94,7 +93,6 @@ export default function AffiliatePage() {
   if (!hasActivePlan) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <h1 className="text-3xl font-bold tracking-tight mb-4">Programa de Afiliados</h1>
@@ -109,7 +107,6 @@ export default function AffiliatePage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Programa de Afiliados</h1>
@@ -255,3 +252,4 @@ export default function AffiliatePage() {
     </>
   );
 }
+

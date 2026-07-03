@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { MercadoPagoCardPaymentBrick } from "@/components/MercadoPagoCardPaymentBrick";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -345,7 +344,6 @@ export default function CheckoutPage() {
   if (loading) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p className="text-muted-foreground">Carregando planos...</p>
         </main>
@@ -355,7 +353,6 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
         {step === "payment" && selectedPlan ? (() => {
           const extraStudents = Math.max(0, studentCount - selectedPlan.max_students);
@@ -868,3 +865,4 @@ export default function CheckoutPage() {
     </>
   );
 }
+

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { MercadoPagoCardPaymentBrick } from "@/components/MercadoPagoCardPaymentBrick";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -182,7 +181,6 @@ export default function SubscriptionsPage() {
   if (loading) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p className="text-muted-foreground">Carregando assinatura...</p>
         </main>
@@ -195,7 +193,6 @@ export default function SubscriptionsPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Assinatura</h1>
@@ -775,3 +772,4 @@ export default function SubscriptionsPage() {
     </>
   );
 }
+

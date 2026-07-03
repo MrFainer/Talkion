@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "@/components/Sidebar";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,7 +137,6 @@ export default function LessonsPage() {
 
   return (
     <div className="flex min-h-[100dvh] w-full">
-      <Sidebar />
       <main className="flex-1 bg-muted/40 p-4 pt-20 md:p-8 md:pt-8 overflow-x-hidden">
         <div className="mx-auto w-full space-y-6 max-w-none">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -296,3 +294,4 @@ export default function LessonsPage() {
     </div>
   );
 }
+

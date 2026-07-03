@@ -1,10 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   LineChart,
@@ -89,7 +88,6 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p className="text-muted-foreground">Carregando dashboard...</p>
         </main>
@@ -119,7 +117,6 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -132,10 +129,10 @@ export default function DashboardPage() {
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div className="flex-1">
-              <p className="font-medium text-amber-800">Créditos acabando</p>
+              <p className="font-medium text-amber-800">Cr�ditos acabando</p>
               <p className="mt-1 text-sm text-amber-700">
-                Você tem apenas <strong>{formatNumber(summary.creditBalance ?? 0)} créditos</strong>.
-                Assine um plano para não ficar sem.
+                Voc� tem apenas <strong>{formatNumber(summary.creditBalance ?? 0)} cr�ditos</strong>.
+                Assine um plano para n�o ficar sem.
               </p>
             </div>
             <button
@@ -151,7 +148,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-emerald-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Créditos Disponíveis
+                Cr�ditos Dispon�veis
               </CardTitle>
               <CreditCard className="h-4 w-4 text-emerald-500" />
             </CardHeader>
@@ -160,7 +157,7 @@ export default function DashboardPage() {
                 {formatNumber(summary.creditBalance ?? 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Saldo disponível para uso
+                Saldo dispon�vel para uso
               </p>
             </CardContent>
           </Card>
@@ -168,7 +165,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-blue-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Correções Realizadas
+                Corre��es Realizadas
               </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-blue-500" />
             </CardHeader>
@@ -177,7 +174,7 @@ export default function DashboardPage() {
                 {formatNumber(summary.totalCorrecoes ?? 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Feedbacks de pronúncia enviados
+                Feedbacks de pron�ncia enviados
               </p>
             </CardContent>
           </Card>
@@ -185,7 +182,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-violet-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Avaliações Realizadas
+                Avalia��es Realizadas
               </CardTitle>
               <ClipboardCheck className="h-4 w-4 text-violet-500" />
             </CardHeader>
@@ -202,7 +199,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-amber-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Exercícios Gerados
+                Exerc�cios Gerados
               </CardTitle>
               <FileText className="h-4 w-4 text-amber-500" />
             </CardHeader>
@@ -223,7 +220,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-primary" />
-                  Taxa de Resposta Diária
+                  Taxa de Resposta Di�ria
                 </CardTitle>
                 <span
                   className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
@@ -256,7 +253,7 @@ export default function DashboardPage() {
                   {engagement.todayActiveStudents ?? 0}
                 </span>{" "}
                 alunos responderam hoje
-                <span className="mx-2">·</span>
+                <span className="mx-2">�</span>
                 <span className="font-medium text-foreground">
                   {Math.round(engagement.yesterdayRate ?? 0)}%
                 </span>{" "}
@@ -305,12 +302,12 @@ export default function DashboardPage() {
                   {engagement.consecutiveDays?.classAverage ?? 0}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  dias de média da turma
+                  dias de m�dia da turma
                 </span>
               </div>
 
               <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                Melhores Sequências
+                Melhores Sequ�ncias
               </h4>
               <div className="space-y-2">
                 {(engagement.consecutiveDays?.bestStreaks || []).map(
@@ -321,7 +318,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs font-medium text-muted-foreground w-5">
-                          {idx + 1}º
+                          {idx + 1}�
                         </span>
                         <span className="text-sm font-medium truncate">
                           {student.fullName}
@@ -336,7 +333,7 @@ export default function DashboardPage() {
                 {(!engagement.consecutiveDays?.bestStreaks ||
                   engagement.consecutiveDays.bestStreaks.length === 0) && (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum dado disponível ainda.
+                    Nenhum dado dispon�vel ainda.
                   </p>
                 )}
               </div>
@@ -400,9 +397,9 @@ export default function DashboardPage() {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {student.quizAnswers} quiz
-                            {student.quizAnswers !== 1 ? "zes" : ""} ·{" "}
-                            {student.speakingFeedbacks} pronúncia
-                            {student.speakingFeedbacks !== 1 ? "s" : ""} ·{" "}
+                            {student.quizAnswers !== 1 ? "zes" : ""} �{" "}
+                            {student.speakingFeedbacks} pron�ncia
+                            {student.speakingFeedbacks !== 1 ? "s" : ""} �{" "}
                             {student.lessonConfirmations} aula
                             {student.lessonConfirmations !== 1 ? "s" : ""}
                           </p>
@@ -432,17 +429,17 @@ export default function DashboardPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Mic className="h-4 w-4 text-primary" />
-                Evolução de Pronúncia
+                Evolu��o de Pron�ncia
               </CardTitle>
               {pronunciation.total > 0 && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Média geral:{" "}
+                  M�dia geral:{" "}
                   <span className="font-medium text-foreground">
                     {formatDecimal(pronunciation.average)}
                   </span>{" "}
-                  ·{" "}
-                  {formatNumber(pronunciation.total)} avaliação
-                  {pronunciation.total !== 1 ? "ões" : ""} no total
+                  �{" "}
+                  {formatNumber(pronunciation.total)} avalia��o
+                  {pronunciation.total !== 1 ? "�es" : ""} no total
                 </p>
               )}
             </CardHeader>
@@ -467,7 +464,7 @@ export default function DashboardPage() {
                         <Tooltip
                           formatter={(value: any) => [
                             formatDecimal(value),
-                            "Nota média",
+                            "Nota m�dia",
                           ]}
                           labelFormatter={(label: any) => `Semana: ${label}`}
                         />
@@ -482,16 +479,16 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-center gap-6 mt-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                      <span>Nota média semanal</span>
+                      <span>Nota m�dia semanal</span>
                     </div>
                     <span>
-                      Máx:{" "}
+                      M�x:{" "}
                       {formatDecimal(Math.max(
                         ...chartData.map((d: any) => d.score)
                       ))}
                     </span>
                     <span>
-                      Mín:{" "}
+                      M�n:{" "}
                       {formatDecimal(Math.min(
                         ...chartData.map((d: any) => d.score)
                       ))}
@@ -503,11 +500,11 @@ export default function DashboardPage() {
                   <Mic className="h-10 w-10 text-muted-foreground/40 mb-2" />
                   <p className="text-sm text-muted-foreground">
                     {chartData.length === 1
-                      ? "Apenas uma avaliação registrada. Continue acompanhando para ver a evolução."
-                      : "Nenhuma avaliação de pronúncia registrada ainda."}
+                      ? "Apenas uma avalia��o registrada. Continue acompanhando para ver a evolu��o."
+                      : "Nenhuma avalia��o de pron�ncia registrada ainda."}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    As avaliações aparecerão conforme os alunos enviarem áudios.
+                    As avalia��es aparecer�o conforme os alunos enviarem �udios.
                   </p>
                 </div>
               )}
@@ -517,7 +514,7 @@ export default function DashboardPage() {
 
         <div className="text-center text-xs text-muted-foreground py-4 border-t">
           <p>
-            Última atualização:{" "}
+            �ltima atualiza��o:{" "}
             {new Date().toLocaleString("pt-BR", {
               dateStyle: "short",
               timeStyle: "short",
@@ -528,3 +525,4 @@ export default function DashboardPage() {
     </>
   );
 }
+

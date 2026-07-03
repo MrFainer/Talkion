@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -263,7 +262,6 @@ export default function MessagesPage() {
   if (loading) {
     return (
       <div className="flex min-h-[100dvh] w-full">
-        <Sidebar />
         <main className="flex-1 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <p>Carregando configurações...</p>
         </main>
@@ -273,7 +271,6 @@ export default function MessagesPage() {
 
   return (
     <div className="flex min-h-[100dvh] w-full">
-      <Sidebar />
       <main className="flex-1 min-w-0 overflow-y-auto p-4 pt-20 md:p-8 md:pt-8 bg-muted/10">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>

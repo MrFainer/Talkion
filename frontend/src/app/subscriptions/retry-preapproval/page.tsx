@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { Sidebar } from "@/components/Sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,7 +55,6 @@ export default function RetryPreapprovalPage() {
   if (!isHydrated || loading) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8 flex items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </main>
@@ -67,7 +65,6 @@ export default function RetryPreapprovalPage() {
   if (error && !subscription) {
     return (
       <>
-        <Sidebar />
         <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
           <Card className="max-w-md mx-auto">
             <CardContent className="pt-6 text-center">
@@ -85,7 +82,6 @@ export default function RetryPreapprovalPage() {
 
   return (
     <>
-      <Sidebar />
       <main className="flex-1 min-w-0 p-4 pt-20 md:p-8 md:pt-8">
         <div className="max-w-md mx-auto space-y-6">
           <div>
@@ -182,3 +178,4 @@ export default function RetryPreapprovalPage() {
     </>
   );
 }
+
