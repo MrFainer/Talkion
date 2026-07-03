@@ -11,6 +11,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   const [mounted, setMounted] = useState(false);
   const adminAllowedRoutes = ["/billing", "/affiliate", "/admin"];
   const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isAdminOnlyRoute = pathname === "/billing" || isAdminRoute;
 
   useEffect(() => {
     setMounted(true);
@@ -47,13 +48,13 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   useEffect(() => {
     if (!mounted || !isHydrated || !isAuthenticated || user?.role === "ADMIN") return;
-    if (!isAdminRoute) return;
+    if (!isAdminOnlyRoute) return;
 
     const fallbackRoute =
       isFreePlan || subscriptionStatus === "none" ? "/welcome" : "/dashboard";
     router.replace(fallbackRoute);
   }, [
-    isAdminRoute,
+    isAdminOnlyRoute,
     isAuthenticated,
     isFreePlan,
     isHydrated,
@@ -72,7 +73,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return null;
   }
 
-  if (isAuthenticated && user?.role !== "ADMIN" && isAdminRoute) {
+  if (isAuthenticated && user?.role !== "ADMIN" && isAdminOnlyRoute) {
     return null;
   }
 
