@@ -129,10 +129,10 @@ export default function DashboardPage() {
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <Zap className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div className="flex-1">
-              <p className="font-medium text-amber-800">Cr�ditos acabando</p>
+              <p className="font-medium text-amber-800">Créditos acabando</p>
               <p className="mt-1 text-sm text-amber-700">
-                Voc� tem apenas <strong>{formatNumber(summary.creditBalance ?? 0)} cr�ditos</strong>.
-                Assine um plano para n�o ficar sem.
+                Você tem apenas <strong>{formatNumber(summary.creditBalance ?? 0)} créditos</strong>.
+                Assine um plano para não ficar sem.
               </p>
             </div>
             <button
@@ -148,7 +148,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-emerald-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Cr�ditos Dispon�veis
+                Créditos Disponíveis
               </CardTitle>
               <CreditCard className="h-4 w-4 text-emerald-500" />
             </CardHeader>
@@ -157,7 +157,7 @@ export default function DashboardPage() {
                 {formatNumber(summary.creditBalance ?? 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Saldo dispon�vel para uso
+                Saldo disponível para uso
               </p>
             </CardContent>
           </Card>
@@ -165,7 +165,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-blue-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Corre��es Realizadas
+                Correções Realizadas
               </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-blue-500" />
             </CardHeader>
@@ -174,7 +174,7 @@ export default function DashboardPage() {
                 {formatNumber(summary.totalCorrecoes ?? 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Feedbacks de pron�ncia enviados
+                Feedbacks de pronúncia enviados
               </p>
             </CardContent>
           </Card>
@@ -182,7 +182,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-violet-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Avalia��es Realizadas
+                Avaliações Realizadas
               </CardTitle>
               <ClipboardCheck className="h-4 w-4 text-violet-500" />
             </CardHeader>
@@ -199,7 +199,7 @@ export default function DashboardPage() {
           <Card className="border-l-4 border-l-amber-500">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Exerc�cios Gerados
+                Exercícios Gerados
               </CardTitle>
               <FileText className="h-4 w-4 text-amber-500" />
             </CardHeader>
@@ -220,7 +220,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-primary" />
-                  Taxa de Resposta Di�ria
+                  Taxa de Resposta Diária
                 </CardTitle>
                 <span
                   className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
@@ -253,7 +253,7 @@ export default function DashboardPage() {
                   {engagement.todayActiveStudents ?? 0}
                 </span>{" "}
                 alunos responderam hoje
-                <span className="mx-2">�</span>
+                <span className="mx-2">|</span>
                 <span className="font-medium text-foreground">
                   {Math.round(engagement.yesterdayRate ?? 0)}%
                 </span>{" "}
@@ -302,12 +302,12 @@ export default function DashboardPage() {
                   {engagement.consecutiveDays?.classAverage ?? 0}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  dias de m�dia da turma
+                  dias de média da turma
                 </span>
               </div>
 
               <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                Melhores Sequ�ncias
+                Melhores Sequências
               </h4>
               <div className="space-y-2">
                 {(engagement.consecutiveDays?.bestStreaks || []).map(
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs font-medium text-muted-foreground w-5">
-                          {idx + 1}�
+                          {idx + 1}º
                         </span>
                         <span className="text-sm font-medium truncate">
                           {student.fullName}
@@ -333,7 +333,7 @@ export default function DashboardPage() {
                 {(!engagement.consecutiveDays?.bestStreaks ||
                   engagement.consecutiveDays.bestStreaks.length === 0) && (
                   <p className="text-sm text-muted-foreground">
-                    Nenhum dado dispon�vel ainda.
+                    Nenhum dado disponível ainda.
                   </p>
                 )}
               </div>
@@ -397,9 +397,9 @@ export default function DashboardPage() {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {student.quizAnswers} quiz
-                            {student.quizAnswers !== 1 ? "zes" : ""} �{" "}
-                            {student.speakingFeedbacks} pron�ncia
-                            {student.speakingFeedbacks !== 1 ? "s" : ""} �{" "}
+                            {student.quizAnswers !== 1 ? "zes" : ""} |{" "}
+                            {student.speakingFeedbacks} pronúncia
+                            {student.speakingFeedbacks !== 1 ? "s" : ""} |{" "}
                             {student.lessonConfirmations} aula
                             {student.lessonConfirmations !== 1 ? "s" : ""}
                           </p>
@@ -429,17 +429,17 @@ export default function DashboardPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Mic className="h-4 w-4 text-primary" />
-                Evolu��o de Pron�ncia
+                Evolução de Pronúncia
               </CardTitle>
               {pronunciation.total > 0 && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  M�dia geral:{" "}
+                  Média geral:{" "}
                   <span className="font-medium text-foreground">
                     {formatDecimal(pronunciation.average)}
                   </span>{" "}
-                  �{" "}
-                  {formatNumber(pronunciation.total)} avalia��o
-                  {pronunciation.total !== 1 ? "�es" : ""} no total
+                  |{" "}
+                  {formatNumber(pronunciation.total)} avaliação
+                  {pronunciation.total !== 1 ? "ões" : ""} no total
                 </p>
               )}
             </CardHeader>
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                         <Tooltip
                           formatter={(value: any) => [
                             formatDecimal(value),
-                            "Nota m�dia",
+                            "Nota média",
                           ]}
                           labelFormatter={(label: any) => `Semana: ${label}`}
                         />
@@ -479,16 +479,16 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-center gap-6 mt-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                      <span>Nota m�dia semanal</span>
+                      <span>Nota média semanal</span>
                     </div>
                     <span>
-                      M�x:{" "}
+                      Máx:{" "}
                       {formatDecimal(Math.max(
                         ...chartData.map((d: any) => d.score)
                       ))}
                     </span>
                     <span>
-                      M�n:{" "}
+                      Mín:{" "}
                       {formatDecimal(Math.min(
                         ...chartData.map((d: any) => d.score)
                       ))}
@@ -500,11 +500,11 @@ export default function DashboardPage() {
                   <Mic className="h-10 w-10 text-muted-foreground/40 mb-2" />
                   <p className="text-sm text-muted-foreground">
                     {chartData.length === 1
-                      ? "Apenas uma avalia��o registrada. Continue acompanhando para ver a evolu��o."
-                      : "Nenhuma avalia��o de pron�ncia registrada ainda."}
+                      ? "Apenas uma avaliação registrada. Continue acompanhando para ver a evolução."
+                      : "Nenhuma avaliação de pronúncia registrada ainda."}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    As avalia��es aparecer�o conforme os alunos enviarem �udios.
+                    As avaliações aparecerão conforme os alunos enviarem áudios.
                   </p>
                 </div>
               )}
@@ -514,7 +514,7 @@ export default function DashboardPage() {
 
         <div className="text-center text-xs text-muted-foreground py-4 border-t">
           <p>
-            �ltima atualiza��o:{" "}
+            Última atualização:{" "}
             {new Date().toLocaleString("pt-BR", {
               dateStyle: "short",
               timeStyle: "short",
