@@ -371,19 +371,19 @@ export default function AdminAccessesPage() {
           {filteredVisits.length === 0 ? (
             <p className="text-muted-foreground">Nenhum acesso encontrado.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[400px] overflow-auto pr-1">
               <Table className="min-w-[1200px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Página</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Dispositivo</TableHead>
-                    <TableHead>Navegador / SO</TableHead>
-                    <TableHead>Referer</TableHead>
-                    <TableHead>URL</TableHead>
-                    <TableHead>IP</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Data</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Página</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Origem</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Código</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Dispositivo</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Navegador / SO</TableHead>
+                    <TableHead className="sticky top-0 bg-background">Referer</TableHead>
+                    <TableHead className="sticky top-0 bg-background">URL</TableHead>
+                    <TableHead className="sticky top-0 bg-background">IP</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
