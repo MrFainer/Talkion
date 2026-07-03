@@ -79,6 +79,13 @@ export default function LoginPage() {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
   const { login, isAuthenticated, isHydrated, hydrate } = useAuthStore();
+  const navigateAfterAuth = (href: string) => {
+    if (typeof window !== "undefined") {
+      window.location.replace(href);
+      return;
+    }
+    router.replace(href);
+  };
   const getAffiliateCookie = () => {
     const match = document.cookie.match(/(?:^| )affiliate_ref=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : '';
@@ -118,11 +125,11 @@ export default function LoginPage() {
     if (!isHydrated || !isAuthenticated || sessionStorage.getItem('selectedPlan')) return;
     const { subscriptionStatus, isFreePlan, user } = useAuthStore.getState();
     if (user?.role === "ADMIN") {
-      router.push("/billing");
+      navigateAfterAuth("/billing");
       return;
     }
     if (subscriptionStatus) {
-      router.push(subscriptionStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
+      navigateAfterAuth(subscriptionStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
       return;
     }
     const storedUser = useAuthStore.getState().user;
@@ -134,9 +141,9 @@ export default function LoginPage() {
         if (cancelled) return;
         const subStatus = subRes.data?.status;
         const isFreePlan = subRes.data?.plan?.is_free;
-        router.push(!subStatus || subStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
+        navigateAfterAuth(!subStatus || subStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
       } catch {
-        if (!cancelled) router.push("/welcome");
+        if (!cancelled) navigateAfterAuth("/welcome");
       }
     })();
     return () => { cancelled = true; };
@@ -296,7 +303,7 @@ export default function LoginPage() {
             : "/dashboard";
 
       toast.success("Login realizado com sucesso!");
-      router.push(redirectPath);
+      navigateAfterAuth(redirectPath);
     } catch (error: any) {
       if (error.response?.data?.message?.includes("não verificado")) {
         setRegisteredEmail(normalizedEmail);

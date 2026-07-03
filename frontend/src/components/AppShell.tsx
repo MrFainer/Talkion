@@ -12,12 +12,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const hideSidebar = PUBLIC_ROUTES.some((route) =>
     route === "/" ? pathname === route : pathname.startsWith(route)
   );
+  const isAdminShellPath =
+    pathname === "/billing" || pathname === "/admin" || pathname.startsWith("/admin/");
+  const shouldHoldSidebar =
+    !isHydrated ||
+    !user ||
+    (user.role === "ADMIN" && !isAdminShellPath) ||
+    (user.role !== "ADMIN" && isAdminShellPath);
 
   if (hideSidebar) {
     return <>{children}</>;
   }
 
-  if (!isHydrated || !user) {
+  if (shouldHoldSidebar) {
     return (
       <>
         <div className="fixed left-0 right-0 top-0 z-50 h-14 border-b bg-background md:hidden" />
