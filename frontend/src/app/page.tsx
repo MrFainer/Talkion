@@ -233,6 +233,16 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const scrollToSection = params.get("scroll");
+    if (scrollToSection) {
+      setTimeout(() => {
+        document.getElementById(scrollToSection)?.scrollIntoView({ behavior: "smooth" });
+      }, 500);
+    }
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 50);
       setShowTop(window.scrollY > 400);

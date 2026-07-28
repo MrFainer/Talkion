@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Link2, Copy, CheckCircle2, Loader2 } from "lucide-react";
+import { Users, Link2, Copy, CheckCircle2, Loader2, Globe, UserPlus, CreditCard, LogIn } from "lucide-react";
 import { toast } from "sonner";
+
+const linkTypes = [
+  { value: "landing", label: "Página Inicial", description: "Leva para a landing page do Talkion", icon: Globe },
+  { value: "register", label: "Criar Conta", description: "Leva direto para o formulário de cadastro", icon: UserPlus },
+  { value: "plans", label: "Planos", description: "Leva para a seção de planos na landing page", icon: CreditCard },
+  { value: "login", label: "Login", description: "Leva para a página de login", icon: LogIn },
+];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -24,6 +31,7 @@ export default function AffiliatePage() {
   const [copied, setCopied] = useState(false);
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [checkingPlan, setCheckingPlan] = useState(true);
+  const [selectedType, setSelectedType] = useState("register");
 
   useEffect(() => { hydrate(); }, [hydrate]);
 
@@ -54,12 +62,23 @@ export default function AffiliatePage() {
     }
   }, [user?.id, user?.role, subscriptionStatus, setSubscriptionData]);
 
+  const fetchLink = useCallback(async (type: string) => {
+    if (!user?.id) return;
+    try {
+      const res = await api.get(`/affiliate/link/${user.id}`, { params: { type } });
+      setLink(res.data.link);
+      setCode(res.data.code);
+    } catch {
+      toast.error("Erro ao carregar link");
+    }
+  }, [user?.id]);
+
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     try {
       setLoading(true);
       const [linkRes, statsRes] = await Promise.all([
-        api.get(`/affiliate/link/${user.id}`),
+        api.get(`/affiliate/link/${user.id}`, { params: { type: selectedType } }),
         api.get(`/affiliate/stats/${user.id}`),
       ]);
       setLink(linkRes.data.link);
@@ -70,9 +89,14 @@ export default function AffiliatePage() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, selectedType]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleTypeChange = (type: string) => {
+    setSelectedType(type);
+    fetchLink(type);
+  };
 
   const handleCopy = async () => {
     try {
@@ -142,6 +166,35 @@ export default function AffiliatePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground mb-3">Escolha o destino do link:</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {linkTypes.map((type) => {
+                  const Icon = type.icon;
+                  const isSelected = selectedType === type.value;
+                  return (
+                    <button
+                      key={type.value}
+                      onClick={() => handleTypeChange(type.value)}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-sm transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/5 ring-1 ring-primary"
+                          : "border-border hover:border-primary/50 hover:bg-muted/50"
+                      }`}
+                    >
+                      <Icon className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                      <span className={`font-medium ${isSelected ? "text-primary" : "text-foreground"}`}>
+                        {type.label}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground text-center leading-tight">
+                        {type.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -271,4 +324,3 @@ export default function AffiliatePage() {
     </>
   );
 }
-

@@ -22,13 +22,19 @@ export class AffiliateService {
     return code;
   }
 
-  async getAffiliateLink(userId: string): Promise<{ code: string; link: string }> {
+  async getAffiliateLink(userId: string, type?: string): Promise<{ code: string; link: string }> {
     const code = await this.getOrCreateReferralCode(userId);
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    return {
-      code,
-      link: `${baseUrl}/login?ref=${code}&register=true`,
+
+    const paths: Record<string, string> = {
+      landing: `${baseUrl}/?ref=${code}`,
+      register: `${baseUrl}/login?ref=${code}&register=true`,
+      plans: `${baseUrl}/?ref=${code}&scroll=plans`,
+      login: `${baseUrl}/login?ref=${code}`,
     };
+
+    const link = paths[type || 'register'] || paths.register;
+    return { code, link };
   }
 
   async getStats(userId: string) {
