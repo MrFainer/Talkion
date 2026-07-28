@@ -311,7 +311,7 @@ export class AuthService {
         },
       });
       subscriptionStatus = sub?.status || null;
-      isFreePlan = sub?.plan?.is_free || false;
+      isFreePlan = !sub || sub.plan?.is_free || false;
     } catch {
       subscriptionStatus = null;
     }
