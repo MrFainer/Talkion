@@ -69,7 +69,7 @@ const formatLessonDate = (value: string | null) => {
 
 export default function StudentsPage() {
   const router = useRouter();
-  const { user, isHydrated, hydrate } = useAuthStore();
+  const { user, isHydrated, hydrate, isFreePlan } = useAuthStore();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -761,6 +761,7 @@ export default function StudentsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {!isFreePlan && (
                 <div className="space-y-2">
                   <Label htmlFor="birthday">Data de Aniversário</Label>
                   <Input
@@ -770,6 +771,8 @@ export default function StudentsPage() {
                     onChange={(e) => setBirthday(e.target.value)}
                   />
                 </div>
+                )}
+                {!isFreePlan && (
                 <div className="space-y-3 rounded-lg border p-3">
                   <p className="text-sm font-medium">Aulas (opcional)</p>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -871,6 +874,7 @@ export default function StudentsPage() {
                     </div>
                   ) : null}
                 </div>
+                )}
                 <Button type="submit" className="w-full" disabled={submitting}>
                   {submitting ? "Salvando..." : "Salvar"}
                 </Button>
