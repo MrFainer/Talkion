@@ -100,6 +100,9 @@ export class AuthService {
           'Créditos de boas-vindas para teste',
           'trial',
         );
+
+        await this.ensureFreeSubscription(updated.id);
+
         return await this.generateAuthResponse(updated);
       }
       return await this.generateAuthResponse(user);
@@ -124,6 +127,8 @@ export class AuthService {
       'Créditos de boas-vindas para teste',
       'trial',
     );
+
+    await this.ensureFreeSubscription(updatedUser.id);
 
     return await this.generateAuthResponse(updatedUser);
   }
@@ -294,6 +299,32 @@ export class AuthService {
     return {
       message: 'Senha redefinida com sucesso.',
     };
+  }
+
+  private async ensureFreeSubscription(userId: string) {
+    const existingSubscription = await this.prisma.subscription.findFirst({
+      where: { user_id: userId, status: { in: ['active', 'pending', 'paused', 'past_due'] } },
+      select: { id: true },
+    });
+
+    if (!existingSubscription) {
+      const freePlan = await this.prisma.subscriptionPlan.findFirst({
+        where: { active: true, OR: [{ is_free: true }, { name: 'Free' }] },
+        orderBy: { created_at: 'asc' },
+        select: { id: true, max_students: true },
+      });
+
+      if (freePlan) {
+        await this.prisma.subscription.create({
+          data: {
+            user_id: userId,
+            plan_id: freePlan.id,
+            status: 'active',
+            max_students: freePlan.max_students,
+          },
+        });
+      }
+    }
   }
 
   private async generateAuthResponse(user: any) {
