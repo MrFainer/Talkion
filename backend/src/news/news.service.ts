@@ -231,6 +231,22 @@ export class NewsService {
       );
     }
 
+    const studentCount = await this.prisma.student.count({
+      where: { teacher_id: teacherId, active: true },
+    });
+
+    if (studentCount === 0) {
+      this.logger.log(
+        `Professor ${teacherId} não possui alunos ativos. Pulando captura de notícia e geração de quiz para não debitar créditos desnecessariamente.`,
+      );
+      return {
+        message:
+          'Professor sem alunos ativos. Captura de notícia e quiz ignorados.',
+        news: { created: 0, skippedSameDay: 0, skippedSameNews: 0, errors: 0, items: [] },
+        quizzes: { created: 0, existing: 0, errors: 0, items: [] },
+      };
+    }
+
     const newsResults = await this.scrapeLatestNews(tracking);
     const quizResults = generateQuiz
       ? await this.generateQuizzesForResults(newsResults, tracking)
