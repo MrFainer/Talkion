@@ -23,7 +23,9 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
       return;
     }
 
-    if (subscriptionStatus) return;
+    const needsBillingDate =
+      subscriptionStatus === "past_due" && !subscriptionNextBillingDate;
+    if (subscriptionStatus && !needsBillingDate) return;
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
@@ -37,7 +39,7 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
     };
 
     fetchStatus();
-  }, [user, isHydrated, pathname, subscriptionStatus, setSubscriptionData]);
+  }, [user, isHydrated, pathname, subscriptionStatus, subscriptionNextBillingDate, setSubscriptionData]);
 
   useEffect(() => {
     if (subscriptionStatus === "none" && user?.id && trialCredits === null && !checkingCredits) {
@@ -149,6 +151,10 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
   }
 
   if (subscriptionStatus === "past_due") {
+    const isBeforeExpiry = subscriptionNextBillingDate && new Date(subscriptionNextBillingDate) > new Date();
+    if (isBeforeExpiry) {
+      return <>{children}</>;
+    }
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-md text-center space-y-6">

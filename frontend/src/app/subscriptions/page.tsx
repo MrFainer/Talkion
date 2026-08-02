@@ -265,18 +265,20 @@ export default function SubscriptionsPage() {
           <div className="mb-6 flex items-start gap-4 rounded-xl border border-red-200 bg-red-50 p-4">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
             <div className="flex-1">
-              <p className="font-medium text-red-800">Pagamento recorrente recusado</p>
+              <p className="font-medium text-red-800">Pagamento recusado — regularize para não perder o acesso</p>
               <p className="mt-1 text-sm text-red-700">
                 {rejectionReason
                   ? <>{rejectionReason} </> 
                   : <>A cobrança recorrente do seu plano foi recusada. </>}
-                Atualize seu cartão para evitar a interrupção do acesso.
+                Você ainda pode usar o Talkion até{" "}
+                {subscription.next_billing_date ? (
+                  <strong>{formatDate(subscription.next_billing_date)}</strong>
+                ) : (
+                  "o fim do período"
+                )}.
+                Depois disso, o acesso é suspenso até o pagamento ser aprovado.
+                Atualize seu cartão para regularizar e evitar a interrupção.
               </p>
-              {subscription.next_billing_date && (
-                <p className="mt-1 text-sm text-red-600">
-                  Próxima tentativa: <strong>{formatDate(subscription.next_billing_date)}</strong>
-                </p>
-              )}
             </div>
             <button
               onClick={() => { setShowUpdateCard(true); setUpdateCardError(null); setUpdateCardSuccess(false); }}
@@ -454,8 +456,10 @@ export default function SubscriptionsPage() {
                     </div>
                     {!subscription.plan?.is_free && (
                     <div className="flex items-center justify-between pb-3 border-b">
-                      <span className="text-sm text-muted-foreground">
-                        {subscription.status === "cancelled" ? "Ativa até" : "Próxima Cobrança"}
+<span className="text-sm text-muted-foreground">
+                        {subscription.status === "cancelled" ? "Ativa até"
+                          : subscription.status === "past_due" ? "Renovação pendente de pagamento"
+                          : "Próxima Cobrança"}
                       </span>
                       <span className="text-sm font-semibold">
                         {formatDate(subscription.next_billing_date)}
@@ -534,9 +538,15 @@ export default function SubscriptionsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {subscription.payments && subscription.payments.length > 0 ? (
+{subscription.payments && subscription.payments.length > 0 ? (
                     <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                      {subscription.payments.map((payment: any) => (
+                      {[...subscription.payments]
+                        .sort(
+                          (a: any, b: any) =>
+                            new Date(b.paid_at || b.created_at).getTime() -
+                            new Date(a.paid_at || a.created_at).getTime()
+                        )
+                        .map((payment: any) => (
                         <div
                           key={payment.id}
                           className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5"

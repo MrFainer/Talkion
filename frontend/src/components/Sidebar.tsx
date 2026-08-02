@@ -27,6 +27,7 @@ import {
   Coins,
   FileText,
   Activity,
+  AlertTriangle,
 } from "lucide-react";
 
 const normalizeWhatsappStatus = (value: unknown) => {
@@ -64,6 +65,7 @@ type SidebarNavProps = {
   creditBalance?: number | null;
   hasActivePlan?: boolean | null;
   planName?: string | null;
+  subscriptionHasIssue?: boolean;
   onLogout: () => void;
 };
 
@@ -135,6 +137,7 @@ function SidebarNav({
   creditBalance,
   hasActivePlan,
   planName,
+  subscriptionHasIssue,
   onLogout,
 }: SidebarNavProps) {
   return (
@@ -266,6 +269,9 @@ function SidebarNav({
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="flex-1">Assinatura</span>
+                    {subscriptionHasIssue ? (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                    ) : null}
                     {planName === "Free" ? (
                       <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 leading-tight">
                         Grátis
@@ -332,6 +338,7 @@ export function Sidebar() {
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
+  const [subscriptionHasIssue, setSubscriptionHasIssue] = useState(false);
   const [subscriptionResolved, setSubscriptionResolved] = useState(false);
   const [settingsResolved, setSettingsResolved] = useState(false);
   const logoSrc = "/logo.png";
@@ -384,11 +391,20 @@ export function Sidebar() {
         setHasActivePlan(res.data?.status === 'active');
         setPlanFeatures(res.data?.plan?.features || null);
         setPlanName(res.data?.plan?.name || null);
+        const hasRejected = (res.data?.payments || []).some(
+          (p: any) =>
+            p.status === "rejected" ||
+            p.status === "refunded" ||
+            p.status === "cancelled" ||
+            p.status === "charged_back"
+        );
+        setSubscriptionHasIssue(res.data?.status === "past_due" || hasRejected);
       } catch {
         if (cancelled) return;
         setHasActivePlan(false);
         setPlanFeatures(null);
         setPlanName(null);
+        setSubscriptionHasIssue(false);
       } finally {
         if (!cancelled) {
           setSubscriptionResolved(true);
@@ -587,11 +603,12 @@ export function Sidebar() {
               userName={user?.name || ""}
               userEmail={user?.email || ""}
               whatsappStatus={whatsappStatus}
-              creditBalance={creditBalance}
-              hasActivePlan={hasActivePlan}
-              planName={planName}
-              onLogout={logout}
-            />
+creditBalance={creditBalance}
+          hasActivePlan={hasActivePlan}
+          planName={planName}
+          subscriptionHasIssue={subscriptionHasIssue}
+          onLogout={logout}
+        />
           </div>
         </div>
       ) : null}
