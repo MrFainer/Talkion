@@ -153,10 +153,12 @@ export class WebhooksController {
     } else if (
       ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(status)
     ) {
+      const statusDetail = data.status_detail || body.status_detail;
       await this.service.handlePaymentRejected(
         mpPaymentId,
         subscriptionId,
         amount,
+        statusDetail,
       );
     }
   }

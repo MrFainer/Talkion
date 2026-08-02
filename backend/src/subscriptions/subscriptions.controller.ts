@@ -84,6 +84,17 @@ export class SubscriptionsController {
     return this.service.cancelSubscription(userId);
   }
 
+  @Post('user/:userId/update-card')
+  async updateCard(
+    @Param('userId') userId: string,
+    @Body() body: { cardToken: string; subscriptionCardToken?: string },
+  ) {
+    if (!body.cardToken) {
+      throw new BadRequestException('cardToken é obrigatório');
+    }
+    return this.service.updateSubscriptionCard(userId, body);
+  }
+
   @Patch('user/:userId/plan')
   async changePlan(
     @Param('userId') userId: string,
@@ -96,6 +107,11 @@ export class SubscriptionsController {
   @Get('user/:userId/payments')
   async getPaymentHistory(@Param('userId') userId: string) {
     return this.service.getPaymentHistory(userId);
+  }
+
+  @Post('user/:userId/reconcile-payments')
+  async reconcilePayments(@Param('userId') userId: string) {
+    return this.service.reconcileSubscriptionPayments(userId);
   }
 
   // ─── Credit Top-Ups ─────────────────────────────────────────────────

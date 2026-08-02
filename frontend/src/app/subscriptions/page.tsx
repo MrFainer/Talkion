@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,7 +33,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 };
 
 const formatDate = (dateStr: string | null | undefined) => {
-  if (!dateStr) return "—";
+  if (!dateStr) return "â€”";
   return new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00")).toLocaleDateString("pt-BR");
 };
 
@@ -75,6 +75,10 @@ export default function SubscriptionsPage() {
   const [additionalLoading, setAdditionalLoading] = useState(false);
   const [additionalError, setAdditionalError] = useState<string | null>(null);
   const [topUpPacks, setTopUpPacks] = useState<any[]>([]);
+  const [showUpdateCard, setShowUpdateCard] = useState(false);
+  const [updatingCard, setUpdatingCard] = useState(false);
+  const [updateCardError, setUpdateCardError] = useState<string | null>(null);
+  const [updateCardSuccess, setUpdateCardSuccess] = useState(false);
 
   const fetchSubscription = useCallback(async () => {
     if (!isHydrated || !user?.id) return;
@@ -86,12 +90,19 @@ export default function SubscriptionsPage() {
         api.get(`/credits/transactions/${user.id}?limit=10`),
         api.get(`/subscriptions/user/${user.id}/current-students`),
         api.get(`/subscriptions/topup-plans`),
-      ]);
+]);
       if (subRes.status === "fulfilled") setSubscription(subRes.value.data);
       if (creditsRes.status === "fulfilled") setCreditBalance(creditsRes.value.data.balance);
       if (txnRes.status === "fulfilled") setTransactions(txnRes.value.data.data || []);
       if (studentsRes.status === "fulfilled") setCurrentStudents(studentsRes.value.data.count);
       if (topUpRes.status === "fulfilled") setTopUpPacks(topUpRes.value.data);
+      if (subRes.status === "fulfilled" && subRes.value.data) {
+        try {
+          await api.post(`/subscriptions/user/${user!.id}/reconcile-payments`);
+          const fresh = await api.get(`/subscriptions/user/${user!.id}`);
+          if (fresh.status === 200) setSubscription(fresh.data);
+        } catch { /* reconciliation opcional */ }
+      }
     } catch {
       setSubscription(null);
     } finally {
@@ -123,13 +134,13 @@ export default function SubscriptionsPage() {
         cardToken,
       });
       if (data.success) {
-        toast.success(`${formatNumber(data.credits)} créditos adicionados!`);
+        toast.success(`${formatNumber(data.credits)} crÃ©ditos adicionados!`);
         setShowTopUp(false);
         setSelectedPack(null);
         setTopUpStep("select");
         fetchSubscription();
       } else {
-        setTopUpError("Pagamento não aprovado");
+        setTopUpError("Pagamento nÃ£o aprovado");
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Erro na compra";
@@ -153,12 +164,37 @@ export default function SubscriptionsPage() {
         setAdditionalStep("select");
         fetchSubscription();
       } else {
-        setAdditionalError("Pagamento não aprovado");
+        setAdditionalError("Pagamento nÃ£o aprovado");
       }
     } catch (err: any) {
       setAdditionalError(err?.response?.data?.message || err?.message || "Erro na compra");
     } finally {
       setAdditionalLoading(false);
+    }
+};
+
+  const handleUpdateCardSubmit = async (cardToken: string, subscriptionCardToken?: string) => {
+    if (!user?.id) return;
+    setUpdatingCard(true);
+    setUpdateCardError(null);
+    try {
+      await api.post(`/subscriptions/user/${user.id}/update-card`, {
+        cardToken,
+        subscriptionCardToken,
+      });
+      setUpdateCardSuccess(true);
+      toast.success("CartÃ£o atualizado com sucesso!");
+      await fetchSubscription();
+      setTimeout(() => {
+        setShowUpdateCard(false);
+        setUpdateCardSuccess(false);
+      }, 1500);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "Erro ao atualizar cartÃ£o";
+      setUpdateCardError(msg);
+      throw err;
+    } finally {
+      setUpdatingCard(false);
     }
   };
 
@@ -190,6 +226,11 @@ export default function SubscriptionsPage() {
 
   const status = subscription ? statusLabels[subscription.status] || statusLabels.pending : null;
   const isCancelledWithFuture = subscription?.status === "cancelled" && subscription.next_billing_date && new Date(subscription.next_billing_date) > new Date();
+  const latestRejectedPayment = subscription?.payments
+    ?.filter((p: any) => p.status === "rejected" || p.status === "refunded" || p.status === "cancelled" || p.status === "charged_back")
+    ?.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  const isPastDue = subscription?.status === "past_due";
+  const rejectionReason = latestRejectedPayment?.rejection_reason || latestRejectedPayment?.status_detail || null;
 
   return (
     <>
@@ -207,8 +248,8 @@ export default function SubscriptionsPage() {
             <div className="flex-1">
               <p className="font-medium text-amber-800">Sua assinatura foi cancelada</p>
               <p className="mt-1 text-sm text-amber-700">
-                Ela continuará ativa até <strong>{formatDate(subscription.next_billing_date)}</strong>.
-                Após essa data, você perderá acesso ao Talkion.
+                Ela continuarÃ¡ ativa atÃ© <strong>{formatDate(subscription.next_billing_date)}</strong>.
+                ApÃ³s essa data, vocÃª perderÃ¡ acesso ao Talkion.
               </p>
             </div>
             <button
@@ -216,6 +257,32 @@ export default function SubscriptionsPage() {
               className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
             >
               Reativar Assinatura
+            </button>
+          </div>
+) : null}
+
+        {isPastDue ? (
+          <div className="mb-6 flex items-start gap-4 rounded-xl border border-red-200 bg-red-50 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+            <div className="flex-1">
+              <p className="font-medium text-red-800">Pagamento recorrente recusado</p>
+              <p className="mt-1 text-sm text-red-700">
+                {rejectionReason
+                  ? <>{rejectionReason} </> 
+                  : <>A cobranÃ§a recorrente do seu plano foi recusada. </>}
+                Atualize seu cartÃ£o para evitar a interrupÃ§Ã£o do acesso.
+              </p>
+              {subscription.next_billing_date && (
+                <p className="mt-1 text-sm text-red-600">
+                  PrÃ³xima tentativa: <strong>{formatDate(subscription.next_billing_date)}</strong>
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => { setShowUpdateCard(true); setUpdateCardError(null); setUpdateCardSuccess(false); }}
+              className="shrink-0 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+            >
+              Atualizar CartÃ£o
             </button>
           </div>
         ) : null}
@@ -227,7 +294,7 @@ export default function SubscriptionsPage() {
             </div>
             <h2 className="text-2xl font-bold mb-2">Testando o Talkion</h2>
             <p className="text-muted-foreground mb-2">
-              Você está no período de teste com <strong className="text-amber-600">{formatNumber(creditBalance)} créditos</strong>.
+              VocÃª estÃ¡ no perÃ­odo de teste com <strong className="text-amber-600">{formatNumber(creditBalance)} crÃ©ditos</strong>.
               Aproveite para explorar todas as funcionalidades.
             </p>
             <p className="text-sm text-muted-foreground mb-8">
@@ -253,7 +320,7 @@ export default function SubscriptionsPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <Coins className="h-4 w-4 text-amber-500" />
-                    Créditos Disponíveis
+                    CrÃ©ditos DisponÃ­veis
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -262,7 +329,7 @@ export default function SubscriptionsPage() {
                       <span className="text-3xl font-bold text-amber-600">
                         {formatNumber(creditBalance)}
                       </span>
-                      <span className="text-sm text-muted-foreground ml-2">créditos</span>
+                      <span className="text-sm text-muted-foreground ml-2">crÃ©ditos</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <button
@@ -270,7 +337,7 @@ export default function SubscriptionsPage() {
                         className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                       >
                         <ShoppingCart className="h-4 w-4 shrink-0" />
-                        Comprar Créditos
+                        Comprar CrÃ©ditos
                       </button>
                       <button
                         onClick={() => { setShowAddStudents(true); setAdditionalStep("select"); setAdditionalError(null); }}
@@ -291,7 +358,7 @@ export default function SubscriptionsPage() {
                       <div className="mt-4 space-y-3">
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Créditos do plano</span>
+                            <span>CrÃ©ditos do plano</span>
                             <span>{formatNumber(usedCredits)} / {formatNumber(planCredits)}</span>
                           </div>
                           <Progress value={pct} className="w-full" />
@@ -300,13 +367,13 @@ export default function SubscriptionsPage() {
                           <div className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm">
                             <span className="flex items-center gap-1.5 text-amber-700">
                               <Zap className="h-3.5 w-3.5" />
-                              Bônus (créditos extras)
+                              BÃ´nus (crÃ©ditos extras)
                             </span>
                             <span className="font-semibold text-amber-700">+{formatNumber(bonusCredits)}</span>
                           </div>
                         )}
                         <div className="flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
-                          <span>Total disponível</span>
+                          <span>Total disponÃ­vel</span>
                           <span className="font-semibold text-amber-600">{formatNumber(creditBalance)}</span>
                         </div>
                       </div>
@@ -326,13 +393,13 @@ export default function SubscriptionsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b">
                       <span className="text-sm text-muted-foreground">Plano</span>
-                      <span className="text-sm font-semibold">{subscription.plan?.name || "—"}</span>
+                      <span className="text-sm font-semibold">{subscription.plan?.name || "â€”"}</span>
                     </div>
                     <div className="flex items-center justify-between pb-3 border-b">
                       <span className="text-sm text-muted-foreground">Valor Mensal</span>
                       <span className="text-sm font-semibold">
                         {subscription.plan?.is_free ? (
-                          <span className="text-emerald-600">Grátis</span>
+                          <span className="text-emerald-600">GrÃ¡tis</span>
                         ) : (
                           formatCurrency(subscription.plan?.price || 0)
                         )}
@@ -342,12 +409,12 @@ export default function SubscriptionsPage() {
                     <div className="flex items-center justify-between pb-3 border-b">
                       <span className="text-sm text-muted-foreground">Alunos Adicionais</span>
                       <span className="text-sm font-semibold">
-                        +{formatCurrency(subscription.additional_students * additionalStudentPrice)}/mês
+                        +{formatCurrency(subscription.additional_students * additionalStudentPrice)}/mÃªs
                       </span>
                     </div>
                     )}
                     <div className="flex items-center justify-between pb-3 border-b">
-                      <span className="text-sm text-muted-foreground">Créditos por Ciclo</span>
+                      <span className="text-sm text-muted-foreground">CrÃ©ditos por Ciclo</span>
                       <span className="text-sm font-semibold">
                         {formatNumber(subscription.plan?.credits || 0)}
                       </span>
@@ -365,7 +432,7 @@ export default function SubscriptionsPage() {
                         {(() => {
                           const remaining = (subscription.max_students + (subscription.additional_students || 0)) - currentStudents;
                           return remaining > 0
-                            ? <span className="ml-1.5 text-emerald-600">(+{remaining} disponíveis)</span>
+                            ? <span className="ml-1.5 text-emerald-600">(+{remaining} disponÃ­veis)</span>
                             : null;
                         })()}
                       </span>
@@ -388,7 +455,7 @@ export default function SubscriptionsPage() {
                     {!subscription.plan?.is_free && (
                     <div className="flex items-center justify-between pb-3 border-b">
                       <span className="text-sm text-muted-foreground">
-                        {subscription.status === "cancelled" ? "Ativa até" : "Próxima Cobrança"}
+                        {subscription.status === "cancelled" ? "Ativa atÃ©" : "PrÃ³xima CobranÃ§a"}
                       </span>
                       <span className="text-sm font-semibold">
                         {formatDate(subscription.next_billing_date)}
@@ -396,11 +463,11 @@ export default function SubscriptionsPage() {
                     </div>
                     )}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Cartão</span>
+                      <span className="text-sm text-muted-foreground">CartÃ£o</span>
                       <span className="text-sm font-semibold">
                         {subscription.card_last_four
-                          ? `•••• ${subscription.card_last_four}`
-                          : "—"}
+                          ? `â€¢â€¢â€¢â€¢ ${subscription.card_last_four}`
+                          : "â€”"}
                       </span>
                     </div>
                   </div>
@@ -411,7 +478,7 @@ export default function SubscriptionsPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <History className="h-4 w-4 text-primary" />
-                    Últimas Transações de Créditos
+                    Ãšltimas TransaÃ§Ãµes de CrÃ©ditos
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -453,7 +520,7 @@ export default function SubscriptionsPage() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-6">
-                      Nenhuma transação ainda.
+                      Nenhuma transaÃ§Ã£o ainda.
                     </p>
                   )}
                 </CardContent>
@@ -463,7 +530,7 @@ export default function SubscriptionsPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-primary" />
-                    Histórico de Pagamentos
+                    HistÃ³rico de Pagamentos
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -514,7 +581,7 @@ export default function SubscriptionsPage() {
             <div className="space-y-4">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold">Ações</CardTitle>
+                  <CardTitle className="text-sm font-semibold">AÃ§Ãµes</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {subscription.status === "cancelled" ? (
@@ -556,7 +623,7 @@ export default function SubscriptionsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5 text-primary" />
-                  {topUpStep === "select" ? "Comprar Créditos Extras" : "Pagamento"}
+                  {topUpStep === "select" ? "Comprar CrÃ©ditos Extras" : "Pagamento"}
                 </CardTitle>
               </CardHeader>
 
@@ -646,7 +713,7 @@ export default function SubscriptionsPage() {
                 <CardContent className="space-y-4">
                   <div className="rounded-lg bg-muted/50 p-3 text-sm">
                     <p className="text-muted-foreground">
-                      Atualmente você tem <strong>{currentStudents}</strong> alunos ativos e seu limite é de <strong>{subscription?.max_students || 0}</strong>.
+                      Atualmente vocÃª tem <strong>{currentStudents}</strong> alunos ativos e seu limite Ã© de <strong>{subscription?.max_students || 0}</strong>.
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -674,7 +741,7 @@ export default function SubscriptionsPage() {
                     </div>
                   </div>
                   <p className="text-sm font-semibold">
-                    Total: {formatCurrency(additionalQty * additionalStudentPrice)}/mês
+                    Total: {formatCurrency(additionalQty * additionalStudentPrice)}/mÃªs
                   </p>
 
                   <div className="flex gap-2 pt-2">
@@ -728,7 +795,66 @@ export default function SubscriptionsPage() {
             </Card>
           </div>
         )}
-      </main>
+</main>
+
+      {showUpdateCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                Atualizar CartÃ£o
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {updateCardSuccess ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                  <p className="font-medium text-emerald-700">CartÃ£o atualizado com sucesso!</p>
+                  <p className="text-sm text-muted-foreground">
+                    Sua prÃ³xima cobranÃ§a serÃ¡ realizada no novo cartÃ£o.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {rejectionReason && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>Motivo da recusa: {rejectionReason}</span>
+                    </div>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Informe os dados do novo cartÃ£o. Os dados sÃ£o processados com seguranÃ§a pelo Mercado Pago.
+                    Nenhum valor adicional serÃ¡ cobrado agora.
+                  </p>
+                  <MercadoPagoCardPaymentBrick
+                    amount={0}
+                    onSubmit={handleUpdateCardSubmit}
+                    onError={(err) => setUpdateCardError(err.message)}
+                    generateSubscriptionToken
+                    buttonLabel="Atualizar CartÃ£o"
+                  />
+                  {updateCardError && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{updateCardError}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => setShowUpdateCard(false)}
+                      disabled={updatingCard}
+                      className="text-sm text-muted-foreground hover:underline disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <Dialog
         open={showCancelDialog}
@@ -743,8 +869,8 @@ export default function SubscriptionsPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Sua assinatura continuará <strong>ativa até {formatDate(subscription?.next_billing_date)}</strong> após o cancelamento.
-              Você não será cobrado novamente.
+              Sua assinatura continuarÃ¡ <strong>ativa atÃ© {formatDate(subscription?.next_billing_date)}</strong> apÃ³s o cancelamento.
+              VocÃª nÃ£o serÃ¡ cobrado novamente.
             </p>
             <p className="text-sm text-muted-foreground">
               Deseja realmente cancelar sua assinatura?

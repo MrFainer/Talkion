@@ -221,6 +221,7 @@ export class MailService {
     name: string,
     planName: string,
     amount: number,
+    rejectionReason?: string,
   ) {
     try {
       const info = await this.transporter.sendMail({
@@ -231,17 +232,15 @@ export class MailService {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
             <h2 style="color: #ef4444; text-align: center;">Pagamento Recusado</h2>
             <p>Olá ${name},</p>
-            <p>Infelizmente seu pagamento do plano <strong>${planName}</strong> no valor de <strong>R$ ${amount.toFixed(2)}</strong> foi recusado.</p>
-            <p>Possíveis motivos:</p>
-            <ul>
-              <li>Saldo insuficiente</li>
-              <li>Cartão bloqueado</li>
-              <li>Dados incorretos</li>
-            </ul>
+            <p>Infelizmente sua cobrança recorrente do plano <strong>${planName}</strong> no valor de <strong>R$ ${amount.toFixed(2)}</strong> foi recusada.</p>
+            <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 5px 0;"><strong>Motivo:</strong> ${rejectionReason || 'O emissor do seu cartão recusou o pagamento.'}</p>
+            </div>
+            <p>Para evitar a interrupção do seu plano, atualize os dados do seu cartão de crédito na página de assinatura. Lá você também pode confirmar o motivo exato da recusa.</p>
             <p style="text-align: center; margin-top: 20px;">
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions/checkout" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Tentar Novamente</a>
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/subscriptions" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Atualizar Cartão</a>
             </p>
-            <p>Verifique seus dados e tente novamente. Se o problema persistir, entre em contato com seu banco.</p>
+            <p>Se o problema persistir, entre em contato com seu banco.</p>
           </div>
         `,
       });

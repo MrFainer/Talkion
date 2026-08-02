@@ -575,6 +575,8 @@ model SubscriptionPayment {
   mercadopago_payment_id  String?  @unique
   amount                  Float
   status                  String
+  status_detail           String?
+  rejection_reason        String?  @db.Text
   payment_method          String?
   paid_at                 DateTime?
   cycle_start             DateTime?

@@ -15,6 +15,34 @@ const COMMISSION_PERCENT = 0.3;
 
 const ADDITIONAL_STUDENT_PRICE = 3.90;
 
+const REJECTION_REASON_MAP: Record<string, string> = {
+  cc_rejected_insufficient_amount: 'Saldo insuficiente no cartão.',
+  cc_rejected_card_disabled: 'Seu cartão está bloqueado ou desativado.',
+  cc_rejected_card_high_risk: 'O cartão foi recusado por risco de fraude.',
+  cc_rejected_bad_filled_security_code: 'O código de segurança (CVV) do cartão está incorreto.',
+  cc_rejected_bad_filled_date: 'A data de validade do cartão está incorreta.',
+  cc_rejected_bad_filled_card_number: 'O número do cartão está incorreto.',
+  cc_rejected_expired_card: 'Seu cartão está vencido.',
+  cc_rejected_max_attempts: 'O cartão passou do limite de tentativas permitidas.',
+  cc_rejected_other_reason: 'O pagamento foi recusado pelo emissor do cartão.',
+  cc_rejected_blacklist: 'O cartão foi bloqueado pelo emissor.',
+  cc_rejected_card_not_supported: 'Este tipo de cartão não é aceito.',
+  cc_rejected_call_for_authorize: 'O emissor pede que você autorize o pagamento.',
+  cc_rejected_high_risk: 'O pagamento foi recusado por análise de risco.',
+  cc_amount_rate_limit_exceeded: 'Houve muitas tentativas de pagamento. Tente novamente mais tarde.',
+  cc_rejected_bad_filled_other: 'Alguns dados informados do cartão estão incorretos.',
+};
+
+function friendlyRejectionReason(statusDetail?: string): string {
+  if (!statusDetail) {
+    return 'O emissor do seu cartão recusou o pagamento.';
+  }
+  return (
+    REJECTION_REASON_MAP[statusDetail] ||
+    `O pagamento foi recusado. (${statusDetail})`
+  );
+}
+
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
@@ -580,7 +608,7 @@ export class SubscriptionsService {
 
   async cancelSubscription(userId: string) {
     const sub = await this.prisma.subscription.findFirst({
-      where: { user_id: userId, status: { in: ['active', 'pending'] } },
+      where: { user_id: userId, status: { in: ['active', 'pending', 'past_due'] } },
     });
     if (!sub)
       throw new NotFoundException('Nenhuma assinatura ativa encontrada');
@@ -599,6 +627,101 @@ export class SubscriptionsService {
       where: { id: sub.id },
       data: { status: 'cancelled' },
     });
+  }
+
+  async updateSubscriptionCard(
+    userId: string,
+    dto: { cardToken: string; subscriptionCardToken?: string },
+  ) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { user_id: userId, status: { in: ['active', 'pending', 'past_due'] } },
+      include: { user: true, plan: true },
+    });
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (!sub.user) throw new NotFoundException('Usuário não encontrado');
+    if (!sub.plan) throw new NotFoundException('Plano não encontrado');
+
+    const mpCustomerId =
+      sub.mercadopago_customer_id ||
+      (await this.mp.findOrCreateCustomer(
+        sub.user.email,
+        sub.user.name,
+        userId,
+      ));
+
+    const card = await this.mp.associateCard(mpCustomerId, dto.cardToken);
+
+    const totalAmount = sub.plan.price +
+      (sub.additional_students || 0) * ADDITIONAL_STUDENT_PRICE;
+
+    let nextBilling = sub.next_billing_date
+      ? new Date(sub.next_billing_date)
+      : null;
+    if (!nextBilling || nextBilling.getTime() <= Date.now()) {
+      nextBilling = new Date();
+      nextBilling.setMonth(nextBilling.getMonth() + 1);
+    }
+
+    // Recreates the preapproval with the new card. Mercado Pago does not allow
+    // changing the card on an existing preapproval, so we cancel the old one
+    // and create a fresh recurring agreement bound to the new card.
+    if (sub.mercadopago_subscription_id) {
+      try {
+        await this.mp.cancelSubscription(sub.mercadopago_subscription_id);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to cancel old MP subscription: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    let mpSubscriptionId: string | null = null;
+    try {
+      const preapproval = await this.mp.createSubscription(
+        mpCustomerId,
+        card.cardId,
+        totalAmount,
+        sub.plan.name,
+        userId,
+        sub.user.email,
+        nextBilling,
+        dto.subscriptionCardToken,
+      );
+      mpSubscriptionId = preapproval.subscriptionId;
+      this.logger.log(
+        `Preapproval recreated after card update: ${mpSubscriptionId}`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to recreate preapproval after card update: ${(err as Error).message}`,
+      );
+    }
+
+    const updated = await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: {
+        mercadopago_customer_id: mpCustomerId,
+        mercadopago_card_id: card.cardId,
+        mercadopago_subscription_id: mpSubscriptionId,
+        card_last_four: card.lastFourDigits || null,
+        card_holder_name: card.holderName || null,
+        payment_method: 'credit_card',
+        next_billing_date: nextBilling,
+        status: 'active',
+      },
+    });
+
+    this.logger.log(
+      `Card updated for subscription ${sub.id}: •••• ${card.lastFourDigits}`,
+    );
+
+    return {
+      subscriptionId: updated.id,
+      card_last_four: updated.card_last_four,
+      card_holder_name: updated.card_holder_name,
+      status: updated.status,
+    };
   }
 
   async changePlan(userId: string, newPlanId: string) {
@@ -783,6 +906,121 @@ export class SubscriptionsService {
     });
   }
 
+  async reconcileSubscriptionPayments(userId: string) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { user_id: userId, status: { not: 'cancelled' } },
+      include: { user: true },
+    });
+    if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+
+    let mpPayments: any[] = [];
+    try {
+      // Prefere buscar por external_reference (user_id): este fluxo cobra com
+      // "pagamento único + cartão salvo", não pela recorrência automática do MP.
+      // Se não houver resultados, tenta a preapproval como fallback.
+      mpPayments = await this.mp.searchPaymentsByExternalReference(sub.user_id);
+      if (!mpPayments.length && sub.mercadopago_subscription_id) {
+        mpPayments = await this.mp.searchPaymentsByPreapproval(
+          sub.mercadopago_subscription_id,
+        );
+      }
+    } catch (err) {
+      throw new BadRequestException(
+        `Falha ao consultar Mercado Pago: ${(err as Error).message}`,
+      );
+    }
+
+    let created = 0;
+    let updated = 0;
+    let newRejected: any[] = [];
+
+    for (const mpPay of mpPayments) {
+      const mpId = String(mpPay.id || '');
+      const status = mpPay.status;
+      const existing = mpId
+        ? await this.prisma.subscriptionPayment.findUnique({
+            where: { mercadopago_payment_id: mpId },
+          })
+        : null;
+
+      if (!mpId) continue;
+      const data = {
+        mercadopago_payment_id: mpId,
+        amount: parseFloat(mpPay.transaction_amount || '0'),
+        status_detail: mpPay.status_detail || null,
+        rejection_reason:
+          status === 'approved'
+            ? null
+            : friendlyRejectionReason(mpPay.status_detail),
+        paid_at: mpPay.date_approved || mpPay.date_created
+          ? new Date(mpPay.date_approved || mpPay.date_created)
+          : null,
+      };
+
+      if (existing) {
+        await this.prisma.subscriptionPayment.update({
+          where: { id: existing.id },
+          data: {
+            status_detail: existing.status_detail
+              ? existing.status_detail
+              : data.status_detail,
+            rejection_reason: existing.rejection_reason
+              ? existing.rejection_reason
+              : data.rejection_reason,
+            paid_at: existing.paid_at ? existing.paid_at : data.paid_at,
+          },
+        });
+        updated++;
+      } else {
+        await this.prisma.subscriptionPayment.create({
+          data: {
+            subscription_id: sub.id,
+            status,
+            ...data,
+          },
+        });
+        if (status !== 'approved') newRejected.push({ ...data, status });
+        created++;
+      }
+    }
+
+    const hasOpenRejection = mpPayments.some(
+      (p: any) =>
+        ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(
+          p.status,
+        ),
+    );
+    if (hasOpenRejection) {
+      await this.prisma.subscription.update({
+        where: { id: sub.id },
+        data: { status: 'past_due' },
+      });
+    }
+
+    this.logger.log(
+      `Reconcile for user ${userId}: ${created} created, ${updated} updated, ${mpPayments.length} total`,
+    );
+
+    if (newRejected.length > 0 && sub.user) {
+      try {
+        const latestRej = newRejected[newRejected.length - 1];
+        await this.mailService.sendPaymentRejectedEmail(
+          sub.user.email,
+          sub.user.name,
+          `Talkion - Assinatura`,
+          latestRej.amount,
+          latestRej.rejection_reason,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to send rejection email on reconcile: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    return { created, updated, total: mpPayments.length };
+  }
+
   async handlePaymentApproved(
     mpPaymentId: string,
     subscriptionId: string,
@@ -882,6 +1120,7 @@ export class SubscriptionsService {
     mpPaymentId: string,
     subscriptionId: string,
     amount: number,
+    statusDetail?: string,
   ) {
     const existing = await this.prisma.subscriptionPayment.findUnique({
       where: { mercadopago_payment_id: mpPaymentId },
@@ -899,12 +1138,27 @@ export class SubscriptionsService {
     });
     if (!sub) throw new NotFoundException('Assinatura não encontrada');
 
+    if (!statusDetail && mpPaymentId) {
+      try {
+        const mpPayment = await this.mp.getPayment(mpPaymentId);
+        statusDetail = mpPayment?.status_detail || undefined;
+      } catch (err) {
+        this.logger.warn(
+          `Failed to fetch status_detail for payment ${mpPaymentId}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    const rejectionReason = friendlyRejectionReason(statusDetail);
+
     const payment = await this.prisma.subscriptionPayment.create({
       data: {
         subscription_id: subscriptionId,
         mercadopago_payment_id: mpPaymentId,
         amount,
         status: 'rejected',
+        status_detail: statusDetail || null,
+        rejection_reason: rejectionReason,
       },
     });
 
@@ -914,7 +1168,7 @@ export class SubscriptionsService {
     });
 
     this.logger.log(
-      `Payment ${mpPaymentId} rejected, subscription ${subscriptionId} past due`,
+      `Payment ${mpPaymentId} rejected, subscription ${subscriptionId} past due (${rejectionReason})`,
     );
 
     await this.mailService.sendPaymentRejectedEmail(
@@ -922,6 +1176,7 @@ export class SubscriptionsService {
       sub.user.name,
       sub.plan.name,
       amount,
+      rejectionReason,
     );
 
     return payment;
