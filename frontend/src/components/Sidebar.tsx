@@ -66,6 +66,7 @@ type SidebarNavProps = {
   hasActivePlan?: boolean | null;
   planName?: string | null;
   subscriptionHasIssue?: boolean;
+  subscriptionBlocked?: boolean;
   onLogout: () => void;
 };
 
@@ -138,6 +139,7 @@ function SidebarNav({
   hasActivePlan,
   planName,
   subscriptionHasIssue,
+  subscriptionBlocked,
   onLogout,
 }: SidebarNavProps) {
   return (
@@ -305,14 +307,21 @@ function SidebarNav({
               <span className="text-xs text-muted-foreground font-medium">WhatsApp {whatsappStatus}</span>
             </div>
           ) : null}
-          {!isAdmin && creditBalance != null && (
+          {!isAdmin && subscriptionBlocked ? (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              <span className="text-xs font-medium text-red-600">
+                Acesso bloqueado
+              </span>
+            </div>
+          ) : !isAdmin && creditBalance != null ? (
             <div className="flex items-center gap-1.5 mt-1.5">
               <Coins className="h-3.5 w-3.5 text-amber-500" />
               <span className="text-xs font-medium text-amber-600">
                 {creditBalance.toLocaleString("pt-BR")} créditos
               </span>
             </div>
-          )}
+          ) : null}
         </div>
 
         <button
@@ -629,6 +638,7 @@ creditBalance={creditBalance}
           hasActivePlan={hasActivePlan}
           planName={planName}
           subscriptionHasIssue={subscriptionHasIssue}
+          subscriptionBlocked={subscriptionBlocked}
           onLogout={logout}
         />
           </div>
@@ -655,6 +665,7 @@ creditBalance={creditBalance}
           userEmail={user?.email || ""}
           whatsappStatus={whatsappStatus}
           creditBalance={creditBalance}
+          subscriptionBlocked={subscriptionBlocked}
           onLogout={logout}
         />
       </div>
