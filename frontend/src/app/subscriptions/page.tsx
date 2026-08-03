@@ -230,6 +230,10 @@ export default function SubscriptionsPage() {
     ?.filter((p: any) => p.status === "rejected" || p.status === "refunded" || p.status === "cancelled" || p.status === "charged_back")
     ?.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
   const isPastDue = subscription?.status === "past_due";
+  const pastDueDeadlinePassed =
+    isPastDue && subscription.next_billing_date
+      ? new Date(subscription.next_billing_date).getTime() <= new Date().getTime()
+      : false;
   const rejectionReason = latestRejectedPayment?.rejection_reason || latestRejectedPayment?.status_detail || null;
 
   return (
@@ -270,14 +274,17 @@ export default function SubscriptionsPage() {
                 {rejectionReason
                   ? <>{rejectionReason} </> 
                   : <>A cobrança recorrente do seu plano foi recusada. </>}
-                Você ainda pode usar o Talkion até{" "}
-                {subscription.next_billing_date ? (
-                  <strong>{formatDate(subscription.next_billing_date)}</strong>
+                {pastDueDeadlinePassed ? (
+                  <>Seu acesso ao Talkion já está suspenso por falta de pagamento. </>
                 ) : (
-                  "o fim do período"
-                )}.
-                Depois disso, o acesso é suspenso até o pagamento ser aprovado.
-                Atualize seu cartão para regularizar e evitar a interrupção.
+                  <>Você ainda pode usar o Talkion até{" "}
+                  {subscription.next_billing_date ? (
+                    <strong>{formatDate(subscription.next_billing_date)}</strong>
+                  ) : (
+                    "o fim do período"
+                  )}. </>
+                )}
+                Atualize seu cartão para regularizar e recuperar o acesso.
               </p>
             </div>
             <button
@@ -822,7 +829,9 @@ export default function SubscriptionsPage() {
                   <CheckCircle2 className="h-10 w-10 text-emerald-500" />
                   <p className="font-medium text-emerald-700">Cartão atualizado com sucesso!</p>
                   <p className="text-sm text-muted-foreground">
-                    Sua próxima cobrança será realizada no novo cartão.
+                    {isPastDue
+                      ? "O valor em atraso foi cobrado no novo cartão e sua assinatura foi regularizada."
+                      : "Sua próxima cobrança será realizada no novo cartão."}
                   </p>
                 </div>
               ) : (
@@ -835,7 +844,9 @@ export default function SubscriptionsPage() {
                   )}
                   <p className="text-sm text-muted-foreground">
                     Informe os dados do novo cartão. Os dados são processados com segurança pelo Mercado Pago.
-                    Nenhum valor adicional será cobrado agora.
+                    {isPastDue
+                      ? " O valor em atraso será cobrado agora para regularizar sua assinatura."
+                      : " Nenhum valor adicional será cobrado agora."}
                   </p>
                   <MercadoPagoCardPaymentBrick
                     amount={0}

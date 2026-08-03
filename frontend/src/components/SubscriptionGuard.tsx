@@ -1,45 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/auth";
 import { useRouter, usePathname } from "next/navigation";
 import api from "@/lib/api";
 import { Loader2, AlertTriangle, CreditCard, Zap } from "lucide-react";
 
 const EXEMPT_PATHS = ["/login", "/", "/subscriptions", "/admin", "/billing", "/welcome"];
+const REFRESH_INTERVAL_MS = 60_000;
 
 export default function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   const { user, isHydrated, subscriptionStatus, subscriptionNextBillingDate, setSubscriptionData } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
-  const fetchedRef = useRef(false);
   const [trialCredits, setTrialCredits] = useState<number | null>(null);
   const [checkingCredits, setCheckingCredits] = useState(false);
 
+  const exempt =
+    !user || user.role === "ADMIN" || EXEMPT_PATHS.some((p) => pathname.startsWith(p));
+
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || exempt) return;
 
-    if (!user || user.role === "ADMIN" || EXEMPT_PATHS.some((p) => pathname.startsWith(p))) {
-      return;
-    }
-
-    const needsBillingDate =
-      subscriptionStatus === "past_due" && !subscriptionNextBillingDate;
-    if (subscriptionStatus && !needsBillingDate) return;
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
+    let cancelled = false;
 
     const fetchStatus = async () => {
       try {
         const res = await api.get(`/subscriptions/user/${user.id}`);
+        if (cancelled) return;
         setSubscriptionData(res.data?.status || null, res.data?.next_billing_date || null);
       } catch {
+        if (cancelled) return;
         setSubscriptionData("none");
       }
     };
 
     fetchStatus();
-  }, [user, isHydrated, pathname, subscriptionStatus, subscriptionNextBillingDate, setSubscriptionData]);
+
+    const intervalId = setInterval(fetchStatus, REFRESH_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [user, isHydrated, exempt, setSubscriptionData]);
 
   useEffect(() => {
     if (subscriptionStatus === "none" && user?.id && trialCredits === null && !checkingCredits) {
@@ -53,8 +57,6 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
 
   if (!isHydrated) return null;
 
-  const exempt = !user || user.role === "ADMIN" || EXEMPT_PATHS.some((p) => pathname.startsWith(p));
-
   if (!subscriptionStatus && !exempt) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -63,37 +65,82 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
     );
   }
 
-  if (exempt || subscriptionStatus === "active" || subscriptionStatus === "pending" || subscriptionStatus === "paused") {
+  if (exempt) {
     return <>{children}</>;
   }
 
-  if (subscriptionStatus === "cancelled") {
-    const isBeforeExpiry = subscriptionNextBillingDate && new Date(subscriptionNextBillingDate) > new Date();
-    if (isBeforeExpiry) {
-      return <>{children}</>;
-    }
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md text-center space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-            <CreditCard className="h-8 w-8 text-amber-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Assinatura encerrada</h2>
-            <p className="mt-2 text-muted-foreground">
-              Sua assinatura foi cancelada e o período de acesso expirou.
-            </p>
-          </div>
-          <button
-            onClick={() => router.push("/subscriptions/checkout")}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <CreditCard className="h-4 w-4" />
-            Ver Planos
-          </button>
+  const deadline = subscriptionNextBillingDate
+    ? new Date(subscriptionNextBillingDate)
+    : null;
+  const deadlineInFuture =
+    deadline !== null && deadline.getTime() > new Date().getTime();
+  const pastDeadline =
+    deadline !== null && deadline.getTime() <= new Date().getTime();
+
+  const renderBlocked = (
+    title: string,
+    message: string,
+    buttonLabel: string,
+    target: string,
+  ) => (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="w-full max-w-md text-center space-y-6">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+          <AlertTriangle className="h-8 w-8 text-red-600" />
         </div>
+        <div>
+          <h2 className="text-xl font-bold">{title}</h2>
+          <p className="mt-2 text-muted-foreground">{message}</p>
+        </div>
+        <button
+          onClick={() => router.push(target)}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <CreditCard className="h-4 w-4" />
+          {buttonLabel}
+        </button>
       </div>
-    );
+    </div>
+  );
+
+  if (subscriptionStatus === "cancelled") {
+    if (!deadlineInFuture) {
+      return renderBlocked(
+        "Assinatura encerrada",
+        "Sua assinatura foi cancelada e o período de acesso expirou.",
+        "Ver Planos",
+        "/subscriptions/checkout",
+      );
+    }
+    return <>{children}</>;
+  }
+
+  if (subscriptionStatus === "past_due") {
+    if (!deadlineInFuture) {
+      return renderBlocked(
+        "Pagamento pendente",
+        "Sua assinatura está com pagamento pendente. Regularize para continuar usando o Talkion.",
+        "Regularizar Pagamento",
+        "/subscriptions",
+      );
+    }
+    return <>{children}</>;
+  }
+
+  if (
+    subscriptionStatus === "active" ||
+    subscriptionStatus === "pending" ||
+    subscriptionStatus === "paused"
+  ) {
+    if (pastDeadline) {
+      return renderBlocked(
+        "Pagamento pendente",
+        "O período pago da sua assinatura expirou. Regularize o pagamento para continuar usando o Talkion.",
+        "Regularizar Pagamento",
+        "/subscriptions",
+      );
+    }
+    return <>{children}</>;
   }
 
   if (subscriptionStatus === "none") {
@@ -126,56 +173,11 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
       );
     }
 
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md text-center space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
-            <CreditCard className="h-8 w-8 text-amber-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Créditos esgotados</h2>
-            <p className="mt-2 text-muted-foreground">
-              Seus créditos de teste acabaram. Assine um plano para continuar usando o Talkion.
-            </p>
-          </div>
-          <button
-            onClick={() => router.push("/subscriptions/checkout")}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <CreditCard className="h-4 w-4" />
-            Ver Planos
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (subscriptionStatus === "past_due") {
-    const isBeforeExpiry = subscriptionNextBillingDate && new Date(subscriptionNextBillingDate) > new Date();
-    if (isBeforeExpiry) {
-      return <>{children}</>;
-    }
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md text-center space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <AlertTriangle className="h-8 w-8 text-red-600" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Pagamento pendente</h2>
-            <p className="mt-2 text-muted-foreground">
-              Sua assinatura está com pagamento pendente. Regularize para continuar usando o Talkion.
-            </p>
-          </div>
-          <button
-            onClick={() => router.push("/subscriptions")}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <CreditCard className="h-4 w-4" />
-            Regularizar Pagamento
-          </button>
-        </div>
-      </div>
+    return renderBlocked(
+      "Créditos esgotados",
+      "Seus créditos de teste acabaram. Assine um plano para continuar usando o Talkion.",
+      "Ver Planos",
+      "/subscriptions/checkout",
     );
   }
 

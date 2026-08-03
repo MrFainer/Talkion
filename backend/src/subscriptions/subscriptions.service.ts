@@ -655,10 +655,29 @@ export class SubscriptionsService {
     const totalAmount = sub.plan.price +
       (sub.additional_students || 0) * ADDITIONAL_STUDENT_PRICE;
 
-    let nextBilling = sub.next_billing_date
+    // Detecta se existe cobrança em aberto (pagamento recusado/estornado).
+    // Nesse caso, a cobrança pendente deve ser feita na hora, no novo cartão,
+    // e não apenas na próxima data de cobrança.
+    const latestPayment = await this.prisma.subscriptionPayment.findFirst({
+      where: { subscription_id: sub.id },
+      orderBy: { created_at: 'desc' },
+    });
+    const latestRejected =
+      latestPayment &&
+      ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(
+        latestPayment.status,
+      );
+    const isDelinquent = sub.status === 'past_due' || !!latestRejected;
+
+    const originalBilling = sub.next_billing_date
       ? new Date(sub.next_billing_date)
       : null;
-    if (!nextBilling || nextBilling.getTime() <= Date.now()) {
+    const futureBilling =
+      originalBilling && originalBilling.getTime() > Date.now()
+        ? originalBilling
+        : null;
+    let nextBilling = futureBilling;
+    if (!nextBilling) {
       nextBilling = new Date();
       nextBilling.setMonth(nextBilling.getMonth() + 1);
     }
@@ -673,6 +692,71 @@ export class SubscriptionsService {
         this.logger.warn(
           `Failed to cancel old MP subscription: ${(err as Error).message}`,
         );
+      }
+    }
+
+    // Cobrança imediata da parcela em atraso, se houver. Somente quando a
+    // assinatura está com pagamento recusado/pendente — assim o professor
+    // regulariza na hora ao trocar o cartão.
+    let catchUpPayment: { id?: number; status?: string } | null = null;
+    let catchUpError: string | null = null;
+    if (isDelinquent) {
+      try {
+        catchUpPayment = await this.mp.createOneTimePayment(
+          mpCustomerId,
+          dto.cardToken,
+          totalAmount,
+          `Talkion - ${sub.plan.name} (cobrança em atraso)`,
+          userId,
+          sub.user.email,
+        );
+        if (catchUpPayment.status !== 'approved') {
+          let detail: string | undefined;
+          if (catchUpPayment.id) {
+            try {
+              detail = (await this.mp.getPayment(String(catchUpPayment.id)))
+                ?.status_detail;
+            } catch (err) {
+              this.logger.warn(
+                `Failed to fetch status_detail for catch-up payment ${catchUpPayment.id}: ${(err as Error).message}`,
+              );
+            }
+          }
+          catchUpError = friendlyRejectionReason(detail);
+          this.logger.warn(
+            `Catch-up charge rejected for subscription ${sub.id}: ${catchUpError}`,
+          );
+        } else {
+          this.logger.log(
+            `Catch-up charge approved for subscription ${sub.id}: payment ${catchUpPayment.id} (R$${totalAmount})`,
+          );
+        }
+      } catch (err) {
+        catchUpError = (err as Error).message;
+        this.logger.warn(
+          `Catch-up charge failed for subscription ${sub.id}: ${catchUpError}`,
+        );
+      }
+    }
+
+    const catchUpApproved =
+      !!catchUpPayment && catchUpPayment.status === 'approved';
+
+    let nextStatus = 'active';
+    let nextBillingForDb = nextBilling;
+    if (isDelinquent) {
+      if (catchUpApproved) {
+        // Pagamento em atraso quitado: avança o ciclo para o próximo mês.
+        nextBillingForDb = new Date();
+        nextBillingForDb.setMonth(nextBillingForDb.getMonth() + 1);
+        nextBilling = nextBillingForDb;
+        nextStatus = 'active';
+      } else {
+        // Continua inadimplente até a cobrança ser aprovada: mantém a data
+        // limite original (para o bloqueio continuar valendo) e usa uma data
+        // futura apenas para o novo preapproval.
+        nextBillingForDb = originalBilling || nextBilling;
+        nextStatus = 'past_due';
       }
     }
 
@@ -707,13 +791,40 @@ export class SubscriptionsService {
         card_last_four: card.lastFourDigits || null,
         card_holder_name: card.holderName || null,
         payment_method: 'credit_card',
-        next_billing_date: nextBilling,
-        status: 'active',
+        next_billing_date: nextBillingForDb,
+        status: nextStatus,
       },
     });
 
+    if (catchUpApproved && catchUpPayment?.id) {
+      await this.prisma.subscriptionPayment.create({
+        data: {
+          subscription_id: sub.id,
+          mercadopago_payment_id: String(catchUpPayment.id),
+          amount: totalAmount,
+          status: 'approved',
+          payment_method: 'credit_card',
+          paid_at: new Date(),
+        },
+      });
+
+      await this.creditsService.resetAndAddCredits(
+        userId,
+        sub.plan.credits,
+        `Créditos do plano ${sub.plan.name}`,
+        'subscription_payment',
+        String(catchUpPayment.id),
+      );
+    }
+
+    if (isDelinquent && !catchUpApproved) {
+      throw new BadRequestException(
+        `Cartão atualizado, mas a cobrança em atraso de R$${totalAmount.toFixed(2)} não foi aprovada. ${catchUpError || 'Tente novamente com outro cartão.'}`,
+      );
+    }
+
     this.logger.log(
-      `Card updated for subscription ${sub.id}: •••• ${card.lastFourDigits}`,
+      `Card updated for subscription ${sub.id}: •••• ${card.lastFourDigits} (status ${nextStatus}, catchUp ${catchUpApproved ? 'approved' : 'none'})`,
     );
 
     return {
@@ -721,6 +832,7 @@ export class SubscriptionsService {
       card_last_four: updated.card_last_four,
       card_holder_name: updated.card_holder_name,
       status: updated.status,
+      catch_up_charged: catchUpApproved,
     };
   }
 
