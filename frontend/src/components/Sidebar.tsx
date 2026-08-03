@@ -339,6 +339,7 @@ export function Sidebar() {
   const [planFeatures, setPlanFeatures] = useState<Record<string, boolean> | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
   const [subscriptionHasIssue, setSubscriptionHasIssue] = useState(false);
+  const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
   const [subscriptionResolved, setSubscriptionResolved] = useState(false);
   const [settingsResolved, setSettingsResolved] = useState(false);
   const logoSrc = "/logo.png";
@@ -376,6 +377,7 @@ export function Sidebar() {
         setPlanFeatures(null);
         setPlanName(null);
         setSubscriptionResolved(false);
+        setSubscriptionBlocked(false);
         return;
       }
 
@@ -388,7 +390,9 @@ export function Sidebar() {
       try {
         const res = await api.get(`/subscriptions/user/${user.id}`);
         if (cancelled) return;
-        setHasActivePlan(res.data?.status === 'active');
+        const status = res.data?.status || null;
+        const nextBilling = res.data?.next_billing_date || null;
+        setHasActivePlan(status === 'active');
         setPlanFeatures(res.data?.plan?.features || null);
         setPlanName(res.data?.plan?.name || null);
         const hasRejected = (res.data?.payments || []).some(
@@ -398,13 +402,27 @@ export function Sidebar() {
             p.status === "cancelled" ||
             p.status === "charged_back"
         );
-        setSubscriptionHasIssue(res.data?.status === "past_due" || hasRejected);
+        setSubscriptionHasIssue(status === "past_due" || hasRejected);
+
+        const deadline = nextBilling ? new Date(nextBilling) : null;
+        const deadlineInFuture =
+          deadline !== null && deadline.getTime() > new Date().getTime();
+        const deadlinePassed =
+          deadline !== null && deadline.getTime() <= new Date().getTime();
+        let blocked = false;
+        if (status === "past_due" || status === "cancelled") {
+          blocked = !deadlineInFuture;
+        } else if (status === "active" || status === "pending" || status === "paused") {
+          blocked = deadlinePassed;
+        }
+        setSubscriptionBlocked(blocked);
       } catch {
         if (cancelled) return;
         setHasActivePlan(false);
         setPlanFeatures(null);
         setPlanName(null);
         setSubscriptionHasIssue(false);
+        setSubscriptionBlocked(false);
       } finally {
         if (!cancelled) {
           setSubscriptionResolved(true);
@@ -414,8 +432,11 @@ export function Sidebar() {
 
     fetchSubscription();
 
+    const intervalId = setInterval(fetchSubscription, 60000);
+
     return () => {
       cancelled = true;
+      clearInterval(intervalId);
     };
   }, [user?.id, user?.role]);
 
@@ -481,13 +502,14 @@ export function Sidebar() {
         { href: "/admin/accesses", label: "Acessos", icon: Activity },
       ]
     : [
+        ...(subscriptionBlocked ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
         ...(planName === "Free" ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
-        ...(hasFeature("dashboard") ? [{ href: dashboardHref, label: dashboardLabel, icon: LayoutDashboard }] : []),
+        ...(!subscriptionBlocked && hasFeature("dashboard") ? [{ href: dashboardHref, label: dashboardLabel, icon: LayoutDashboard }] : []),
         { href: "/students", label: "Alunos", icon: Users },
-        ...(admin_lessons_confirmation_enabled !== false && hasFeature("lesson_confirmation") ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
-        ...(hasFeature("content_studio") ? [{ href: "/content", label: "Conteúdo", icon: FileText }] : []),
-        ...(hasFeature("automations") ? [{ href: "/automation", label: "Automação", icon: Bot }] : []),
-        ...(hasActivePlan && hasFeature("affiliate_program") ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
+        ...(!subscriptionBlocked && admin_lessons_confirmation_enabled !== false && hasFeature("lesson_confirmation") ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),
+        ...(!subscriptionBlocked && hasFeature("content_studio") ? [{ href: "/content", label: "Conteúdo", icon: FileText }] : []),
+        ...(!subscriptionBlocked && hasFeature("automations") ? [{ href: "/automation", label: "Automação", icon: Bot }] : []),
+        ...(!subscriptionBlocked && hasActivePlan && hasFeature("affiliate_program") ? [{ href: "/affiliate", label: "Afiliados", icon: Link2 }] : []),
       ];
   const whatsappChildren = [
     { href: "/whatsapp", label: "Conexão" },

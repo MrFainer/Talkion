@@ -15,6 +15,7 @@ import { QuizService } from '../quiz/quiz.service';
 import { NewsService } from '../news/news.service';
 import { randomUUID } from 'crypto';
 import { cpus } from 'os';
+import { assertServiceAllowed } from '../subscriptions/subscription-access';
 
 type QuizQuestion = {
   question: string;
@@ -522,6 +523,7 @@ export class WhatsappService {
     text: string,
     tracking?: OutboundMessageTracking,
   ) {
+    await assertServiceAllowed(this.prisma, teacherId);
     try {
       const instanceName = await this.resolveInstanceName(teacherId);
       const response = await this.http.post(

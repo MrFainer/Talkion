@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { AiService } from '../ai/ai.service';
+import { PrismaService } from '../prisma.service';
+import { assertServiceAllowed } from '../subscriptions/subscription-access';
 
 type TrendItem = {
   title: string;
@@ -119,7 +121,10 @@ const FALLBACK_TRENDS: TrendItem[] = [
 export class TrendsService {
   private readonly logger = new Logger(TrendsService.name);
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async getTrending(area?: string, geo?: string): Promise<TrendItem[]> {
     const region = geo || 'BR';
@@ -171,6 +176,7 @@ export class TrendsService {
     count: number = 12,
     category?: string,
   ): Promise<string[]> {
+    await assertServiceAllowed(this.prisma, teacherId);
     return this.aiService.generateTopicSuggestions({
       teacherId,
       count,

@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { MailService } from '../auth/mail.service';
 import { getCreditActionCopy } from './credit-action-copy';
+import { assertServiceAllowed } from '../subscriptions/subscription-access';
 
 @Injectable()
 export class CreditsService {
@@ -235,6 +236,8 @@ export class CreditsService {
   }
 
   async requireCredits(userId: string, actionKey: string) {
+    await assertServiceAllowed(this.prisma, userId);
+
     const cost = await this.getCost(actionKey);
     if (cost <= 0) return;
 

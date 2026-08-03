@@ -14,6 +14,7 @@ import {
   Bot,
   FileText,
   CalendarDays,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -23,6 +24,8 @@ export default function WelcomePage() {
   const { user, isHydrated } = useAuthStore();
   const { features, planName, loading: featuresLoading } = usePlanFeatures();
   const [credits, setCredits] = useState<number | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [checkingBlocked, setCheckingBlocked] = useState(true);
 
   useEffect(() => {
     if (isHydrated && !user) {
@@ -39,7 +42,91 @@ export default function WelcomePage() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    api
+      .get(`/subscriptions/user/${user.id}`)
+      .then((res) => {
+        if (cancelled) return;
+        const status = res.data?.status || null;
+        const nextBilling = res.data?.next_billing_date || null;
+        const deadline = nextBilling ? new Date(nextBilling) : null;
+        const deadlineInFuture =
+          deadline !== null && deadline.getTime() > new Date().getTime();
+        const deadlinePassed =
+          deadline !== null && deadline.getTime() <= new Date().getTime();
+        let isBlocked = false;
+        if (status === "past_due" || status === "cancelled") {
+          isBlocked = !deadlineInFuture;
+        } else if (
+          status === "active" ||
+          status === "pending" ||
+          status === "paused"
+        ) {
+          isBlocked = deadlinePassed;
+        }
+        setBlocked(isBlocked);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setCheckingBlocked(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   if (!isHydrated || !user) return null;
+
+  if (blocked) {
+    return (
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="min-h-full bg-gradient-to-br from-slate-50 to-red-50 p-4 pt-20 md:p-8 md:pt-8">
+          <div className="mx-auto max-w-md text-center space-y-6">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+              <AlertTriangle className="h-8 w-8 text-red-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Pagamento pendente</h1>
+              <p className="mt-3 text-muted-foreground">
+                Sua assinatura está com pagamento em atraso e o acesso está
+                suspenso. Seus dados e histórico continuam salvos e serão
+                liberados assim que o pagamento for aprovado.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 pt-2">
+              <Link href="/subscriptions">
+                <Button
+                  size="lg"
+                  className="w-full bg-red-600 text-white hover:bg-red-700"
+                >
+                  <CreditCard className="mr-2 h-5 w-5" />
+                  Regularizar Pagamento
+                </Button>
+              </Link>
+              <Link href="/subscriptions/checkout">
+                <Button size="lg" variant="outline" className="w-full">
+                  Ver Planos
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (checkingBlocked) {
+    return (
+      <main className="flex min-h-screen flex-1 items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </main>
+    );
+  }
 
   const availableFeatures = [
     {

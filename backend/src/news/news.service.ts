@@ -10,6 +10,7 @@ import { AiService } from '../ai/ai.service';
 import { CreditsService } from '../credits/credits.service';
 import type { UsageTrackingContext } from '../ai/usage-cost.service';
 import { QuizService } from '../quiz/quiz.service';
+import { assertServiceAllowed } from '../subscriptions/subscription-access';
 
 const { default: scdl } = require('soundcloud-downloader');
 
@@ -219,6 +220,8 @@ export class NewsService {
         'teacherId é obrigatório para gerar notícia e quiz.',
       );
     }
+
+    await assertServiceAllowed(this.prisma, teacherId);
 
     const teacher = await this.prisma.user.findUnique({
       where: { id: teacherId },
