@@ -332,12 +332,18 @@ export class AuthService {
 
     let subscriptionStatus: string | null = null;
     let isFreePlan = false;
+    let sub: {
+      status: string;
+      next_billing_date: Date | null;
+      plan: { is_free: boolean };
+    } | null = null;
     try {
-      const sub = await this.prisma.subscription.findFirst({
+      sub = await this.prisma.subscription.findFirst({
         where: { user_id: user.id },
         orderBy: { created_at: 'desc' },
         select: {
           status: true,
+          next_billing_date: true,
           plan: { select: { is_free: true } },
         },
       });
@@ -357,6 +363,7 @@ export class AuthService {
         news_group_title: user.news_group_title || null,
       },
       subscription_status: subscriptionStatus,
+      subscription_next_billing_date: sub?.next_billing_date || null,
       is_free_plan: isFreePlan,
     };
   }

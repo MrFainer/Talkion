@@ -17,7 +17,7 @@ interface AuthState {
   subscriptionNextBillingDate: string | null;
   isFreePlan: boolean;
   setSubscriptionData: (status: string | null, nextBillingDate?: string | null) => void;
-  login: (user: User, token: string, rememberMe?: boolean, subscriptionStatus?: string | null, isFreePlan?: boolean) => void;
+  login: (user: User, token: string, rememberMe?: boolean, subscriptionStatus?: string | null, isFreePlan?: boolean, nextBillingDate?: string | null) => void;
   logout: () => void;
   hydrate: () => void;
 }
@@ -25,6 +25,7 @@ interface AuthState {
 const TOKEN_KEY = 'talkion_token';
 const USER_KEY = 'talkion_user';
 const SUBSCRIPTION_STATUS_KEY = 'talkion_subscription_status';
+const SUBSCRIPTION_NEXT_BILLING_KEY = 'talkion_subscription_next_billing';
 const IS_FREE_PLAN_KEY = 'talkion_is_free_plan';
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -37,34 +38,39 @@ export const useAuthStore = create<AuthState>((set) => ({
   isFreePlan: false,
   setSubscriptionData: (status, nextBillingDate) =>
     set({ subscriptionStatus: status, subscriptionNextBillingDate: nextBillingDate ?? null }),
-  login: (user, token, rememberMe = true, subscriptionStatus?: string | null, isFreePlan = false) => {
+  login: (user, token, rememberMe = true, subscriptionStatus?: string | null, isFreePlan = false, nextBillingDate?: string | null) => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(SUBSCRIPTION_STATUS_KEY);
+      localStorage.removeItem(SUBSCRIPTION_NEXT_BILLING_KEY);
       localStorage.removeItem(IS_FREE_PLAN_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(USER_KEY);
       sessionStorage.removeItem(SUBSCRIPTION_STATUS_KEY);
+      sessionStorage.removeItem(SUBSCRIPTION_NEXT_BILLING_KEY);
       sessionStorage.removeItem(IS_FREE_PLAN_KEY);
 
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem(TOKEN_KEY, token);
       storage.setItem(USER_KEY, JSON.stringify(user));
       if (subscriptionStatus !== undefined) storage.setItem(SUBSCRIPTION_STATUS_KEY, subscriptionStatus ?? '');
+      if (nextBillingDate !== undefined) storage.setItem(SUBSCRIPTION_NEXT_BILLING_KEY, nextBillingDate ?? '');
       storage.setItem(IS_FREE_PLAN_KEY, String(isFreePlan));
     }
-    set({ user, token, isAuthenticated: true, subscriptionStatus: subscriptionStatus ?? null, isFreePlan });
+    set({ user, token, isAuthenticated: true, subscriptionStatus: subscriptionStatus ?? null, subscriptionNextBillingDate: nextBillingDate ?? null, isFreePlan });
   },
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem(SUBSCRIPTION_STATUS_KEY);
+      localStorage.removeItem(SUBSCRIPTION_NEXT_BILLING_KEY);
       localStorage.removeItem(IS_FREE_PLAN_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(USER_KEY);
       sessionStorage.removeItem(SUBSCRIPTION_STATUS_KEY);
+      sessionStorage.removeItem(SUBSCRIPTION_NEXT_BILLING_KEY);
       sessionStorage.removeItem(IS_FREE_PLAN_KEY);
     }
     set({ user: null, token: null, isAuthenticated: false, subscriptionStatus: null, subscriptionNextBillingDate: null, isFreePlan: false });
@@ -80,6 +86,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const subStatus =
       localStorage.getItem(SUBSCRIPTION_STATUS_KEY) || sessionStorage.getItem(SUBSCRIPTION_STATUS_KEY);
+    const subNextBilling =
+      localStorage.getItem(SUBSCRIPTION_NEXT_BILLING_KEY) || sessionStorage.getItem(SUBSCRIPTION_NEXT_BILLING_KEY);
     const isFreeRaw =
       localStorage.getItem(IS_FREE_PLAN_KEY) || sessionStorage.getItem(IS_FREE_PLAN_KEY);
 
@@ -88,6 +96,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       token,
       isAuthenticated: !!token,
       subscriptionStatus: subStatus ?? null,
+      subscriptionNextBillingDate: subNextBilling || null,
       isFreePlan: isFreeRaw === 'true',
       isHydrated: true,
     });

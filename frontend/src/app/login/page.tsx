@@ -24,6 +24,28 @@ import { toast } from "sonner";
 
 type AuthView = "login" | "register" | "verify" | "forgot";
 
+const isSubscriptionBlocked = (
+  subStatus?: string | null,
+  nextBillingDate?: string | null,
+) => {
+  const deadline = nextBillingDate ? new Date(nextBillingDate) : null;
+  const deadlineInFuture =
+    deadline !== null && deadline.getTime() > new Date().getTime();
+  const deadlinePassed =
+    deadline !== null && deadline.getTime() <= new Date().getTime();
+  if (subStatus === "past_due" || subStatus === "cancelled") {
+    return !deadlineInFuture;
+  }
+  if (
+    subStatus === "active" ||
+    subStatus === "pending" ||
+    subStatus === "paused"
+  ) {
+    return deadlinePassed;
+  }
+  return false;
+};
+
 function AuthBackground() {
   return (
     <>
@@ -123,13 +145,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isHydrated || !isAuthenticated || sessionStorage.getItem('selectedPlan')) return;
-    const { subscriptionStatus, isFreePlan, user } = useAuthStore.getState();
+    const { subscriptionStatus, isFreePlan, subscriptionNextBillingDate, user } = useAuthStore.getState();
     if (user?.role === "ADMIN") {
       navigateAfterAuth("/billing");
       return;
     }
     if (subscriptionStatus) {
-      navigateAfterAuth(subscriptionStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
+      const blocked = isSubscriptionBlocked(subscriptionStatus, subscriptionNextBillingDate);
+      navigateAfterAuth(blocked || subscriptionStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
       return;
     }
     const storedUser = useAuthStore.getState().user;
@@ -141,7 +164,8 @@ export default function LoginPage() {
         if (cancelled) return;
         const subStatus = subRes.data?.status;
         const isFreePlan = subRes.data?.plan?.is_free;
-        navigateAfterAuth(!subStatus || subStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
+        const blocked = isSubscriptionBlocked(subStatus, subRes.data?.next_billing_date);
+        navigateAfterAuth(blocked || !subStatus || subStatus === "none" || isFreePlan ? "/welcome" : "/dashboard");
       } catch {
         if (!cancelled) navigateAfterAuth("/welcome");
       }
@@ -291,14 +315,15 @@ export default function LoginPage() {
     try {
       const response = await api.post("/auth/login", { email: normalizedEmail, password });
       const userData = response.data.user;
-      login(userData, response.data.access_token, rememberMe, response.data.subscription_status, response.data.is_free_plan);
+      login(userData, response.data.access_token, rememberMe, response.data.subscription_status, response.data.is_free_plan, response.data.subscription_next_billing_date);
 
       const subStatus = response.data.subscription_status;
       const isFreePlan = response.data.is_free_plan;
+      const blocked = isSubscriptionBlocked(subStatus, response.data.subscription_next_billing_date);
       const redirectPath =
         userData?.role === "ADMIN"
           ? "/billing"
-          : (!subStatus || subStatus === "none" || isFreePlan)
+          : (blocked || !subStatus || subStatus === "none" || isFreePlan)
             ? "/welcome"
             : "/dashboard";
 
