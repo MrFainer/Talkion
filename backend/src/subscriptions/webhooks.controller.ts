@@ -135,6 +135,20 @@ export class WebhooksController {
       if (payment) subscriptionId = payment.subscription_id;
     }
 
+    // Cobranças recorrentes geradas pelo preapproval podem não trazer
+    // external_reference; resolve a assinatura pelo preapproval_id.
+    if (!subscriptionId) {
+      const mpSubscriptionId =
+        data.preapproval_id || body.preapproval_id || body.preapproval || null;
+      if (mpSubscriptionId) {
+        const sub = await this.prisma.subscription.findFirst({
+          where: { mercadopago_subscription_id: String(mpSubscriptionId) },
+          select: { id: true },
+        });
+        if (sub) subscriptionId = sub.id;
+      }
+    }
+
     if (!subscriptionId) {
       this.logger.warn(
         `Could not resolve subscription for payment ${mpPaymentId}`,
