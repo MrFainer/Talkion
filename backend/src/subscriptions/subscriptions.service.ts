@@ -1030,29 +1030,41 @@ export class SubscriptionsService {
     try {
       // Junta pagamentos por external_reference (user_id) e por preapproval,
       // pois a cobrança recorrente pode aparecer em uma das duas buscas.
+      // Uma busca individual falhando (ex.: preapproval cancelada) não deve
+      // derrubar a reconciliação inteira.
       const [byReference, byPreapproval] = await Promise.all([
-        this.mp.searchPaymentsByExternalReference(sub.user_id),
+        this.mp.searchPaymentsByExternalReference(sub.user_id).catch((err) => {
+          this.logger.warn(
+            `MP search by external_reference failed for reconcile: ${(err as Error).message}`,
+          );
+          return [];
+        }),
         sub.mercadopago_subscription_id
-          ? this.mp.searchPaymentsByPreapproval(
-              sub.mercadopago_subscription_id,
-            )
+          ? this.mp
+              .searchPaymentsByPreapproval(sub.mercadopago_subscription_id)
+              .catch((err) => {
+                this.logger.warn(
+                  `MP search by preapproval failed for reconcile: ${(err as Error).message}`,
+                );
+                return [];
+              })
           : Promise.resolve([]),
       ]);
       const seen = new Set<string>();
-      mpPayments = [...byReference, ...byPreapproval].filter((p: any) => {
+      for (const p of [...byReference, ...byPreapproval]) {
         const id = String(p.id || '');
-        if (!id || seen.has(id)) return false;
+        if (!id || seen.has(id)) continue;
         seen.add(id);
-        return true;
-      });
+        mpPayments.push(p);
+      }
       mpPayments.sort(
         (a: any, b: any) =>
           new Date(b.date_created || 0).getTime() -
           new Date(a.date_created || 0).getTime(),
       );
     } catch (err) {
-      throw new BadRequestException(
-        `Falha ao consultar Mercado Pago: ${(err as Error).message}`,
+      this.logger.warn(
+        `MP payment search failed for reconcile (continuing with local data): ${(err as Error).message}`,
       );
     }
 
@@ -1110,35 +1122,69 @@ export class SubscriptionsService {
       }
     }
 
-    // Só considera o pagamento mais recente para decidir o status. Um
-    // pagamento recusado antigo (já regularizado por um aprovado posterior)
-    // não deve manter a assinatura em past_due nem derrubar um status active.
-    const latestPayment = mpPayments[0];
-    const latestRejected =
-      latestPayment &&
-      ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(
-        latestPayment.status,
-      );
+    // Mescla os pagamentos do Mercado Pago com o histórico local
+    // (subscription_payment), que é alimentado pelos webhooks. A decisão do
+    // status leva em conta o registro mais recente entre as duas fontes.
+    const localPayments = await this.prisma.subscriptionPayment.findMany({
+      where: { subscription_id: sub.id },
+      orderBy: { created_at: 'desc' },
+    });
 
-    if (latestRejected) {
+    const latestLocal = localPayments[0];
+    const latestMp = mpPayments[0];
+
+    const localDate = latestLocal
+      ? new Date(
+          latestLocal.paid_at?.toISOString() ||
+            latestLocal.created_at.toISOString(),
+        ).getTime()
+      : -1;
+    const mpDate = latestMp
+      ? new Date(latestMp.date_created || latestMp.date_approved || 0).getTime()
+      : -1;
+
+    let effective: { status: string; date: Date } | null = null;
+    if (latestMp && mpDate >= localDate) {
+      const d = new Date(latestMp.date_created || latestMp.date_approved);
+      effective = {
+        status: latestMp.status,
+        date: isNaN(d.getTime()) ? new Date() : d,
+      };
+    } else if (latestLocal) {
+      effective = {
+        status: latestLocal.status,
+        date:
+          latestLocal.paid_at || latestLocal.created_at || new Date(),
+      };
+    }
+
+    const isRejectedStatus = (status: string) =>
+      ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(status);
+
+    if (effective && isRejectedStatus(effective.status)) {
       await this.prisma.subscription.update({
         where: { id: sub.id },
         data: { status: 'past_due' },
       });
-    } else if (latestPayment?.status === 'approved') {
+      this.logger.log(
+        `Reconcile for user ${userId}: latest payment rejected (${effective.status}), subscription set to past_due`,
+      );
+    } else if (effective?.status === 'approved') {
       // Regulariza a assinatura: reativa e garante uma data de renovação
       // futura (a partir do pagamento aprovado), para o guard não bloquear.
-      const paidAt = latestPayment.date_approved || latestPayment.date_created;
-      const nextBilling = paidAt
-        ? new Date(new Date(paidAt).getTime() + 30 * 24 * 60 * 60 * 1000)
-        : null;
+      const nextBilling = new Date(
+        effective.date.getTime() + 30 * 24 * 60 * 60 * 1000,
+      );
       await this.prisma.subscription.update({
         where: { id: sub.id },
         data: {
           status: 'active',
-          ...(nextBilling ? { next_billing_date: nextBilling } : {}),
+          next_billing_date: nextBilling,
         },
       });
+      this.logger.log(
+        `Reconcile for user ${userId}: latest payment approved, subscription set to active`,
+      );
     }
 
     this.logger.log(
