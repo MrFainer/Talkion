@@ -1028,35 +1028,18 @@ export class SubscriptionsService {
 
     let mpPayments: any[] = [];
     try {
-      // Junta pagamentos por external_reference (user_id) e por preapproval,
-      // pois a cobrança recorrente pode aparecer em uma das duas buscas.
-      // Uma busca individual falhando (ex.: preapproval cancelada) não deve
-      // derrubar a reconciliação inteira.
-      const [byReference, byPreapproval] = await Promise.all([
-        this.mp.searchPaymentsByExternalReference(sub.user_id).catch((err) => {
+      // Busca pagamentos por external_reference (user_id). O Mercado Pago não
+      // aceita filtrar por preapproval_id em /v1/payments/search (400), e o
+      // histórico local (alimentado pelos webhooks) já cobre as cobranças
+      // recorrentes. Falha na busca não deve derrubar a reconciliação.
+      mpPayments = await this.mp
+        .searchPaymentsByExternalReference(sub.user_id)
+        .catch((err) => {
           this.logger.warn(
             `MP search by external_reference failed for reconcile: ${(err as Error).message}`,
           );
           return [];
-        }),
-        sub.mercadopago_subscription_id
-          ? this.mp
-              .searchPaymentsByPreapproval(sub.mercadopago_subscription_id)
-              .catch((err) => {
-                this.logger.warn(
-                  `MP search by preapproval failed for reconcile: ${(err as Error).message}`,
-                );
-                return [];
-              })
-          : Promise.resolve([]),
-      ]);
-      const seen = new Set<string>();
-      for (const p of [...byReference, ...byPreapproval]) {
-        const id = String(p.id || '');
-        if (!id || seen.has(id)) continue;
-        seen.add(id);
-        mpPayments.push(p);
-      }
+        });
       mpPayments.sort(
         (a: any, b: any) =>
           new Date(b.date_created || 0).getTime() -

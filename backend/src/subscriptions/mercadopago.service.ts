@@ -294,21 +294,6 @@ export class MercadoPagoService {
     return this.request('GET', `/v1/payments/${mpPaymentId}`);
   }
 
-  async searchPaymentsByPreapproval(mpSubscriptionId: string) {
-    const params: any = {
-      preapproval_id: mpSubscriptionId,
-      limit: 100,
-      sort: 'date_approved',
-      criteria: 'desc',
-    };
-    const data = await this.request('GET', '/v1/payments/search', null, params);
-    return Array.isArray(data?.results)
-      ? data.results
-      : Array.isArray(data)
-      ? data
-      : [];
-  }
-
   async searchPaymentsByExternalReference(externalReference: string) {
     const params: any = {
       external_reference: externalReference,

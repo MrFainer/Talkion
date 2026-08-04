@@ -404,14 +404,14 @@ export function Sidebar() {
         setHasActivePlan(status === 'active');
         setPlanFeatures(res.data?.plan?.features || null);
         setPlanName(res.data?.plan?.name || null);
-        const hasRejected = (res.data?.payments || []).some(
-          (p: any) =>
-            p.status === "rejected" ||
-            p.status === "refunded" ||
-            p.status === "cancelled" ||
-            p.status === "charged_back"
-        );
-        setSubscriptionHasIssue(status === "past_due" || hasRejected);
+        const latestPayment = (res.data?.payments || [])[0];
+        const hasRejected =
+          latestPayment &&
+          (latestPayment.status === "rejected" ||
+            latestPayment.status === "refunded" ||
+            latestPayment.status === "cancelled" ||
+            latestPayment.status === "charged_back");
+        setSubscriptionHasIssue(status === "past_due" || !!hasRejected);
 
         const deadline = nextBilling ? new Date(nextBilling) : null;
         const deadlineInFuture =
