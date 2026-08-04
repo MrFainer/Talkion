@@ -1021,21 +1021,35 @@ export class SubscriptionsService {
   async reconcileSubscriptionPayments(userId: string) {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { not: 'cancelled' } },
+      orderBy: { created_at: 'desc' },
       include: { user: true },
     });
     if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
 
     let mpPayments: any[] = [];
     try {
-      // Prefere buscar por external_reference (user_id): este fluxo cobra com
-      // "pagamento único + cartão salvo", não pela recorrência automática do MP.
-      // Se não houver resultados, tenta a preapproval como fallback.
-      mpPayments = await this.mp.searchPaymentsByExternalReference(sub.user_id);
-      if (!mpPayments.length && sub.mercadopago_subscription_id) {
-        mpPayments = await this.mp.searchPaymentsByPreapproval(
-          sub.mercadopago_subscription_id,
-        );
-      }
+      // Junta pagamentos por external_reference (user_id) e por preapproval,
+      // pois a cobrança recorrente pode aparecer em uma das duas buscas.
+      const [byReference, byPreapproval] = await Promise.all([
+        this.mp.searchPaymentsByExternalReference(sub.user_id),
+        sub.mercadopago_subscription_id
+          ? this.mp.searchPaymentsByPreapproval(
+              sub.mercadopago_subscription_id,
+            )
+          : Promise.resolve([]),
+      ]);
+      const seen = new Set<string>();
+      mpPayments = [...byReference, ...byPreapproval].filter((p: any) => {
+        const id = String(p.id || '');
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      mpPayments.sort(
+        (a: any, b: any) =>
+          new Date(b.date_created || 0).getTime() -
+          new Date(a.date_created || 0).getTime(),
+      );
     } catch (err) {
       throw new BadRequestException(
         `Falha ao consultar Mercado Pago: ${(err as Error).message}`,
@@ -1096,16 +1110,34 @@ export class SubscriptionsService {
       }
     }
 
-    const hasOpenRejection = mpPayments.some(
-      (p: any) =>
-        ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(
-          p.status,
-        ),
-    );
-    if (hasOpenRejection) {
+    // Só considera o pagamento mais recente para decidir o status. Um
+    // pagamento recusado antigo (já regularizado por um aprovado posterior)
+    // não deve manter a assinatura em past_due nem derrubar um status active.
+    const latestPayment = mpPayments[0];
+    const latestRejected =
+      latestPayment &&
+      ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(
+        latestPayment.status,
+      );
+
+    if (latestRejected) {
       await this.prisma.subscription.update({
         where: { id: sub.id },
         data: { status: 'past_due' },
+      });
+    } else if (latestPayment?.status === 'approved') {
+      // Regulariza a assinatura: reativa e garante uma data de renovação
+      // futura (a partir do pagamento aprovado), para o guard não bloquear.
+      const paidAt = latestPayment.date_approved || latestPayment.date_created;
+      const nextBilling = paidAt
+        ? new Date(new Date(paidAt).getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null;
+      await this.prisma.subscription.update({
+        where: { id: sub.id },
+        data: {
+          status: 'active',
+          ...(nextBilling ? { next_billing_date: nextBilling } : {}),
+        },
       });
     }
 
@@ -1250,13 +1282,18 @@ export class SubscriptionsService {
     });
     if (!sub) throw new NotFoundException('Assinatura não encontrada');
 
-    if (!statusDetail && mpPaymentId) {
+    let rejectedAt: Date | null = null;
+    if (mpPaymentId) {
       try {
         const mpPayment = await this.mp.getPayment(mpPaymentId);
-        statusDetail = mpPayment?.status_detail || undefined;
+        if (!statusDetail) {
+          statusDetail = mpPayment?.status_detail || undefined;
+        }
+        const dateStr = mpPayment?.date_created || mpPayment?.date_approved;
+        if (dateStr) rejectedAt = new Date(dateStr);
       } catch (err) {
         this.logger.warn(
-          `Failed to fetch status_detail for payment ${mpPaymentId}: ${(err as Error).message}`,
+          `Failed to fetch payment ${mpPaymentId} details: ${(err as Error).message}`,
         );
       }
     }
@@ -1273,6 +1310,25 @@ export class SubscriptionsService {
         rejection_reason: rejectionReason,
       },
     });
+
+    // Se já existe um pagamento aprovado mais recente que este (ex.: o usuário
+    // regularizou trocando o cartão), não rebaixa a assinatura para past_due.
+    // Um webhook de recusa antigo/reenviado não deve derrubar um status ativo.
+    const latestApproved = await this.prisma.subscriptionPayment.findFirst({
+      where: { subscription_id: subscriptionId, status: 'approved' },
+      orderBy: { paid_at: 'desc' },
+    });
+    const regularizedAfterRejection =
+      !!rejectedAt &&
+      !!latestApproved?.paid_at &&
+      latestApproved.paid_at.getTime() > rejectedAt.getTime();
+
+    if (regularizedAfterRejection) {
+      this.logger.log(
+        `Payment ${mpPaymentId} rejected but a newer approved payment exists, keeping subscription ${subscriptionId} active`,
+      );
+      return payment;
+    }
 
     await this.prisma.subscription.update({
       where: { id: subscriptionId },
