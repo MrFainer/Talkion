@@ -238,13 +238,32 @@ export class NewsService {
       where: { teacher_id: teacherId, active: true },
     });
 
-    if (studentCount === 0) {
+    const messageSettings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+      select: {
+        auto_group_targets: true,
+        group_send_enabled: true,
+        admin_group_send_enabled: true,
+      },
+    });
+
+    const groupSendEnabled =
+      messageSettings?.group_send_enabled !== false &&
+      messageSettings?.admin_group_send_enabled !== false;
+    const groupTargets = Array.isArray(messageSettings?.auto_group_targets)
+      ? messageSettings.auto_group_targets.filter(
+          (target: any) =>
+            Boolean(String(target?.groupId || target?.id || '').trim()),
+        )
+      : [];
+
+    if (studentCount === 0 && (!groupSendEnabled || groupTargets.length === 0)) {
       this.logger.log(
-        `Professor ${teacherId} não possui alunos ativos. Pulando captura de notícia e geração de quiz para não debitar créditos desnecessariamente.`,
+        `Professor ${teacherId} não possui alunos ativos nem grupos configurados para envio. Pulando captura de notícia e geração de quiz para não debitar créditos desnecessariamente.`,
       );
       return {
         message:
-          'Professor sem alunos ativos. Captura de notícia e quiz ignorados.',
+          'Professor sem alunos ativos e sem grupos configurados. Captura de notícia e quiz ignorados.',
         news: { created: 0, skippedSameDay: 0, skippedSameNews: 0, errors: 0, items: [] },
         quizzes: { created: 0, existing: 0, errors: 0, items: [] },
       };

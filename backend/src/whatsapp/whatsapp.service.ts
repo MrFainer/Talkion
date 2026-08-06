@@ -4556,13 +4556,6 @@ export class WhatsappService {
       });
     }
 
-    if (!latestNews) {
-      latestNews = await this.prisma.news.findFirst({
-        where: { teacher_id: teacherId },
-        orderBy: { created_at: 'desc' },
-      });
-    }
-
     return latestNews;
   }
 
