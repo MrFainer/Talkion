@@ -2409,6 +2409,19 @@ export class WhatsappService {
 
     const newsByLevel = await getNewsByLevel();
 
+    if (!newsByLevel.LEVEL_1 && !newsByLevel.LEVEL_2 && !newsByLevel.LEVEL_3) {
+      this.logger.log(
+        `[BROADCAST] Nenhuma notícia do dia para o professor ${teacherId}. Disparo privado ignorado para evitar envio sem conteúdo.`,
+      );
+      return {
+        success: true,
+        count: 0,
+        skipped: skippedCount,
+        message:
+          'Nenhuma notícia do dia disponível. Disparo privado ignorado.',
+      };
+    }
+
     const timeZone = process.env.NEWS_DAILY_TIMEZONE || 'America/Sao_Paulo';
     const hourStr = new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
