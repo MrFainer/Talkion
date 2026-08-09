@@ -4050,9 +4050,12 @@ export class WhatsappService {
     }
 
     try {
-      const mediaResponse = await this.http.post(
-        `/chat/getBase64FromMediaMessage/${instanceName}`,
-        { message: messageData },
+      const mediaResponse = await this.withRetry(
+        () =>
+          this.http.post(`/chat/getBase64FromMediaMessage/${instanceName}`, {
+            message: messageData,
+          }),
+        { maxRetries: 3, baseDelayMs: 2000 },
       );
 
       const base64Audio = mediaResponse.data?.base64;
@@ -4148,7 +4151,7 @@ export class WhatsappService {
                 student_id: student.id,
                 direction: 'INCOMING',
                 quoted_message_id: quotedMessageId,
-                content_kind: { in: ['AUDIO', 'SPEAKING_AUDIO'] },
+                content_kind: 'SPEAKING_AUDIO',
                 external_message_id: { not: incomingMessageId },
               },
               select: { id: true, created_at: true },
@@ -4294,7 +4297,7 @@ export class WhatsappService {
       await this.sendMessage(
         student.teacher_id as string,
         remoteJid,
-        'Desculpe, ocorreu um erro ao avaliar o seu audio.',
+        'Ops, tivemos um problema ao processar o seu áudio. 😕 Reenvie o mesmo áudio novamente, por favor.',
         {
           studentId: student.id,
           remoteJid,
@@ -5505,6 +5508,63 @@ export class WhatsappService {
           .toLowerCase()
           .includes('timeout'))
     );
+  }
+
+  private isTransientNetworkError(error: unknown) {
+    if (!this.isAxiosError(error)) {
+      return false;
+    }
+
+    const message = String(error.message || '').toLowerCase();
+    const code = String(error.code || '');
+    const status = error.response?.status;
+
+    return (
+      code === 'EAI_AGAIN' ||
+      code === 'ECONNABORTED' ||
+      code === 'ECONNREFUSED' ||
+      code === 'ECONNRESET' ||
+      code === 'ENETUNREACH' ||
+      code === 'ETIMEDOUT' ||
+      code === 'EPIPE' ||
+      message.includes('getaddrinfo') ||
+      message.includes('eai_again') ||
+      message.includes('dns') ||
+      message.includes('socket hang up') ||
+      message.includes('network') ||
+      (typeof status === 'number' && status >= 500)
+    );
+  }
+
+  private async withRetry<T>(
+    operation: () => Promise<T>,
+    options: { maxRetries?: number; baseDelayMs?: number } = {},
+  ) {
+    const maxRetries = options.maxRetries ?? 3;
+    const baseDelayMs = options.baseDelayMs ?? 1000;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        const transient = this.isTransientNetworkError(error);
+        if (attempt < maxRetries && transient) {
+          const delayMs = baseDelayMs * attempt;
+          this.logger.warn(
+            `[RETRY] Tentativa ${attempt}/${maxRetries} falhou por erro transitorio (${this.describeError(
+              error,
+            )}). Reintentando em ${delayMs}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else if (attempt < maxRetries) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
   }
 
   private describeError(error: unknown) {
