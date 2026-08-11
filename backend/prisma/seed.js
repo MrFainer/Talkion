@@ -142,7 +142,7 @@ async function main() {
   };
 
   const PLAN_DEFS = [
-    { name: 'Free', desc: 'Comece gratuitamente. Sem cartão de crédito.', price: 0, credits: 5000, max_students: 10, is_free: true, features: FREE_FEATURES, sort_order: 1 },
+    { name: 'Free', desc: 'Comece gratuitamente. Sem cartão de crédito.', price: 0, credits: 2000, max_students: 3, is_free: true, features: FREE_FEATURES, sort_order: 1 },
     { name: 'Essentials', desc: 'Para professores que querem automatizar suas aulas.', price: 99.90, credits: 20000, max_students: 50, is_free: false, features: BASE_FEATURES, sort_order: 2 },
     { name: 'Professional', desc: 'Cresça sem aumentar sua carga de trabalho.', price: 199.90, credits: 50000, max_students: 100, is_free: false, features: PREMIUM_FEATURES, sort_order: 3 },
     { name: 'School', desc: 'Para escolas e equipes de professores.', price: 399.90, credits: 120000, max_students: 250, max_teachers: 5, is_free: false, features: SCHOOL_FEATURES, sort_order: 4 },

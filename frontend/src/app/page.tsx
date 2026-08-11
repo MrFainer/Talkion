@@ -191,7 +191,7 @@ const faq = [
   {
     question: "O plano gratuito tem limite de tempo?",
     answer:
-      "Não! O plano Free é totalmente gratuito por tempo ilimitado. Você pode usar para sempre sem pagar nada, com 5.000 créditos mensais e até 10 alunos.",
+      "Não! O plano Free é totalmente gratuito, sem cartão de crédito. Você recebe 2.000 créditos para testar a plataforma com até 3 alunos.",
   },
   {
     question: "Os créditos acumulam?",
@@ -736,11 +736,11 @@ export default function LandingPage() {
                 </div>
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600 mx-auto mb-4">
                   <Zap className="h-3 w-3" />
-                  5.000 créditos/mês
+                  2.000 créditos
                 </div>
                 <ul className="space-y-2 text-left mb-4 flex-1">
                   {[
-                    "Até 10 alunos",
+                    "Até 3 alunos",
                     "Conteúdo diário IA",
                     "Speaking IA",
                     "Quiz inteligente",
@@ -969,8 +969,8 @@ export default function LandingPage() {
                 </thead>
                 <tbody>
                   {[
-                    { label: "Alunos", free: "10", essentials: "50", professional: "100", school: "250" },
-                    { label: "Créditos mensais", free: "5.000", essentials: "20.000", professional: "50.000", school: "120.000" },
+                    { label: "Alunos", free: "3", essentials: "50", professional: "100", school: "250" },
+                    { label: "Créditos", free: "2.000", essentials: "20.000", professional: "50.000", school: "120.000" },
                     { label: "Conteúdo diário IA", free: true, essentials: true, professional: true, school: true },
                     { label: "Speaking IA", free: true, essentials: true, professional: true, school: true },
                     { label: "Quiz inteligente", free: true, essentials: true, professional: true, school: true },

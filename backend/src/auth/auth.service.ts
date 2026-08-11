@@ -94,12 +94,7 @@ export class AuthService {
           where: { id: user.id },
           data: { active: true },
         });
-        await this.creditsService.addCredits(
-          updated.id,
-          TRIAL_CREDITS,
-          'Créditos de boas-vindas para teste',
-          'trial',
-        );
+        await this.grantWelcomeCredits(updated.id);
 
         await this.ensureFreeSubscription(updated.id);
 
@@ -121,12 +116,7 @@ export class AuthService {
       },
     });
 
-    await this.creditsService.addCredits(
-      updatedUser.id,
-      TRIAL_CREDITS,
-      'Créditos de boas-vindas para teste',
-      'trial',
-    );
+    await this.grantWelcomeCredits(updatedUser.id);
 
     await this.ensureFreeSubscription(updatedUser.id);
 
@@ -299,6 +289,31 @@ export class AuthService {
     return {
       message: 'Senha redefinida com sucesso.',
     };
+  }
+
+  private async grantWelcomeCredits(userId: string) {
+    const freePlan = await this.prisma.subscriptionPlan.findFirst({
+      where: { active: true, OR: [{ is_free: true }, { name: 'Free' }] },
+      orderBy: { created_at: 'asc' },
+      select: { id: true, name: true, credits: true },
+    });
+
+    if (freePlan) {
+      await this.creditsService.resetAndAddCredits(
+        userId,
+        freePlan.credits,
+        `Créditos do plano ${freePlan.name}`,
+        'free_plan',
+      );
+      return;
+    }
+
+    await this.creditsService.addCredits(
+      userId,
+      TRIAL_CREDITS,
+      'Créditos de boas-vindas para teste',
+      'trial',
+    );
   }
 
   private async ensureFreeSubscription(userId: string) {

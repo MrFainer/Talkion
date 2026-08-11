@@ -74,8 +74,8 @@ const planStyles: Record<string, PlanStyle> = {
 
 const planFeatures: Record<string, string[]> = {
   Free: [
-    "Até 10 alunos",
-    "5.000 créditos/mês",
+    "Até 3 alunos",
+    "2.000 créditos",
     "Todas as funcionalidades",
     "Suporte por e-mail",
     "Sem cartão de crédito",
@@ -127,7 +127,7 @@ const faqItems = [
   },
   {
     q: "O plano gratuito tem limite de tempo?",
-    a: "Não! O plano Free é totalmente gratuito por tempo ilimitado. Você pode usar para sempre sem pagar nada, com 5.000 créditos mensais e até 10 alunos.",
+    a: "Não! O plano Free é totalmente gratuito, sem cartão de crédito. Você recebe 2.000 créditos para testar a plataforma com até 3 alunos.",
   },
   {
     q: "Os créditos acumulam?",
@@ -155,8 +155,8 @@ const creditPacks = [
 ];
 
 const comparisonRows = [
-  { label: "Alunos", free: "10", essentials: "50", professional: "100", school: "250" },
-  { label: "Créditos mensais", free: "5.000", essentials: "20.000", professional: "50.000", school: "120.000" },
+  { label: "Alunos", free: "3", essentials: "50", professional: "100", school: "250" },
+  { label: "Créditos", free: "2.000", essentials: "20.000", professional: "50.000", school: "120.000" },
   { label: "Conteúdo diário IA", free: true, essentials: true, professional: true, school: true },
   { label: "Speaking IA", free: true, essentials: true, professional: true, school: true },
   { label: "Quiz inteligente", free: true, essentials: true, professional: true, school: true },
