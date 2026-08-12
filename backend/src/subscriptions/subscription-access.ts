@@ -62,15 +62,26 @@ export async function assertServiceAllowed(
   const sub = await prisma.subscription.findFirst({
     where: { user_id: userId, status: { not: 'cancelled' } },
     orderBy: { created_at: 'desc' },
-    select: { status: true, next_billing_date: true },
+    select: {
+      status: true,
+      next_billing_date: true,
+      plan: { select: { is_free: true } },
+    },
   });
+
+  if (sub?.plan?.is_free) return;
 
   if (!sub) {
     const cancelledSub = await prisma.subscription.findFirst({
       where: { user_id: userId, status: 'cancelled' },
       orderBy: { created_at: 'desc' },
-      select: { status: true, next_billing_date: true },
+      select: {
+        status: true,
+        next_billing_date: true,
+        plan: { select: { is_free: true } },
+      },
     });
+    if (cancelledSub?.plan?.is_free) return;
     if (!cancelledSub) return;
     const message = subscriptionBlockMessage(
       cancelledSub.status,

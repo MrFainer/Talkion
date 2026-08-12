@@ -3294,7 +3294,16 @@ export class WhatsappService {
     }
 
     if (fromMe) {
-      return;
+      const isSelfTest = await this.isSelfTestAllowed(
+        isGroup,
+        incomingMessageId,
+      );
+      if (!isSelfTest) {
+        this.logger.log(
+          `[WEBHOOK] Mensagem própria ignorada (id=${incomingMessageId}).`,
+        );
+        return;
+      }
     }
 
     let senderJid = isGroup ? data?.key?.participant : remoteJid;
@@ -3413,6 +3422,30 @@ export class WhatsappService {
       );
       return;
     }
+  }
+
+  /**
+   * Permite autoteste: o professor cadastra o próprio número como aluno e
+   * usa a plataforma do próprio WhatsApp. Libera mensagens `fromMe` (enviadas
+   * pela própria instância) somente em conversas privadas e quando NÃO forem
+   * eco de mensagens enviadas pelo bot (evita loop de reprocessamento).
+   */
+  private async isSelfTestAllowed(
+    isGroup: boolean,
+    incomingMessageId?: string | null,
+  ): Promise<boolean> {
+    if (isGroup || !incomingMessageId) return false;
+
+    const echo = await this.prisma.whatsappMessage.findFirst({
+      where: {
+        direction: 'OUTGOING',
+        external_message_id: incomingMessageId,
+        created_at: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+
+    return !echo;
   }
 
   private isPossibleQuizAnswer(text: string): boolean {

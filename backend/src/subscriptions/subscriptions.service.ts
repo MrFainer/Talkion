@@ -257,7 +257,7 @@ export class SubscriptionsService {
 
   async getUserSubscription(userId: string) {
     const sub = await this.prisma.subscription.findFirst({
-      where: { user_id: userId },
+      where: { user_id: userId, status: { not: 'cancelled' } },
       orderBy: { created_at: 'desc' },
       include: {
         plan: true,

@@ -354,7 +354,10 @@ export class AuthService {
     } | null = null;
     try {
       sub = await this.prisma.subscription.findFirst({
-        where: { user_id: user.id },
+        where: {
+          user_id: user.id,
+          status: { in: ['active', 'pending', 'paused', 'past_due'] },
+        },
         orderBy: { created_at: 'desc' },
         select: {
           status: true,
