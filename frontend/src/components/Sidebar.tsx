@@ -511,8 +511,9 @@ export function Sidebar() {
         { href: "/admin/accesses", label: "Acessos", icon: Activity },
       ]
     : [
-        ...(subscriptionBlocked ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
-        ...(planName === "Free" ? [{ href: "/welcome", label: "Home", icon: Home }] : []),
+        ...(subscriptionBlocked || planName === "Free"
+          ? [{ href: "/welcome", label: "Home", icon: Home }]
+          : []),
         ...(!subscriptionBlocked && hasFeature("dashboard") ? [{ href: dashboardHref, label: dashboardLabel, icon: LayoutDashboard }] : []),
         { href: "/students", label: "Alunos", icon: Users },
         ...(!subscriptionBlocked && admin_lessons_confirmation_enabled !== false && hasFeature("lesson_confirmation") ? [{ href: "/lessons", label: "Aulas", icon: CalendarDays }] : []),

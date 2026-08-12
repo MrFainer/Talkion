@@ -381,7 +381,10 @@ export class AuthService {
         news_group_title: user.news_group_title || null,
       },
       subscription_status: subscriptionStatus,
-      subscription_next_billing_date: sub?.next_billing_date || null,
+      subscription_next_billing_date:
+        sub && sub.plan?.is_free
+          ? null
+          : (sub?.next_billing_date || null),
       is_free_plan: isFreePlan,
     };
   }

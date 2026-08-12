@@ -275,6 +275,10 @@ export class SubscriptionsService {
       sub.payments = allPayments;
     }
 
+    if (sub?.plan?.is_free) {
+      sub.next_billing_date = null;
+    }
+
     return sub;
   }
 
