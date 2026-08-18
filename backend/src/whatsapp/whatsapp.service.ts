@@ -197,6 +197,33 @@ export class WhatsappService {
   }
 
   /**
+   * Resolve o professor (teacherId) dono da instância que recebeu o webhook.
+   * Usado para responder mensagens pela mesma instância em que chegaram,
+   * evitando que o feedback saia pelo WhatsApp de outro professor.
+   */
+  private async resolveTeacherIdFromInstance(
+    instanceName: string,
+  ): Promise<string | null> {
+    const byInstance = await this.prisma.user.findUnique({
+      where: { whatsapp_instance_name: instanceName },
+      select: { id: true },
+    });
+    if (byInstance) return byInstance.id;
+
+    const prefix = 'talkion_prof_';
+    if (instanceName.startsWith(prefix)) {
+      const idPrefix = instanceName.slice(prefix.length);
+      const byIdPrefix = await this.prisma.user.findFirst({
+        where: { id: { startsWith: idPrefix } },
+        select: { id: true },
+      });
+      if (byIdPrefix) return byIdPrefix.id;
+    }
+
+    return null;
+  }
+
+  /**
    * Garante que a instância principal exista na Evolution API.
    */
   async getOrCreateInstance(teacherId: string) {
@@ -4082,7 +4109,16 @@ export class WhatsappService {
       return;
     }
 
+    let replyTeacherId = student.teacher_id as string;
+
     try {
+      const instanceTeacherId = await this.resolveTeacherIdFromInstance(
+        instanceName,
+      );
+      if (instanceTeacherId) {
+        replyTeacherId = instanceTeacherId;
+      }
+
       const mediaResponse = await this.withRetry(
         () =>
           this.http.post(`/chat/getBase64FromMediaMessage/${instanceName}`, {
@@ -4307,7 +4343,7 @@ export class WhatsappService {
         mistakesText,
       ].join('\n');
       await this.sendMessage(
-        student.teacher_id as string,
+        replyTeacherId,
         remoteJid,
         replyText,
         {
@@ -4320,7 +4356,7 @@ export class WhatsappService {
       );
 
       this.logger.log(
-        `[AUDIO][SAIDA] Feedback de speaking enviado para ${this.formatStudentLog(student)} | noticia ${latestNews.id} | nota: ${feedback.score}/10`,
+        `[AUDIO][SAIDA] Feedback de speaking enviado para ${this.formatStudentLog(student)} | noticia ${latestNews.id} | nota: ${feedback.score}/10 | via instance ${instanceName}`,
       );
     } catch (error) {
       this.logger.error(
@@ -4328,7 +4364,7 @@ export class WhatsappService {
         this.describeError(error),
       );
       await this.sendMessage(
-        student.teacher_id as string,
+        replyTeacherId,
         remoteJid,
         'Ops, tivemos um problema ao processar o seu áudio. 😕 Reenvie o mesmo áudio novamente, por favor.',
         {
