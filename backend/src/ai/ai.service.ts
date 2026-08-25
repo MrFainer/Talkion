@@ -1813,7 +1813,12 @@ Gere uma palavra do dia seguindo EXATAMENTE este formato:
 💡 Dica: <explicação rápida sobre quando e como usar a palavra no inglês do dia a dia>
 
 🎯 Now it's your turn!
-<frase curta em inglês para o aluno completar ou responder>
+Complete a frase:
+<FRASE COM ESPAÇO EM BRANCO PARA O ALUNO PREENCHER COM A PALAVRA DO DIA>
+
+Pode ser <opções de exemplo contextualizadas>... 👇
+
+Mande sua resposta aqui no grupo! 🇺🇸🔥
 
 Regras:
 - Escolha uma palavra útil e interessante para o dia a dia
@@ -1822,7 +1827,7 @@ Regras:
 - Use emojis moderadamente
 - NÃO use placeholders como {{variavel}}
 - NÃO inclua JSON
-- A frase "Now it's your turn" deve ser interativa, algo que o aluno possa responder
+- A frase "Now it's your turn" deve conter uma frase com espaço em branco para o aluno completar com a palavra do dia, seguida de opções de exemplo e o convite para responder no grupo
 
 Retorne APENAS o texto do Word of the Day, sem formatação adicional.`;
 
