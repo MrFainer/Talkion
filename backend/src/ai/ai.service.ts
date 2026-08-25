@@ -1790,6 +1790,62 @@ Retorne APENAS o texto da dica, sem formatação adicional.`;
     return response.choices[0]?.message?.content?.trim() || null;
   }
 
+  async generateWordOfTheDay(input: { teacherId: string; model?: string }) {
+    const model = input.model || 'gpt-4o-mini';
+
+    const prompt = `Você é um professor de inglês criando um "Word of the Day" para alunos brasileiros no WhatsApp.
+
+Gere uma palavra do dia seguindo EXATAMENTE este formato:
+
+🌙 WORD OF THE DAY
+
+🔥 <PALAVRA EM INGLÊS (maiúscula)>
+
+📚 Meaning: <significado em inglês simples>
+
+🇧🇷 Significado: <significado em português>
+
+🗣️ Example:
+<frase de exemplo em inglês>
+
+🇧🇷 "<tradução da frase em português>"
+
+💡 Dica: <explicação rápida sobre quando e como usar a palavra no inglês do dia a dia>
+
+🎯 Now it's your turn!
+<frase curta em inglês para o aluno completar ou responder>
+
+Regras:
+- Escolha uma palavra útil e interessante para o dia a dia
+- A palavra pode ser substantivo, verbo, adjetivo ou expressão
+- Evite palavras muito simples (tipo "hello", "good") ou muito técnicas
+- Use emojis moderadamente
+- NÃO use placeholders como {{variavel}}
+- NÃO inclua JSON
+- A frase "Now it's your turn" deve ser interativa, algo que o aluno possa responder
+
+Retorne APENAS o texto do Word of the Day, sem formatação adicional.`;
+
+    const response = await this.openai.chat.completions.create({
+      model,
+      temperature: 0.8,
+      messages: [{ role: 'system', content: prompt }],
+    });
+
+    await this.usageCostService.recordChatCompletion({
+      action: CostAction.WORD_OF_THE_DAY_GENERATION,
+      modelName: model,
+      response,
+      tracking: {
+        referenceType: 'word_of_the_day_generation',
+        referenceId: input.teacherId,
+      },
+      metadata: { kind: 'word_of_the_day' },
+    });
+
+    return response.choices[0]?.message?.content?.trim() || null;
+  }
+
   async generateContentFromTrend(input: {
     teacherId: string;
     topic: string;

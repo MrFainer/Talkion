@@ -37,6 +37,10 @@ export const CREDIT_ACTION_COPY: Record<
     name: 'Geração de Quick Tip',
     description: 'Geração de dica de inglês via IA para grupos',
   },
+  word_of_the_day_generation: {
+    name: 'Geração de Word of the Day',
+    description: 'Geração de palavra do dia em inglês via IA para grupos',
+  },
   news_quiz_group_send: {
     name: 'Envio da notícia + quiz para grupo',
     description: 'Envio da notícia e quiz para grupo de WhatsApp',

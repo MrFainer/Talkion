@@ -1358,6 +1358,56 @@ export class WhatsappService {
     );
   }
 
+  async sendWordOfTheDay(teacherId: string) {
+    const settings = await this.prisma.messageSettings.findUnique({
+      where: { teacher_id: teacherId },
+      select: {
+        ai_model: true,
+        auto_group_targets: true,
+      },
+    });
+
+    if (!settings) return;
+
+    const targets = Array.isArray(settings.auto_group_targets)
+      ? settings.auto_group_targets
+      : [];
+    if (targets.length === 0) return;
+
+    await this.creditsService.requireCredits(teacherId, 'word_of_the_day_generation');
+
+    const groupIds = targets
+      .map((t: any) => String(t?.groupId || t?.id || '').trim())
+      .filter(Boolean);
+
+    const wordOfTheDay = await this.aiService.generateWordOfTheDay({
+      teacherId,
+      model: settings.ai_model || undefined,
+    });
+
+    if (!wordOfTheDay) return;
+
+    for (const groupId of groupIds) {
+      try {
+        await this.sendMessage(teacherId, groupId, wordOfTheDay, {
+          remoteJid: groupId,
+          contentKind: 'TEXT',
+        });
+      } catch (error) {
+        this.logger.error(
+          `[WORD_OF_THE_DAY] Falha ao enviar word of the day para grupo ${groupId} (teacherId=${teacherId}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    await this.creditsService.deductCredits(
+      teacherId,
+      'word_of_the_day_generation',
+      'word_of_the_day',
+      undefined,
+    );
+  }
+
   /**
    * Verifica se o número possui WhatsApp ativo
    */
@@ -1791,9 +1841,12 @@ export class WhatsappService {
         admin_lessons_confirmation_enabled: boolean;
         admin_weekly_summary_enabled: boolean;
         admin_quick_tip_enabled: boolean;
+        admin_word_of_the_day_enabled: boolean;
         admin_birthday_enabled: boolean;
         quick_tip_time: string;
         quick_tip_enabled: boolean;
+        word_of_the_day_time: string;
+        word_of_the_day_enabled: boolean;
         birthday_message_time: string;
         birthday_message_enabled: boolean;
         automation_days: unknown;
@@ -1826,9 +1879,12 @@ export class WhatsappService {
               admin_lessons_confirmation_enabled: true,
               admin_weekly_summary_enabled: true,
               admin_quick_tip_enabled: true,
+              admin_word_of_the_day_enabled: true,
               admin_birthday_enabled: true,
               quick_tip_time: true,
               quick_tip_enabled: true,
+              word_of_the_day_time: true,
+              word_of_the_day_enabled: true,
               birthday_message_time: true,
               birthday_message_enabled: true,
               automation_days: true,
@@ -1856,6 +1912,7 @@ export class WhatsappService {
       lessonsDue: boolean;
       weeklySummaryDue: boolean;
       quickTipDue: boolean;
+      wordOfTheDayDue: boolean;
       birthdayDue: boolean;
       generateQuiz: boolean;
       targets: Array<{ groupId: string; groupLevel?: string }>;
@@ -1927,6 +1984,13 @@ export class WhatsappService {
         settings.quick_tip_time &&
         settings.quick_tip_time === hhmm;
 
+      const wordOfTheDayDue =
+        isAutomationDay &&
+        settings.admin_word_of_the_day_enabled !== false &&
+        settings.word_of_the_day_enabled &&
+        settings.word_of_the_day_time &&
+        settings.word_of_the_day_time === hhmm;
+
       const birthdayDue =
         isAutomationDay &&
         settings.admin_birthday_enabled !== false &&
@@ -1941,6 +2005,7 @@ export class WhatsappService {
         !lessonsDue &&
         !weeklySummaryDue &&
         !quickTipDue &&
+        !wordOfTheDayDue &&
         !birthdayDue
       )
         continue;
@@ -1954,6 +2019,7 @@ export class WhatsappService {
         lessonsDue: Boolean(lessonsDue),
         weeklySummaryDue: Boolean(weeklySummaryDue),
         quickTipDue: Boolean(quickTipDue),
+        wordOfTheDayDue: Boolean(wordOfTheDayDue),
         birthdayDue: Boolean(birthdayDue),
         generateQuiz:
           settings.admin_quiz_generation_enabled !== false &&
@@ -1970,6 +2036,7 @@ export class WhatsappService {
         job.lessonsDue ||
         job.weeklySummaryDue ||
         job.quickTipDue ||
+        job.wordOfTheDayDue ||
         job.birthdayDue,
     );
     const captureParallel = Math.min(
@@ -2203,6 +2270,18 @@ export class WhatsappService {
           this.sendQuickTips(job.teacherId).catch((error) => {
             this.logger.error(
               `[AUTO][${jobId}] Falha quick tip teacherId=${job.teacherId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }),
+        );
+      }
+
+      if (job.wordOfTheDayDue) {
+        tasks.push(
+          this.sendWordOfTheDay(job.teacherId).catch((error) => {
+            this.logger.error(
+              `[AUTO][${jobId}] Falha word of the day teacherId=${job.teacherId}: ${
                 error instanceof Error ? error.message : String(error)
               }`,
             );

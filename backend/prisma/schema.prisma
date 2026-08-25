@@ -45,6 +45,7 @@ enum CostAction {
   SPEAKING_EVALUATION
   WHATSAPP_MESSAGE_GENERATION
   QUICK_TIP_GENERATION
+  WORD_OF_THE_DAY_GENERATION
   CONTENT_GENERATION
 }
 
@@ -440,6 +441,9 @@ weekly_summary_enabled      Boolean  @default(false)
   quick_tip_time              String   @db.VarChar(5) @default("12:00")
   quick_tip_enabled           Boolean  @default(false)
 
+  word_of_the_day_time        String   @db.VarChar(5) @default("18:00")
+  word_of_the_day_enabled     Boolean  @default(false)
+
   birthday_message_time       String   @db.VarChar(5) @default("09:00")
   birthday_message_enabled    Boolean  @default(false)
   birthday_message_template   String?  @db.Text
@@ -452,6 +456,7 @@ weekly_summary_enabled      Boolean  @default(false)
   admin_weekly_summary_enabled          Boolean  @default(true)
   admin_content_generation_enabled      Boolean  @default(false)
   admin_quick_tip_enabled               Boolean  @default(true)
+  admin_word_of_the_day_enabled         Boolean  @default(true)
   admin_birthday_enabled                Boolean  @default(true)
 
   news_capture_enabled        Boolean  @default(true)

@@ -282,4 +282,15 @@ export class WhatsappController {
     await this.whatsappService.sendQuickTips(body.teacherId);
     return { success: true };
   }
+
+  @Post('send-word-of-the-day')
+  @HttpCode(HttpStatus.OK)
+  async sendWordOfTheDay(@Body() body: { teacherId: string }) {
+    if (!body.teacherId) {
+      throw new BadRequestException('teacherId is required');
+    }
+
+    await this.whatsappService.sendWordOfTheDay(body.teacherId);
+    return { success: true };
+  }
 }

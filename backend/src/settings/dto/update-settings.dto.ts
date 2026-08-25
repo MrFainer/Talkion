@@ -50,6 +50,8 @@ export class UpdateSettingsDto {
   admin_quick_tip_enabled?: boolean;
   quick_tip_time?: string;
   quick_tip_enabled?: boolean;
+  word_of_the_day_time?: string;
+  word_of_the_day_enabled?: boolean;
   birthday_message_time?: string;
   birthday_message_enabled?: boolean;
   birthday_message_template?: string;

@@ -61,6 +61,9 @@ type MessageSettingsPayload = {
   quick_tip_time?: string;
   quick_tip_enabled?: boolean;
   admin_quick_tip_enabled?: boolean;
+  word_of_the_day_time?: string;
+  word_of_the_day_enabled?: boolean;
+  admin_word_of_the_day_enabled?: boolean;
   birthday_message_time?: string;
   birthday_message_enabled?: boolean;
   admin_birthday_enabled?: boolean;
@@ -115,6 +118,11 @@ export default function AutomationPage() {
   const [quickTipEnabled, setQuickTipEnabled] = useState(false);
   const [quickTipSaving, setQuickTipSaving] = useState(false);
   const [initialQuickTipEnabled, setInitialQuickTipEnabled] = useState(true);
+  const [wordOfTheDayTime, setWordOfTheDayTime] = useState("18:00");
+  const [wordOfTheDayEnabled, setWordOfTheDayEnabled] = useState(false);
+  const [wordOfTheDaySaving, setWordOfTheDaySaving] = useState(false);
+  const [initialWordOfTheDayEnabled, setInitialWordOfTheDayEnabled] = useState(true);
+  const [sendingWordOfTheDay, setSendingWordOfTheDay] = useState(false);
   const [birthdayMessageTime, setBirthdayMessageTime] = useState("09:00");
   const [birthdayMessageEnabled, setBirthdayMessageEnabled] = useState(false);
   const [initialBirthdayEnabled, setInitialBirthdayEnabled] = useState(true);
@@ -345,6 +353,9 @@ export default function AutomationPage() {
       setQuickTipTime(payload.quick_tip_time || "12:00");
       setQuickTipEnabled(payload.quick_tip_enabled === true);
       setInitialQuickTipEnabled(payload.admin_quick_tip_enabled !== false);
+      setWordOfTheDayTime(payload.word_of_the_day_time || "18:00");
+      setWordOfTheDayEnabled(payload.word_of_the_day_enabled === true);
+      setInitialWordOfTheDayEnabled(payload.admin_word_of_the_day_enabled !== false);
       setBirthdayMessageTime(payload.birthday_message_time || "09:00");
       setBirthdayMessageEnabled(payload.birthday_message_enabled === true);
       setInitialBirthdayEnabled(payload.admin_birthday_enabled !== false);
@@ -408,6 +419,8 @@ export default function AutomationPage() {
         weekly_summary_enabled: weeklySummaryEnabled,
         quick_tip_time: quickTipTime || "12:00",
         quick_tip_enabled: quickTipEnabled,
+        word_of_the_day_time: wordOfTheDayTime || "18:00",
+        word_of_the_day_enabled: wordOfTheDayEnabled,
         birthday_message_time: birthdayMessageTime || "09:00",
         birthday_message_enabled: birthdayMessageEnabled,
         news_capture_enabled: newsCaptureEnabled,
@@ -606,6 +619,49 @@ export default function AutomationPage() {
     }
   };
 
+  const handleToggleWordOfTheDay = async () => {
+    if (!user?.id) return;
+    if (scheduleLoading || scheduleSaving || wordOfTheDaySaving) return;
+
+    const nextValue = !wordOfTheDayEnabled;
+    const previousValue = wordOfTheDayEnabled;
+
+    setWordOfTheDayEnabled(nextValue);
+    setWordOfTheDaySaving(true);
+
+    try {
+      await api.put(`/message-settings/${user.id}`, {
+        word_of_the_day_enabled: nextValue,
+      });
+      if (nextValue) {
+        toast.success("Função de Word of the Day Ativada.");
+      } else {
+        toast("Função de Word of the Day Desativada.", {
+          icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+        });
+      }
+    } catch (error: any) {
+      setWordOfTheDayEnabled(previousValue);
+      toast.error(error.response?.data?.message || "Erro ao atualizar word of the day.");
+    } finally {
+      setWordOfTheDaySaving(false);
+    }
+  };
+
+  const handleSendWordOfTheDay = async () => {
+    if (!user?.id) return;
+    setSendingWordOfTheDay(true);
+    const toastId = toast.loading("Gerando e enviando Word of the Day...");
+    try {
+      await api.post("/whatsapp/send-word-of-the-day", { teacherId: user.id });
+      toast.success("Word of the Day enviada com sucesso.", { id: toastId });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao enviar Word of the Day.", { id: toastId });
+    } finally {
+      setSendingWordOfTheDay(false);
+    }
+  };
+
   const handleToggleNewsCapture = async () => {
     if (!user?.id) return;
     const nextValue = !newsCaptureEnabled;
@@ -766,6 +822,35 @@ export default function AutomationPage() {
                   <span>
                     <Button onClick={handleSendQuickTip} disabled={sendingQuickTip || !hasAutoGroupsSelected} className="h-9 shrink-0">
                       {sendingQuickTip ? "Enviando..." : "Enviar Quick Tip"}
+                    </Button>
+                  </span>
+                }
+              />
+              {!hasAutoGroupsSelected && (
+              <TooltipContent>
+                <p>Selecione pelo menos 1 grupo em &ldquo;Grupos do envio automático&rdquo;.</p>
+              </TooltipContent>
+              )}
+            </Tooltip>
+          </CardContent>
+        </Card>
+        )}
+
+        {initialWordOfTheDayEnabled && wordOfTheDayEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Word of the Day</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Gera e envia manualmente uma palavra do dia em inglês para os grupos configurados.
+            </p>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span>
+                    <Button onClick={handleSendWordOfTheDay} disabled={sendingWordOfTheDay || !hasAutoGroupsSelected} className="h-9 shrink-0">
+                      {sendingWordOfTheDay ? "Enviando..." : "Enviar Word of the Day"}
                     </Button>
                   </span>
                 }
@@ -1035,6 +1120,43 @@ export default function AutomationPage() {
                   />
                   <TooltipContent>
                     <p>{quickTipEnabled ? "Desativar Quick Tip" : "Ativar Quick Tip"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              )}
+              {initialWordOfTheDayEnabled && (
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="word-of-the-day-time" className="text-xs whitespace-nowrap">Word of the Day</Label>
+                <Input
+                  id="word-of-the-day-time"
+                  type="time"
+                  value={wordOfTheDayTime}
+                  onChange={(e) => setWordOfTheDayTime(e.target.value)}
+                  disabled={scheduleLoading || scheduleSaving}
+                  className="h-8 w-28"
+                />
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={handleToggleWordOfTheDay}
+                        disabled={scheduleLoading || scheduleSaving || wordOfTheDaySaving}
+                        className={wordOfTheDayEnabled ? "text-red-500" : "text-green-500"}
+                        aria-label={wordOfTheDayEnabled ? "Desativar word of the day" : "Ativar word of the day"}
+                      >
+                        {wordOfTheDayEnabled ? (
+                          <PowerOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>
+                    <p>{wordOfTheDayEnabled ? "Desativar Word of the Day" : "Ativar Word of the Day"}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
