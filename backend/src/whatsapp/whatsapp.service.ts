@@ -1946,18 +1946,55 @@ export class WhatsappService {
           }))
           .filter((item: any) => Boolean(item.groupId));
 
+      let hasConnectedWhatsapp = false;
+      try {
+        const instanceName = await this.resolveInstanceName(teacher.id);
+        const allInstances = await this.fetchAllInstances();
+        const matched = allInstances.find((inst: any) => {
+          const name =
+            inst?.instance?.instanceName ||
+            inst?.instanceName ||
+            inst?.name;
+          return name === instanceName;
+        });
+        if (matched) {
+          const instStatus = this.normalizeConnectionStatus(
+            matched?.instance?.connectionStatus ||
+              matched?.instance?.status ||
+              matched?.state ||
+              'disconnected',
+          );
+          hasConnectedWhatsapp = instStatus === 'open';
+        }
+      } catch {
+        hasConnectedWhatsapp = false;
+      }
+
+      if (!hasConnectedWhatsapp) {
+        this.logger.log(
+          `[AUTO] Pulando teacherId=${teacher.id} — WhatsApp não está conectado.`,
+        );
+        continue;
+      }
+
+      const hasActiveStudents = await this.prisma.student.count({
+        where: { teacher_id: teacher.id, active: true },
+      }).then((c: number) => c > 0);
+
       const captureDue =
         isAutomationDay &&
         settings.admin_news_capture_enabled !== false &&
         settings.news_capture_enabled !== false &&
         settings.news_capture_time &&
-        settings.news_capture_time === hhmm;
+        settings.news_capture_time === hhmm &&
+        (hasActiveStudents || normalizedTargets.length > 0);
       const privateDue =
         isAutomationDay &&
         settings.admin_auto_send_enabled !== false &&
         settings.auto_send_enabled !== false &&
         settings.private_news_send_time &&
-        settings.private_news_send_time === hhmm;
+        settings.private_news_send_time === hhmm &&
+        hasActiveStudents;
       const groupDue =
         isAutomationDay &&
         settings.admin_group_send_enabled !== false &&
@@ -2339,7 +2376,6 @@ export class WhatsappService {
     this.logger.log(
       `[BROADCAST] Iniciando disparo privado para alunos do professor ${teacherId}`,
     );
-    await this.creditsService.requireCredits(teacherId, 'news_individual_send');
     const students = await this.prisma.student.findMany({
       where: {
         teacher_id: teacherId,
@@ -2365,6 +2401,8 @@ export class WhatsappService {
         message: 'Nenhum aluno ativo e válido para receber notícia no privado.',
       };
     }
+
+    await this.creditsService.requireCredits(teacherId, 'news_individual_send');
 
     let settings = await this.prisma.messageSettings.findUnique({
       where: { teacher_id: teacherId },
@@ -4883,6 +4921,19 @@ export class WhatsappService {
     }
 
     return `(?:${escapedWord}|${escapedWord}s)`;
+  }
+
+  private async fetchAllInstances(): Promise<any[]> {
+    try {
+      const response = await this.http.get('/instance/fetchInstances');
+      return this.normalizeInstancesPayload(response.data);
+    } catch (error) {
+      this.logger.error(
+        'Erro ao buscar todas as instâncias da Evolution API',
+        this.describeError(error),
+      );
+      return [];
+    }
   }
 
   private async fetchInstance(instanceName: string) {
