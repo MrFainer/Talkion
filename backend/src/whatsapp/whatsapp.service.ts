@@ -1922,13 +1922,6 @@ export class WhatsappService {
       const settings = teacher.messageSettings;
       if (!settings) continue;
 
-      if (!(teacher as any).whatsapp_instance_name) {
-        this.logger.log(
-          `[AUTO] Pulando teacherId=${teacher.id} — não possui WhatsApp configurado.`,
-        );
-        continue;
-      }
-
       const days = Array.isArray(settings.automation_days)
         ? settings.automation_days
         : [0, 1, 2, 3, 4, 5, 6];
@@ -1947,39 +1940,43 @@ export class WhatsappService {
           .filter((item: any) => Boolean(item.groupId));
 
       let hasConnectedWhatsapp = false;
-      try {
-        const instanceName = await this.resolveInstanceName(teacher.id);
-        const allInstances = await this.fetchAllInstances();
-        const matched = allInstances.find((inst: any) => {
-          const name =
-            inst?.instance?.instanceName ||
-            inst?.instanceName ||
-            inst?.name;
-          return name === instanceName;
-        });
-        if (matched) {
-          const instStatus = this.normalizeConnectionStatus(
-            matched?.instance?.connectionStatus ||
-              matched?.instance?.status ||
-              matched?.state ||
-              'disconnected',
-          );
-          hasConnectedWhatsapp = instStatus === 'open';
+      if ((teacher as any).whatsapp_instance_name) {
+        try {
+          const instanceName = await this.resolveInstanceName(teacher.id);
+          const allInstances = await this.fetchAllInstances();
+          const matched = allInstances.find((inst: any) => {
+            const name =
+              inst?.instance?.instanceName ||
+              inst?.instanceName ||
+              inst?.name;
+            return name === instanceName;
+          });
+          if (matched) {
+            const instStatus = this.normalizeConnectionStatus(
+              matched?.instance?.connectionStatus ||
+                matched?.instance?.status ||
+                matched?.state ||
+                'disconnected',
+            );
+            hasConnectedWhatsapp = instStatus === 'open';
+          }
+        } catch {
+          hasConnectedWhatsapp = false;
         }
-      } catch {
-        hasConnectedWhatsapp = false;
-      }
-
-      if (!hasConnectedWhatsapp) {
-        this.logger.log(
-          `[AUTO] Pulando teacherId=${teacher.id} — WhatsApp não está conectado.`,
-        );
-        continue;
       }
 
       const hasActiveStudents = await this.prisma.student.count({
         where: { teacher_id: teacher.id, active: true },
       }).then((c: number) => c > 0);
+
+      const hasGroups = normalizedTargets.length > 0;
+
+      if (!hasConnectedWhatsapp && !hasActiveStudents && !hasGroups) {
+        this.logger.log(
+          `[AUTO] Pulando teacherId=${teacher.id} — WhatsApp desconectado, sem alunos e sem grupos configurados.`,
+        );
+        continue;
+      }
 
       const captureDue =
         isAutomationDay &&
