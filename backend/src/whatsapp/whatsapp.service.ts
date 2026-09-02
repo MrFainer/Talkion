@@ -485,6 +485,21 @@ export class WhatsappService {
       completedAt: null,
     });
 
+    // Limpa grupos configurados para forçar reconfiguração ao reconectar
+    try {
+      await this.prisma.messageSettings.updateMany({
+        where: { teacher_id: teacherId },
+        data: { auto_group_targets: [] },
+      });
+      this.logger.log(
+        `[LOGOUT] Grupos configurados limpos para professor ${teacherId}. Reconecte e configure os grupos novamente.`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[LOGOUT] Erro ao limpar grupos do professor ${teacherId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     return { success: true };
   }
 
@@ -1971,9 +1986,9 @@ export class WhatsappService {
 
       const hasGroups = normalizedTargets.length > 0;
 
-      if (!hasConnectedWhatsapp && !hasActiveStudents && !hasGroups) {
+      if (!hasConnectedWhatsapp) {
         this.logger.log(
-          `[AUTO] Pulando teacherId=${teacher.id} — WhatsApp desconectado, sem alunos e sem grupos configurados.`,
+          `[AUTO] Pulando teacherId=${teacher.id} — WhatsApp desconectado. Reconecte para reativar a automação.`,
         );
         continue;
       }
@@ -3488,6 +3503,35 @@ export class WhatsappService {
         `[ENTRADA][IGNORADA] Aluno inativo: ${this.formatStudentLog(student)}.`,
       );
       return;
+    }
+
+    // Verifica se o remetente é o próprio professor (auto-teste)
+    // Se o professor enviou para OUTRO aluno, não processa como speaking/quiz
+    if (student.teacher_id) {
+      const teacherStudent = await this.prisma.student.findFirst({
+        where: { user_id: student.teacher_id },
+        select: { whatsapp_number: true },
+      });
+      if (teacherStudent?.whatsapp_number) {
+        const teacherVariants = this.getWhatsappNumberVariants(
+          teacherStudent.whatsapp_number,
+        );
+        const isTeacherSender = teacherVariants.some(
+          (v) => v === whatsappNumber || v === senderJid.split('@')[0],
+        );
+        if (isTeacherSender) {
+          // Professor enviou - só processa se enviou para SI MESMO (self-test)
+          const sentToSelf = teacherVariants.some(
+            (v) => v === remoteJid.split('@')[0],
+          );
+          if (!sentToSelf) {
+            this.logger.log(
+              `[ENTRADA][IGNORADA] Professor ${student.teacher_id} enviou mensagem para aluno ${student.id}. Mensagens do professor só são processadas em auto-teste (enviadas para si mesmo).`,
+            );
+            return;
+          }
+        }
+      }
     }
 
     const isPossibleQuiz = textContent
