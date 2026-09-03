@@ -34,7 +34,11 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 
 const formatDate = (dateStr: string | null | undefined) => {
   if (!dateStr) return "—";
-  return new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00")).toLocaleDateString("pt-BR");
+  const date = new Date(dateStr);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${day}/${month}/${year}`;
 };
 
 const formatCurrency = (value: number) =>
