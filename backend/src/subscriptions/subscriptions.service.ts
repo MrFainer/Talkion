@@ -1157,17 +1157,19 @@ export class SubscriptionsService {
         `Reconcile for user ${userId}: latest payment rejected (${effective.status}), subscription set to past_due`,
       );
     } else if (effective?.status === 'approved') {
-      // Regulariza a assinatura: reativa e garante uma data de renovação
-      // futura (a partir do pagamento aprovado), para o guard não bloquear.
-      const nextBilling = new Date(
-        effective.date.getTime() + 30 * 24 * 60 * 60 * 1000,
-      );
+      // Regulariza a assinatura: reativa. Só recalcula next_billing_date
+      // se não existir uma data futura (ex: controlada pelo webhook do MP).
+      const now = new Date();
+      const hasFutureBilling = sub.next_billing_date && new Date(sub.next_billing_date) > now;
+      const updateData: any = { status: 'active' };
+      if (!hasFutureBilling) {
+        updateData.next_billing_date = new Date(
+          effective.date.getTime() + 30 * 24 * 60 * 60 * 1000,
+        );
+      }
       await this.prisma.subscription.update({
         where: { id: sub.id },
-        data: {
-          status: 'active',
-          next_billing_date: nextBilling,
-        },
+        data: updateData,
       });
       this.logger.log(
         `Reconcile for user ${userId}: latest payment approved, subscription set to active`,
