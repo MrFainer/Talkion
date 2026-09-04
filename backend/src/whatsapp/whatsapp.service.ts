@@ -1983,13 +1983,6 @@ export class WhatsappService {
 
       const hasGroups = normalizedTargets.length > 0;
 
-      if (!hasActiveStudents && !hasGroups) {
-        this.logger.log(
-          `[AUTO] Pulando teacherId=${teacher.id} — sem alunos ativos e sem grupos configurados.`,
-        );
-        continue;
-      }
-
       const captureDue =
         isAutomationDay &&
         settings.admin_news_capture_enabled !== false &&
@@ -2055,6 +2048,13 @@ export class WhatsappService {
         !birthdayDue
       )
         continue;
+
+      if (!hasActiveStudents && !hasGroups) {
+        this.logger.log(
+          `[AUTO] Pulando teacherId=${teacher.id} — sem alunos ativos e sem grupos configurados (horário: ${hhmm}).`,
+        );
+        continue;
+      }
 
       dueJobs.push({
         teacherId: teacher.id,

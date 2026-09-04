@@ -36,8 +36,21 @@ export const useAuthStore = create<AuthState>((set) => ({
   subscriptionStatus: null,
   subscriptionNextBillingDate: null,
   isFreePlan: false,
-  setSubscriptionData: (status, nextBillingDate) =>
-    set({ subscriptionStatus: status, subscriptionNextBillingDate: nextBillingDate ?? null }),
+  setSubscriptionData: (status, nextBillingDate) => {
+    const isFree = !status || status === "none";
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SUBSCRIPTION_STATUS_KEY, status ?? '');
+      localStorage.setItem(IS_FREE_PLAN_KEY, String(isFree));
+      if (nextBillingDate !== undefined) {
+        localStorage.setItem(SUBSCRIPTION_NEXT_BILLING_KEY, nextBillingDate ?? '');
+      }
+    }
+    set({
+      subscriptionStatus: status,
+      subscriptionNextBillingDate: nextBillingDate ?? null,
+      isFreePlan: isFree,
+    });
+  },
   login: (user, token, rememberMe = true, subscriptionStatus?: string | null, isFreePlan = false, nextBillingDate?: string | null) => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
