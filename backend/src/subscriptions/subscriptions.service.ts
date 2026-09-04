@@ -1244,13 +1244,9 @@ export class SubscriptionsService {
     paidAt: string,
     paymentMethod: string,
   ) {
-    const existing = await this.prisma.subscriptionPayment.findUnique({
+    let payment = await this.prisma.subscriptionPayment.findUnique({
       where: { mercadopago_payment_id: mpPaymentId },
     });
-    if (existing) {
-      this.logger.log(`Payment ${mpPaymentId} already processed, skipping`);
-      return existing;
-    }
 
     const sub = await this.prisma.subscription.findUnique({
       where: { id: subscriptionId },
@@ -1263,24 +1259,49 @@ export class SubscriptionsService {
     });
     if (!plan) throw new NotFoundException('Plano não encontrado');
 
-    const payment = await this.prisma.subscriptionPayment.create({
-      data: {
-        subscription_id: subscriptionId,
-        mercadopago_payment_id: mpPaymentId,
-        amount,
-        status: 'approved',
-        payment_method: paymentMethod,
-        paid_at: new Date(paidAt),
-      },
-    });
+    if (!payment) {
+      payment = await this.prisma.subscriptionPayment.create({
+        data: {
+          subscription_id: subscriptionId,
+          mercadopago_payment_id: mpPaymentId,
+          amount,
+          status: 'approved',
+          payment_method: paymentMethod,
+          paid_at: new Date(paidAt),
+        },
+      });
+    }
 
-    await this.creditsService.resetAndAddCredits(
-      sub.user_id,
-      plan.credits,
-      `Créditos do plano ${plan.name}`,
-      'subscription_payment',
-      mpPaymentId,
-    );
+    const creditsAlreadyApplied =
+      await this.prisma.creditTransaction.findFirst({
+        where: {
+          user_id: sub.user_id,
+          reference_type: 'subscription_payment',
+          reference_id: mpPaymentId,
+        },
+      });
+
+    if (!creditsAlreadyApplied) {
+      await this.creditsService.resetAndAddCredits(
+        sub.user_id,
+        plan.credits,
+        `Créditos do plano ${plan.name}`,
+        'subscription_payment',
+        mpPaymentId,
+      );
+
+      await this.mailService.sendPaymentApprovedEmail(
+        sub.user.email,
+        sub.user.name,
+        plan.name,
+        amount,
+        plan.credits,
+      );
+    } else {
+      this.logger.log(
+        `Credits for payment ${mpPaymentId} already applied, skipping`,
+      );
+    }
 
     const currentStudents = await this.prisma.student.count({
       where: { teacher_id: sub.user_id },
@@ -1319,14 +1340,6 @@ export class SubscriptionsService {
     this.logger.log(
       `Payment ${mpPaymentId} processed: +${plan.credits} credits for user ${sub.user_id}` +
         ` (${currentStudents} alunos, ${extraStudents} adicionais, próx: R$${nextAmount})`,
-    );
-
-    await this.mailService.sendPaymentApprovedEmail(
-      sub.user.email,
-      sub.user.name,
-      plan.name,
-      amount,
-      plan.credits,
     );
 
     return payment;
