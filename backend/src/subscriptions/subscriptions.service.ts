@@ -13,24 +13,29 @@ import { AffiliateService } from '../affiliate/affiliate.service';
 
 const COMMISSION_PERCENT = 0.3;
 
-const ADDITIONAL_STUDENT_PRICE = 3.90;
+const ADDITIONAL_STUDENT_PRICE = 3.9;
 
 const REJECTION_REASON_MAP: Record<string, string> = {
   cc_rejected_insufficient_amount: 'Saldo insuficiente no cartão.',
   cc_rejected_card_disabled: 'Seu cartão está bloqueado ou desativado.',
   cc_rejected_card_high_risk: 'O cartão foi recusado por risco de fraude.',
-  cc_rejected_bad_filled_security_code: 'O código de segurança (CVV) do cartão está incorreto.',
+  cc_rejected_bad_filled_security_code:
+    'O código de segurança (CVV) do cartão está incorreto.',
   cc_rejected_bad_filled_date: 'A data de validade do cartão está incorreta.',
   cc_rejected_bad_filled_card_number: 'O número do cartão está incorreto.',
   cc_rejected_expired_card: 'Seu cartão está vencido.',
-  cc_rejected_max_attempts: 'O cartão passou do limite de tentativas permitidas.',
+  cc_rejected_max_attempts:
+    'O cartão passou do limite de tentativas permitidas.',
   cc_rejected_other_reason: 'O pagamento foi recusado pelo emissor do cartão.',
   cc_rejected_blacklist: 'O cartão foi bloqueado pelo emissor.',
   cc_rejected_card_not_supported: 'Este tipo de cartão não é aceito.',
-  cc_rejected_call_for_authorize: 'O emissor pede que você autorize o pagamento.',
+  cc_rejected_call_for_authorize:
+    'O emissor pede que você autorize o pagamento.',
   cc_rejected_high_risk: 'O pagamento foi recusado por análise de risco.',
-  cc_amount_rate_limit_exceeded: 'Houve muitas tentativas de pagamento. Tente novamente mais tarde.',
-  cc_rejected_bad_filled_other: 'Alguns dados informados do cartão estão incorretos.',
+  cc_amount_rate_limit_exceeded:
+    'Houve muitas tentativas de pagamento. Tente novamente mais tarde.',
+  cc_rejected_bad_filled_other:
+    'Alguns dados informados do cartão estão incorretos.',
 };
 
 function friendlyRejectionReason(statusDetail?: string): string {
@@ -49,7 +54,7 @@ export class SubscriptionsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mp: MercadoPagoService,
+    public readonly mp: MercadoPagoService,
     private readonly mailService: MailService,
     private readonly creditsService: CreditsService,
     private readonly affiliateService: AffiliateService,
@@ -357,10 +362,7 @@ export class SubscriptionsService {
         userId,
       );
 
-      const card = await this.mp.associateCard(
-        mpCustomerId,
-        dto.cardToken,
-      );
+      const card = await this.mp.associateCard(mpCustomerId, dto.cardToken);
 
       const payment = await this.mp.createOneTimePayment(
         mpCustomerId,
@@ -562,7 +564,10 @@ export class SubscriptionsService {
     return { redirectUrl: pref.initPoint, preferenceId: pref.preferenceId };
   }
 
-  async retryCreatePreapproval(userId: string, body?: { subscriptionCardToken?: string; cvv?: string }) {
+  async retryCreatePreapproval(
+    userId: string,
+    body?: { subscriptionCardToken?: string; cvv?: string },
+  ) {
     const sub = await this.prisma.subscription.findFirst({
       where: { user_id: userId, status: { in: ['active', 'pending'] } },
       include: { plan: true, user: true },
@@ -580,7 +585,10 @@ export class SubscriptionsService {
 
     let token = body?.subscriptionCardToken;
     if (!token && body?.cvv) {
-      token = await this.mp.createCardTokenFromSavedCard(sub.mercadopago_card_id, body.cvv);
+      token = await this.mp.createCardTokenFromSavedCard(
+        sub.mercadopago_card_id,
+        body.cvv,
+      );
     }
 
     const preapproval = await this.mp.createSubscription(
@@ -612,7 +620,10 @@ export class SubscriptionsService {
 
   async cancelSubscription(userId: string) {
     const sub = await this.prisma.subscription.findFirst({
-      where: { user_id: userId, status: { in: ['active', 'pending', 'past_due'] } },
+      where: {
+        user_id: userId,
+        status: { in: ['active', 'pending', 'past_due'] },
+      },
     });
     if (!sub)
       throw new NotFoundException('Nenhuma assinatura ativa encontrada');
@@ -638,7 +649,10 @@ export class SubscriptionsService {
     dto: { cardToken: string; subscriptionCardToken?: string },
   ) {
     const sub = await this.prisma.subscription.findFirst({
-      where: { user_id: userId, status: { in: ['active', 'pending', 'past_due'] } },
+      where: {
+        user_id: userId,
+        status: { in: ['active', 'pending', 'past_due'] },
+      },
       include: { user: true, plan: true },
     });
     if (!sub)
@@ -656,7 +670,8 @@ export class SubscriptionsService {
 
     const card = await this.mp.associateCard(mpCustomerId, dto.cardToken);
 
-    const totalAmount = sub.plan.price +
+    const totalAmount =
+      sub.plan.price +
       (sub.additional_students || 0) * ADDITIONAL_STUDENT_PRICE;
 
     // Detecta se existe cobrança em aberto (pagamento recusado/estornado).
@@ -1028,14 +1043,11 @@ export class SubscriptionsService {
       orderBy: { created_at: 'desc' },
       include: { user: true },
     });
-    if (!sub) throw new NotFoundException('Nenhuma assinatura ativa encontrada');
+    if (!sub)
+      throw new NotFoundException('Nenhuma assinatura ativa encontrada');
 
     let mpPayments: any[] = [];
     try {
-      // Busca pagamentos por external_reference (user_id). O Mercado Pago não
-      // aceita filtrar por preapproval_id em /v1/payments/search (400), e o
-      // histórico local (alimentado pelos webhooks) já cobre as cobranças
-      // recorrentes. Falha na busca não deve derrubar a reconciliação.
       mpPayments = await this.mp
         .searchPaymentsByExternalReference(sub.user_id)
         .catch((err) => {
@@ -1055,9 +1067,33 @@ export class SubscriptionsService {
       );
     }
 
+    // Fallback: busca pagamentos por preapproval_id quando o search por
+    // external_reference não encontrou nada. Pagamentos recorrentes gerados
+    // pelo preapproval podem não trazer external_reference.
+    if (mpPayments.length === 0 && sub.mercadopago_subscription_id) {
+      try {
+        const preapprovalPayments = await this.mp
+          .searchPaymentsByPreapprovalId(sub.mercadopago_subscription_id)
+          .catch(() => []);
+        if (preapprovalPayments.length > 0) {
+          this.logger.log(
+            `Reconcile fallback: found ${preapprovalPayments.length} payments by preapproval_id ${sub.mercadopago_subscription_id}`,
+          );
+          mpPayments = preapprovalPayments;
+          mpPayments.sort(
+            (a: any, b: any) =>
+              new Date(b.date_created || 0).getTime() -
+              new Date(a.date_created || 0).getTime(),
+          );
+        }
+      } catch {
+        // Ignora erro no fallback
+      }
+    }
+
     let created = 0;
     let updated = 0;
-    let newRejected: any[] = [];
+    const newRejected: any[] = [];
 
     for (const mpPay of mpPayments) {
       const mpId = String(mpPay.id || '');
@@ -1077,9 +1113,10 @@ export class SubscriptionsService {
           status === 'approved'
             ? null
             : friendlyRejectionReason(mpPay.status_detail),
-        paid_at: mpPay.date_approved || mpPay.date_created
-          ? new Date(mpPay.date_approved || mpPay.date_created)
-          : null,
+        paid_at:
+          mpPay.date_approved || mpPay.date_created
+            ? new Date(mpPay.date_approved || mpPay.date_created)
+            : null,
       };
 
       if (existing) {
@@ -1140,8 +1177,7 @@ export class SubscriptionsService {
     } else if (latestLocal) {
       effective = {
         status: latestLocal.status,
-        date:
-          latestLocal.paid_at || latestLocal.created_at || new Date(),
+        date: latestLocal.paid_at || latestLocal.created_at || new Date(),
       };
     }
 
@@ -1160,7 +1196,8 @@ export class SubscriptionsService {
       // Regulariza a assinatura: reativa. Só recalcula next_billing_date
       // se não existir uma data futura (ex: controlada pelo webhook do MP).
       const now = new Date();
-      const hasFutureBilling = sub.next_billing_date && new Date(sub.next_billing_date) > now;
+      const hasFutureBilling =
+        sub.next_billing_date && new Date(sub.next_billing_date) > now;
       const updateData: any = { status: 'active' };
       if (!hasFutureBilling) {
         updateData.next_billing_date = new Date(
@@ -1441,7 +1478,9 @@ export class SubscriptionsService {
     userId: string,
     packId: string,
   ) {
-    const pack = await this.prisma.creditPack.findUnique({ where: { id: packId } });
+    const pack = await this.prisma.creditPack.findUnique({
+      where: { id: packId },
+    });
     if (!pack) {
       this.logger.warn(
         `Top-up pack not found: ${packId} for payment ${mpPaymentId}`,
@@ -1526,4 +1565,3 @@ export class SubscriptionsService {
     return map[mpStatus] || 'pending';
   }
 }
-

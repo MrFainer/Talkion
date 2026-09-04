@@ -260,12 +260,21 @@ export class WhatsappService {
     }
 
     if (!created) {
-      this.logger.error(`[INSTANCE] Não foi possível criar instância ${instanceName} após 2 tentativas`);
+      this.logger.error(
+        `[INSTANCE] Não foi possível criar instância ${instanceName} após 2 tentativas`,
+      );
       return this.normalizeInstance(null, instanceName);
     }
 
     if (this.getWebhookUrl()) {
-      try { await this.setWebhook(instanceName); } catch (e) { this.logger.error(`[WEBHOOK] Falha ao configurar webhook para ${instanceName}`, e); }
+      try {
+        await this.setWebhook(instanceName);
+      } catch (e) {
+        this.logger.error(
+          `[WEBHOOK] Falha ao configurar webhook para ${instanceName}`,
+          e,
+        );
+      }
     }
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -957,7 +966,11 @@ export class WhatsappService {
     });
 
     if (!settings?.birthday_message_template) {
-      return { sent: 0, skipped: 0, message: 'Modelo de mensagem de aniversário não configurado.' };
+      return {
+        sent: 0,
+        skipped: 0,
+        message: 'Modelo de mensagem de aniversário não configurado.',
+      };
     }
 
     const students = await this.prisma.student.findMany({
@@ -1031,7 +1044,12 @@ export class WhatsappService {
         });
 
         try {
-          await this.creditsService.deductCredits(teacherId, 'birthday_send', 'student', student.id);
+          await this.creditsService.deductCredits(
+            teacherId,
+            'birthday_send',
+            'student',
+            student.id,
+          );
         } catch (creditError: any) {
           this.logger.warn(
             `[BIRTHDAY] Falha ao debitar créditos para ${student.id}: ${creditError.message}`,
@@ -1389,7 +1407,10 @@ export class WhatsappService {
       : [];
     if (targets.length === 0) return;
 
-    await this.creditsService.requireCredits(teacherId, 'word_of_the_day_generation');
+    await this.creditsService.requireCredits(
+      teacherId,
+      'word_of_the_day_generation',
+    );
 
     const groupIds = targets
       .map((t: any) => String(t?.groupId || t?.id || '').trim())
@@ -1954,41 +1975,17 @@ export class WhatsappService {
           }))
           .filter((item: any) => Boolean(item.groupId));
 
-      let hasConnectedWhatsapp = false;
-      if ((teacher as any).whatsapp_instance_name) {
-        try {
-          const instanceName = await this.resolveInstanceName(teacher.id);
-          const allInstances = await this.fetchAllInstances();
-          const matched = allInstances.find((inst: any) => {
-            const name =
-              inst?.instance?.instanceName ||
-              inst?.instanceName ||
-              inst?.name;
-            return name === instanceName;
-          });
-          if (matched) {
-            const instStatus = this.normalizeConnectionStatus(
-              matched?.instance?.connectionStatus ||
-                matched?.instance?.status ||
-                matched?.state ||
-                'disconnected',
-            );
-            hasConnectedWhatsapp = instStatus === 'open';
-          }
-        } catch {
-          hasConnectedWhatsapp = false;
-        }
-      }
-
-      const hasActiveStudents = await this.prisma.student.count({
-        where: { teacher_id: teacher.id, active: true },
-      }).then((c: number) => c > 0);
+      const hasActiveStudents = await this.prisma.student
+        .count({
+          where: { teacher_id: teacher.id, active: true },
+        })
+        .then((c: number) => c > 0);
 
       const hasGroups = normalizedTargets.length > 0;
 
-      if (!hasConnectedWhatsapp) {
+      if (!hasActiveStudents && !hasGroups) {
         this.logger.log(
-          `[AUTO] Pulando teacherId=${teacher.id} — WhatsApp desconectado. Reconecte para reativar a automação.`,
+          `[AUTO] Pulando teacherId=${teacher.id} — sem alunos ativos e sem grupos configurados.`,
         );
         continue;
       }
@@ -2573,8 +2570,7 @@ export class WhatsappService {
         success: true,
         count: 0,
         skipped: skippedCount,
-        message:
-          'Nenhuma notícia do dia disponível. Disparo privado ignorado.',
+        message: 'Nenhuma notícia do dia disponível. Disparo privado ignorado.',
       };
     }
 
@@ -4270,9 +4266,8 @@ export class WhatsappService {
     let replyTeacherId = student.teacher_id as string;
 
     try {
-      const instanceTeacherId = await this.resolveTeacherIdFromInstance(
-        instanceName,
-      );
+      const instanceTeacherId =
+        await this.resolveTeacherIdFromInstance(instanceName);
       if (instanceTeacherId) {
         replyTeacherId = instanceTeacherId;
       }
@@ -4500,18 +4495,13 @@ export class WhatsappService {
         '🔎 *Palavras ou trechos para corrigir:*',
         mistakesText,
       ].join('\n');
-      await this.sendMessage(
-        replyTeacherId,
+      await this.sendMessage(replyTeacherId, remoteJid, replyText, {
+        studentId: student.id,
         remoteJid,
-        replyText,
-        {
-          studentId: student.id,
-          remoteJid,
-          relatedNewsId: latestNews.id,
-          contentKind: 'SPEAKING_FEEDBACK',
-          quotedMessageId: quotedMessageId || null,
-        },
-      );
+        relatedNewsId: latestNews.id,
+        contentKind: 'SPEAKING_FEEDBACK',
+        quotedMessageId: quotedMessageId || null,
+      });
 
       this.logger.log(
         `[AUDIO][SAIDA] Feedback de speaking enviado para ${this.formatStudentLog(student)} | noticia ${latestNews.id} | nota: ${feedback.score}/10 | via instance ${instanceName}`,

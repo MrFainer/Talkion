@@ -116,7 +116,10 @@ export class MercadoPagoService {
     }));
   }
 
-  async createCardTokenFromSavedCard(cardId: string, securityCode?: string): Promise<string> {
+  async createCardTokenFromSavedCard(
+    cardId: string,
+    securityCode?: string,
+  ): Promise<string> {
     const body: Record<string, any> = {
       card_id: cardId,
     };
@@ -153,13 +156,9 @@ export class MercadoPagoService {
     if (paymentMethodId) {
       body.payment_method_id = paymentMethodId;
     }
-    const data = await this.request(
-      'POST',
-      '/v1/payments',
-      body,
-      null,
-      { 'X-Idempotency-Key': idempotencyKey },
-    );
+    const data = await this.request('POST', '/v1/payments', body, null, {
+      'X-Idempotency-Key': idempotencyKey,
+    });
     this.logger.log(
       `One-time payment (saved card) created: ${data.id} - ${data.status}`,
     );
@@ -207,6 +206,7 @@ export class MercadoPagoService {
       back_url: process.env.FRONTEND_URL
         ? `${process.env.FRONTEND_URL}/subscriptions`
         : 'https://httpbin.org/post',
+      notification_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/webhooks/mercadopago`,
     };
     this.logger.log(`Creating PreApproval: ${JSON.stringify(body)}`);
     const data = await this.request('POST', '/preapproval', body);
@@ -233,7 +233,9 @@ export class MercadoPagoService {
       reason: `Talkion - ${planName}`,
       external_reference: userId,
       payer_email: userEmail,
-      back_url: 'https://httpbin.org/post',
+      back_url: process.env.FRONTEND_URL
+        ? `${process.env.FRONTEND_URL}/subscriptions`
+        : 'https://httpbin.org/post',
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',
@@ -241,6 +243,7 @@ export class MercadoPagoService {
         currency_id: 'BRL',
       },
       status: 'authorized',
+      notification_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/webhooks/mercadopago`,
     };
     if (subscriptionCardToken) {
       body.card_token_id = subscriptionCardToken;
@@ -305,8 +308,23 @@ export class MercadoPagoService {
     return Array.isArray(data?.results)
       ? data.results
       : Array.isArray(data)
-      ? data
-      : [];
+        ? data
+        : [];
+  }
+
+  async searchPaymentsByPreapprovalId(preapprovalId: string) {
+    const params: any = {
+      preapproval_id: preapprovalId,
+      limit: 100,
+      sort: 'date_created',
+      criteria: 'desc',
+    };
+    const data = await this.request('GET', '/v1/payments/search', null, params);
+    return Array.isArray(data?.results)
+      ? data.results
+      : Array.isArray(data)
+        ? data
+        : [];
   }
 
   async createOneTimePayment(

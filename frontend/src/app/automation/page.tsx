@@ -241,19 +241,7 @@ export default function AutomationPage() {
       const res = await api.get(`/whatsapp/groups/cached/${user.id}`);
       setAvailableGroups(res.data.groups || []);
       setGroupSyncStatus(res.data.sync || null);
-      const connectedFromGroups = res.data.connected === true ? true : res.data.connected === false ? false : null;
-      if (connectedFromGroups === false) {
-        try {
-          const statusRes = await api.get(`/whatsapp/status/${user.id}`);
-          const raw = String(statusRes.data?.status || "").trim().toLowerCase();
-          const normalized = ["open", "connected", "online"].includes(raw) ? "open" : raw;
-          setGroupConnectionReady(normalized === "open");
-        } catch {
-          setGroupConnectionReady(false);
-        }
-      } else {
-        setGroupConnectionReady(connectedFromGroups);
-      }
+      setGroupConnectionReady(true);
     } catch (error: any) {
       setAvailableGroups([]);
       setGroupSyncStatus(null);
@@ -300,11 +288,6 @@ export default function AutomationPage() {
         throw new Error("GROUP_REQUIRED");
       }
 
-      const statusRes = await api.get(`/whatsapp/status/${user.id}`);
-      if (statusRes.data?.status !== "open") {
-        throw new Error("WHATSAPP_NOT_CONNECTED");
-      }
-
       const res = await api.post("/whatsapp/dispatch-news", {
         teacherId: user.id,
         sendPrivate: sendPrivateNews,
@@ -323,9 +306,7 @@ export default function AutomationPage() {
     } catch (error: any) {
       clearInterval(progressInterval);
 
-      if (error.message === "WHATSAPP_NOT_CONNECTED") {
-        toast.error("O WhatsApp não está conectado. Acesse a tela 'WhatsApp' e escaneie o QR Code.");
-      } else if (error.message === "GROUP_REQUIRED") {
+      if (error.message === "GROUP_REQUIRED") {
         toast.error("Selecione um grupo sincronizado para enviar no grupo.");
       } else {
         toast.error(error.response?.data?.message || "Erro ao iniciar disparo.");
@@ -1386,13 +1367,6 @@ export default function AutomationPage() {
                     </Select>
                   </div>
                 </div>
-
-                {groupConnectionReady === false ? (
-                  <Alert variant="destructive">
-                    <AlertTitle>WhatsApp desconectado</AlertTitle>
-                    <AlertDescription>Conecte o WhatsApp para sincronizar os grupos e liberar o envio em grupo.</AlertDescription>
-                  </Alert>
-                ) : null}
 
                 {groupConnectionReady && !groupOptionsLoading && availableGroups.length === 0 ? (
                   <Alert>

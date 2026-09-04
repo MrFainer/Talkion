@@ -84,7 +84,41 @@ export class WebhooksController {
     const mpPaymentId = String(data.id || body.id || '');
     if (!mpPaymentId) return;
 
-    const status = data.status || body.status;
+    let status = data.status || body.status;
+
+    if (!status) {
+      this.logger.log(
+        `Payment ${mpPaymentId} has no status in webhook body, fetching from API`,
+      );
+      try {
+        const paymentDetails = await this.service.mp.getPayment(mpPaymentId);
+        status = paymentDetails?.status;
+        const amount = parseFloat(
+          String(paymentDetails?.transaction_amount || '0'),
+        );
+        const paidAt =
+          paymentDetails?.date_approved || new Date().toISOString();
+        const paymentMethod =
+          paymentDetails?.payment_method_id || 'credit_card';
+        const externalRef = paymentDetails?.external_reference;
+
+        await this.processPayment(
+          mpPaymentId,
+          status,
+          amount,
+          paidAt,
+          paymentMethod,
+          externalRef,
+          paymentDetails,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Failed to fetch payment ${mpPaymentId} from API: ${(err as Error).message}`,
+        );
+      }
+      return;
+    }
+
     const amount = parseFloat(
       data.transaction_amount || data.amount || body.transaction_amount || '0',
     );
@@ -93,6 +127,27 @@ export class WebhooksController {
     const paymentMethod =
       data.payment_method_id || body.payment_method_id || 'credit_card';
     const externalRef = data.external_reference || body.external_reference;
+
+    await this.processPayment(
+      mpPaymentId,
+      status,
+      amount,
+      paidAt,
+      paymentMethod,
+      externalRef,
+      data,
+    );
+  }
+
+  private async processPayment(
+    mpPaymentId: string,
+    status: string,
+    amount: number,
+    paidAt: string,
+    paymentMethod: string,
+    externalRef: string | undefined,
+    data: any,
+  ) {
 
     if (externalRef && externalRef.startsWith('topup:')) {
       const parts = externalRef.split(':');
@@ -138,8 +193,7 @@ export class WebhooksController {
     // Cobranças recorrentes geradas pelo preapproval podem não trazer
     // external_reference; resolve a assinatura pelo preapproval_id.
     if (!subscriptionId) {
-      const mpSubscriptionId =
-        data.preapproval_id || body.preapproval_id || body.preapproval || null;
+      const mpSubscriptionId = data.preapproval_id || null;
       if (mpSubscriptionId) {
         const sub = await this.prisma.subscription.findFirst({
           where: { mercadopago_subscription_id: String(mpSubscriptionId) },
@@ -167,7 +221,7 @@ export class WebhooksController {
     } else if (
       ['rejected', 'refunded', 'cancelled', 'charged_back'].includes(status)
     ) {
-      const statusDetail = data.status_detail || body.status_detail;
+      const statusDetail = data.status_detail;
       await this.service.handlePaymentRejected(
         mpPaymentId,
         subscriptionId,
