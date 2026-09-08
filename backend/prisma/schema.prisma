@@ -594,3 +594,14 @@ model SubscriptionPayment {
   @@index([mercadopago_payment_id])
   @@index([status])
 }
+
+model ContentHistory {
+  id          String   @id @default(uuid())
+  teacher_id  String
+  type        String
+  content     String
+  sent_at     DateTime @default(now())
+
+  @@index([teacher_id, type, sent_at])
+  @@index([teacher_id, type, content])
+}

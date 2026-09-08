@@ -1737,10 +1737,18 @@ Formato de saída: JSON contendo "score", "feedback", "strengths", "improvements
     }
   }
 
-  async generateQuickTip(input: { teacherId: string; model?: string }) {
+  async generateQuickTip(input: {
+    teacherId: string;
+    model?: string;
+    recentTips?: string[];
+  }) {
     const model = input.model || 'gpt-4o-mini';
 
-    const prompt = `Você é um professor de inglês criando uma "Quick Tip" para alunos brasileiros no WhatsApp.
+    const recentTipsClause = input.recentTips?.length
+      ? `\n\nTÓPICOS JÁ USADOS RECENTEMENTE (NÃO repita nenhum destes): ${input.recentTips.join(', ')}`
+      : '';
+
+    const prompt = `Você é um professor de inglês criando uma "Quick Tip" para alunos brasileiros no WhatsApp.${recentTipsClause}
 
 Gere uma dica rápida de inglês seguindo EXATAMENTE este formato:
 
@@ -1790,10 +1798,24 @@ Retorne APENAS o texto da dica, sem formatação adicional.`;
     return response.choices[0]?.message?.content?.trim() || null;
   }
 
-  async generateWordOfTheDay(input: { teacherId: string; model?: string }) {
+  async generateWordOfTheDay(input: {
+    teacherId: string;
+    model?: string;
+    recentWords?: string[];
+  }) {
     const model = input.model || 'gpt-4o-mini';
 
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const recentWordsClause = input.recentWords?.length
+      ? `\n\nPALAVRAS JÁ USADAS RECENTEMENTE (NÃO repita nenhuma destas): ${input.recentWords.join(', ')}`
+      : '';
+
     const prompt = `Você é um professor de inglês criando um "Word of the Day" para alunos brasileiros no WhatsApp.
+
+Data de hoje: ${dateStr} (${dayOfWeek})${recentWordsClause}
 
 Gere uma palavra do dia seguindo EXATAMENTE este formato:
 
@@ -1824,6 +1846,8 @@ Regras:
 - Escolha uma palavra útil e interessante para o dia a dia
 - A palavra pode ser substantivo, verbo, adjetivo ou expressão
 - Evite palavras muito simples (tipo "hello", "good") ou muito técnicas
+- Priorize palavras intermediárias/avançadas que sejam úteis para brasileiros aprendendo inglês
+- Varie entre categorias: substantivos, verbos, adjetivos e expressões. NÃO repita a mesma categoria dois dias seguidos.
 - Use emojis moderadamente
 - NÃO use placeholders como {{variavel}}
 - NÃO inclua JSON

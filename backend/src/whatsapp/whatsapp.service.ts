@@ -1363,12 +1363,40 @@ export class WhatsappService {
       .map((t: any) => String(t?.groupId || t?.id || '').trim())
       .filter(Boolean);
 
+    const recentRecords = await (this.prisma as any).contentHistory.findMany({
+      where: { teacher_id: teacherId, type: 'quick_tip' },
+      orderBy: { sent_at: 'desc' },
+      take: 30,
+      select: { content: true },
+    });
+    const recentTips = recentRecords.map((r: any) => r.content);
+
     const tip = await this.aiService.generateQuickTip({
       teacherId,
       model: settings.ai_model || undefined,
+      recentTips,
     });
 
     if (!tip) return;
+
+    const topicMatch = tip.match(/📰\s*(.+)/);
+    const extractedTopic = topicMatch?.[1]?.trim() || '';
+
+    if (extractedTopic) {
+      try {
+        await (this.prisma as any).contentHistory.create({
+          data: {
+            teacher_id: teacherId,
+            type: 'quick_tip',
+            content: extractedTopic,
+          },
+        });
+      } catch (error) {
+        this.logger.error(
+          `[QUICK_TIP] Falha ao salvar histórico do tópico "${extractedTopic}": ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     for (const groupId of groupIds) {
       try {
@@ -1416,12 +1444,40 @@ export class WhatsappService {
       .map((t: any) => String(t?.groupId || t?.id || '').trim())
       .filter(Boolean);
 
+    const recentRecords = await (this.prisma as any).contentHistory.findMany({
+      where: { teacher_id: teacherId, type: 'word_of_the_day' },
+      orderBy: { sent_at: 'desc' },
+      take: 30,
+      select: { content: true },
+    });
+    const recentWords = recentRecords.map((r: any) => r.content);
+
     const wordOfTheDay = await this.aiService.generateWordOfTheDay({
       teacherId,
       model: settings.ai_model || undefined,
+      recentWords,
     });
 
     if (!wordOfTheDay) return;
+
+    const wordMatch = wordOfTheDay.match(/🔥\s*([A-Z]+)/);
+    const extractedWord = wordMatch?.[1] || '';
+
+    if (extractedWord) {
+      try {
+        await (this.prisma as any).contentHistory.create({
+          data: {
+            teacher_id: teacherId,
+            type: 'word_of_the_day',
+            content: extractedWord,
+          },
+        });
+      } catch (error) {
+        this.logger.error(
+          `[WORD_OF_THE_DAY] Falha ao salvar histórico da palavra "${extractedWord}": ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     for (const groupId of groupIds) {
       try {
