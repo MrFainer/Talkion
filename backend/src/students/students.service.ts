@@ -199,7 +199,7 @@ export class StudentsService {
       const workbook = xlsx.read(file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows = xlsx.utils.sheet_to_json(sheet);
+      const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, unknown>[];
 
       if (rows.length === 0) {
         throw new BadRequestException('A planilha está vazia.');
