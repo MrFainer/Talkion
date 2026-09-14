@@ -75,7 +75,8 @@ export class SiteVisitsService {
     if (!ua) return null;
     if (ua.includes('windows')) return 'Windows';
     if (ua.includes('android')) return 'Android';
-    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios')) return 'iOS';
+    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios'))
+      return 'iOS';
     if (ua.includes('mac os x') || ua.includes('macintosh')) return 'macOS';
     if (ua.includes('linux')) return 'Linux';
     return 'Desconhecido';
@@ -98,7 +99,12 @@ export class SiteVisitsService {
   private detectDeviceVendor(userAgent: string) {
     const ua = userAgent.toLowerCase();
     if (!ua) return null;
-    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('macintosh')) return 'Apple';
+    if (
+      ua.includes('iphone') ||
+      ua.includes('ipad') ||
+      ua.includes('macintosh')
+    )
+      return 'Apple';
     if (ua.includes('samsung')) return 'Samsung';
     if (ua.includes('huawei')) return 'Huawei';
     if (ua.includes('xiaomi')) return 'Xiaomi';

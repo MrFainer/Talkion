@@ -125,7 +125,9 @@ export class NewsService {
         where,
         data: { audio_url: null },
       });
-      const scope = teacherId ? `do professor ${teacherId}` : 'de todas as notícias';
+      const scope = teacherId
+        ? `do professor ${teacherId}`
+        : 'de todas as notícias';
       this.logger.log(`audio_url limpos ${scope}`);
 
       if (teacherId) {
@@ -149,7 +151,9 @@ export class NewsService {
           await unlink(filePath).catch(() => {});
         }
         if (toDelete.length > 0) {
-          this.logger.log(`${toDelete.length} arquivos de áudio do professor ${teacherId} removidos`);
+          this.logger.log(
+            `${toDelete.length} arquivos de áudio do professor ${teacherId} removidos`,
+          );
         }
       } else {
         const audioDir = join(process.cwd(), 'uploads', 'news-audio');
@@ -251,20 +255,28 @@ export class NewsService {
       messageSettings?.group_send_enabled !== false &&
       messageSettings?.admin_group_send_enabled !== false;
     const groupTargets = Array.isArray(messageSettings?.auto_group_targets)
-      ? messageSettings.auto_group_targets.filter(
-          (target: any) =>
-            Boolean(String(target?.groupId || target?.id || '').trim()),
+      ? messageSettings.auto_group_targets.filter((target: any) =>
+          Boolean(String(target?.groupId || target?.id || '').trim()),
         )
       : [];
 
-    if (studentCount === 0 && (!groupSendEnabled || groupTargets.length === 0)) {
+    if (
+      studentCount === 0 &&
+      (!groupSendEnabled || groupTargets.length === 0)
+    ) {
       this.logger.log(
         `Professor ${teacherId} não possui alunos ativos nem grupos configurados para envio. Pulando captura de notícia e geração de quiz para não debitar créditos desnecessariamente.`,
       );
       return {
         message:
           'Professor sem alunos ativos e sem grupos configurados. Captura de notícia e quiz ignorados.',
-        news: { created: 0, skippedSameDay: 0, skippedSameNews: 0, errors: 0, items: [] },
+        news: {
+          created: 0,
+          skippedSameDay: 0,
+          skippedSameNews: 0,
+          errors: 0,
+          items: [],
+        },
         quizzes: { created: 0, existing: 0, errors: 0, items: [] },
       };
     }

@@ -318,7 +318,10 @@ export class AuthService {
 
   private async ensureFreeSubscription(userId: string) {
     const existingSubscription = await this.prisma.subscription.findFirst({
-      where: { user_id: userId, status: { in: ['active', 'pending', 'paused', 'past_due'] } },
+      where: {
+        user_id: userId,
+        status: { in: ['active', 'pending', 'paused', 'past_due'] },
+      },
       select: { id: true },
     });
 
@@ -382,9 +385,7 @@ export class AuthService {
       },
       subscription_status: subscriptionStatus,
       subscription_next_billing_date:
-        sub && sub.plan?.is_free
-          ? null
-          : (sub?.next_billing_date || null),
+        sub && sub.plan?.is_free ? null : sub?.next_billing_date || null,
       is_free_plan: isFreePlan,
     };
   }

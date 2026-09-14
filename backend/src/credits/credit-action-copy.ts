@@ -27,7 +27,8 @@ export const CREDIT_ACTION_COPY: Record<
   },
   news_tts_fallback: {
     name: 'Áudio TTS fallback da notícia',
-    description: 'Geração de áudio por texto-fala quando download do SoundCloud falha',
+    description:
+      'Geração de áudio por texto-fala quando download do SoundCloud falha',
   },
   quiz_generation: {
     name: 'Quiz gerado para um nível',

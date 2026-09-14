@@ -63,7 +63,8 @@ export class SubscriptionsController {
   @Post('user/:userId')
   async createSubscription(
     @Param('userId') userId: string,
-    @Body() body: { planId: string; cardToken: string; subscriptionCardToken?: string },
+    @Body()
+    body: { planId: string; cardToken: string; subscriptionCardToken?: string },
   ) {
     if (!body.planId || !body.cardToken) {
       throw new BadRequestException('planId e cardToken são obrigatórios');

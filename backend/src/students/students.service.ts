@@ -115,7 +115,12 @@ export class StudentsService {
 
   async create(
     teacherId: string,
-    data: { fullName: string; whatsappNumber: string; englishLevel?: any; birthday?: string | null },
+    data: {
+      fullName: string;
+      whatsappNumber: string;
+      englishLevel?: any;
+      birthday?: string | null;
+    },
   ) {
     const normalizedName = this.normalizeFullName(data.fullName || '');
     if (!normalizedName) {
@@ -194,7 +199,7 @@ export class StudentsService {
       const workbook = xlsx.read(file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows = xlsx.utils.sheet_to_json(sheet) as Record<string, unknown>[];
+      const rows = xlsx.utils.sheet_to_json(sheet);
 
       if (rows.length === 0) {
         throw new BadRequestException('A planilha está vazia.');
@@ -218,13 +223,30 @@ export class StudentsService {
 
       for (const [index, row] of rows.entries()) {
         const name = String(
-          row['Nome'] ?? row['nome'] ?? row['Name'] ?? row['name'] ?? row['NOME'] ?? '',
+          row['Nome'] ??
+            row['nome'] ??
+            row['Name'] ??
+            row['name'] ??
+            row['NOME'] ??
+            '',
         );
         let phone = String(
-          row['WhatsApp'] ?? row['whatsapp'] ?? row['Telefone'] ?? row['telefone'] ?? row['Phone'] ?? row['WHATSAPP'] ?? '',
+          row['WhatsApp'] ??
+            row['whatsapp'] ??
+            row['Telefone'] ??
+            row['telefone'] ??
+            row['Phone'] ??
+            row['WHATSAPP'] ??
+            '',
         );
         const levelRaw = String(
-          row['Nível'] ?? row['nivel'] ?? row['Level'] ?? row['level'] ?? row['NÍVEL'] ?? row['NIVEL'] ?? '',
+          row['Nível'] ??
+            row['nivel'] ??
+            row['Level'] ??
+            row['level'] ??
+            row['NÍVEL'] ??
+            row['NIVEL'] ??
+            '',
         );
         const rowNumber = index + 2;
 
@@ -305,7 +327,13 @@ export class StudentsService {
             rowNumber:
               rows.findIndex((row) => {
                 const phone = String(
-                  row['WhatsApp'] ?? row['whatsapp'] ?? row['Telefone'] ?? row['telefone'] ?? row['Phone'] ?? row['WHATSAPP'] ?? '',
+                  row['WhatsApp'] ??
+                    row['whatsapp'] ??
+                    row['Telefone'] ??
+                    row['telefone'] ??
+                    row['Phone'] ??
+                    row['WHATSAPP'] ??
+                    '',
                 );
                 return (
                   this.normalizeWhatsappNumber(phone) ===

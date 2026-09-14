@@ -22,10 +22,7 @@ export class AuthController {
   }
 
   @Post('register')
-  async register(
-    @Body() body: any,
-    @Req() req: Request,
-  ) {
+  async register(@Body() body: any, @Req() req: Request) {
     if (this.turnstileSecret) {
       const ip =
         (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||

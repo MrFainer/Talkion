@@ -1005,66 +1005,70 @@ export class WhatsappService {
     let sent = 0;
     let skipped = 0;
 
-    for (const student of birthdayStudents) {
-      try {
-        let text = '';
+    await this.runWithConcurrencyLimit(
+      birthdayStudents,
+      this.groupSendParallelBase,
+      async (student) => {
         try {
-          text = await this.aiService.generateBirthdayMessage({
-            idea,
-            studentName: student.full_name,
-            model: settings.ai_model || undefined,
-            temperature:
-              typeof settings.ai_temperature === 'number'
-                ? settings.ai_temperature
-                : undefined,
-            tracking: {
-              teacherId,
-              studentId: student.id,
-              referenceType: 'birthday_message',
-              referenceId: student.id,
-            },
+          let text = '';
+          try {
+            text = await this.aiService.generateBirthdayMessage({
+              idea,
+              studentName: student.full_name,
+              model: settings.ai_model || undefined,
+              temperature:
+                typeof settings.ai_temperature === 'number'
+                  ? settings.ai_temperature
+                  : undefined,
+              tracking: {
+                teacherId,
+                studentId: student.id,
+                referenceType: 'birthday_message',
+                referenceId: student.id,
+              },
+            });
+          } catch (aiError) {
+            this.logger.warn(
+              `[BIRTHDAY] Falha na geração por IA para ${student.id}, usando template direto: ${this.describeError(aiError)}`,
+            );
+            text = idea
+              .replace(/\{\{nome\}\}/g, student.full_name)
+              .replace(/\{\{telefone\}\}/g, student.whatsapp_number);
+          }
+
+          if (!text) {
+            skipped += 1;
+            return;
+          }
+
+          await this.sendMessage(teacherId, student.whatsapp_number, text, {
+            studentId: student.id,
+            contentKind: 'BIRTHDAY',
           });
-        } catch (aiError) {
-          this.logger.warn(
-            `[BIRTHDAY] Falha na geração por IA para ${student.id}, usando template direto: ${this.describeError(aiError)}`,
-          );
-          text = idea
-            .replace(/\{\{nome\}\}/g, student.full_name)
-            .replace(/\{\{telefone\}\}/g, student.whatsapp_number);
-        }
 
-        if (!text) {
+          try {
+            await this.creditsService.deductCredits(
+              teacherId,
+              'birthday_send',
+              'student',
+              student.id,
+            );
+          } catch (creditError: any) {
+            this.logger.warn(
+              `[BIRTHDAY] Falha ao debitar créditos para ${student.id}: ${creditError.message}`,
+            );
+          }
+
+          sent += 1;
+        } catch (error) {
+          this.logger.error(
+            `[BIRTHDAY] Erro ao enviar mensagem para ${student.whatsapp_number}`,
+            this.describeError(error),
+          );
           skipped += 1;
-          continue;
         }
-
-        await this.sendMessage(teacherId, student.whatsapp_number, text, {
-          studentId: student.id,
-          contentKind: 'BIRTHDAY',
-        });
-
-        try {
-          await this.creditsService.deductCredits(
-            teacherId,
-            'birthday_send',
-            'student',
-            student.id,
-          );
-        } catch (creditError: any) {
-          this.logger.warn(
-            `[BIRTHDAY] Falha ao debitar créditos para ${student.id}: ${creditError.message}`,
-          );
-        }
-
-        sent += 1;
-      } catch (error) {
-        this.logger.error(
-          `[BIRTHDAY] Erro ao enviar mensagem para ${student.whatsapp_number}`,
-          this.describeError(error),
-        );
-        skipped += 1;
-      }
-    }
+      },
+    );
 
     return { sent, skipped };
   }
@@ -2761,13 +2765,13 @@ export class WhatsappService {
 
     let count = 0;
     const processed = new Set<string>();
-    for (const entry of generated) {
+    const sendEntry = async (entry: (typeof generated)[number]) => {
       const student = studentsByWhatsapp.get(entry.whatsapp);
       if (!student) {
         this.logger.warn(
           `[BROADCAST][IA] WhatsApp retornado sem correspondência: "${entry.whatsapp}" (nome: "${entry.nome}").`,
         );
-        continue;
+        return;
       }
 
       try {
@@ -2838,7 +2842,13 @@ export class WhatsappService {
           `[BROADCAST] Erro ao enviar para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
-    }
+    };
+
+    await this.runWithConcurrencyLimit(
+      generated,
+      this.groupSendParallelBase,
+      sendEntry,
+    );
 
     const missingStudents = studentsToSend.filter(
       (s) => !processed.has(s.whatsapp_number),
@@ -2847,55 +2857,59 @@ export class WhatsappService {
       this.logger.warn(
         `[BROADCAST][IA] ${missingStudents.length} aluno(s) ficaram sem retorno da IA. Enviando fallback por blocos.`,
       );
-      for (const student of missingStudents) {
-        try {
-          const blocks = fallbackBlocksForStudent(student);
-          for (const block of blocks) {
-            const text = String(block.mensagem || '').trim();
-            if (!text) continue;
-            await this.sendMessage(teacherId, student.whatsapp_number, text, {
-              studentId: student.id,
-              relatedNewsId: null,
-              contentKind: `PRIVATE_BROADCAST_FALLBACK_${block.tipo}`,
-            });
-            count++;
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          }
-
-          const audioUrl = getAudioUrlForStudent(student);
-          if (audioUrl) {
-            await this.sendAudioMessage(
-              teacherId,
-              student.whatsapp_number,
-              audioUrl,
-              {
+      await this.runWithConcurrencyLimit(
+        missingStudents,
+        this.groupSendParallelBase,
+        async (student) => {
+          try {
+            const blocks = fallbackBlocksForStudent(student);
+            for (const block of blocks) {
+              const text = String(block.mensagem || '').trim();
+              if (!text) continue;
+              await this.sendMessage(teacherId, student.whatsapp_number, text, {
                 studentId: student.id,
                 relatedNewsId: null,
-                contentKind: 'PRIVATE_BROADCAST_FALLBACK_AUDIO',
-              },
-            );
-            count++;
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          } else {
-            this.logger.warn(
-              `[BROADCAST][FALLBACK] Áudio não encontrado para ${student.whatsapp_number} (nível ${student.english_level}) — notícia sem audio_url.`,
-            );
-          }
+                contentKind: `PRIVATE_BROADCAST_FALLBACK_${block.tipo}`,
+              });
+              count++;
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
 
-          if (teacherId) {
-            await this.creditsService.deductCredits(
-              teacherId,
-              'news_individual_send',
-              'whatsapp',
-              student.id,
+            const audioUrl = getAudioUrlForStudent(student);
+            if (audioUrl) {
+              await this.sendAudioMessage(
+                teacherId,
+                student.whatsapp_number,
+                audioUrl,
+                {
+                  studentId: student.id,
+                  relatedNewsId: null,
+                  contentKind: 'PRIVATE_BROADCAST_FALLBACK_AUDIO',
+                },
+              );
+              count++;
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            } else {
+              this.logger.warn(
+                `[BROADCAST][FALLBACK] Áudio não encontrado para ${student.whatsapp_number} (nível ${student.english_level}) — notícia sem audio_url.`,
+              );
+            }
+
+            if (teacherId) {
+              await this.creditsService.deductCredits(
+                teacherId,
+                'news_individual_send',
+                'whatsapp',
+                student.id,
+              );
+            }
+          } catch (error) {
+            this.logger.error(
+              `[BROADCAST] Erro ao enviar fallback para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
-        } catch (error) {
-          this.logger.error(
-            `[BROADCAST] Erro ao enviar fallback para ${student.whatsapp_number}: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
+        },
+      );
     }
 
     return {

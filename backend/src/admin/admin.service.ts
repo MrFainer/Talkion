@@ -310,8 +310,9 @@ export class AdminService {
       });
 
       const totalReferrals = referrals.length;
-      const convertedReferrals = referrals.filter((item) => item.subscription)
-        .length;
+      const convertedReferrals = referrals.filter(
+        (item) => item.subscription,
+      ).length;
       const pendingCommissions = affiliate.affiliateCommissions
         .filter((item) => item.status === 'pending')
         .reduce((sum, item) => sum + item.amount, 0);
@@ -332,8 +333,7 @@ export class AdminService {
         converted_referrals: convertedReferrals,
         pending_commissions: pendingCommissions,
         paid_commissions: paidCommissions,
-        total_commissions:
-          pendingCommissions + paidCommissions,
+        total_commissions: pendingCommissions + paidCommissions,
         referrals,
       };
     });
@@ -434,9 +434,8 @@ export class AdminService {
       home_visits: visits.filter((visit) => visit.page_type === 'HOME').length,
       login_visits: visits.filter((visit) => visit.page_type === 'LOGIN')
         .length,
-      register_visits: visits.filter(
-        (visit) => visit.page_type === 'REGISTER',
-      ).length,
+      register_visits: visits.filter((visit) => visit.page_type === 'REGISTER')
+        .length,
       referral_visits: visits.filter(
         (visit) => visit.source_type === 'REFERRAL_LINK',
       ).length,

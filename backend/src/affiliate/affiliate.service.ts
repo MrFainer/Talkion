@@ -22,7 +22,10 @@ export class AffiliateService {
     return code;
   }
 
-  async getAffiliateLink(userId: string, type?: string): Promise<{ code: string; link: string }> {
+  async getAffiliateLink(
+    userId: string,
+    type?: string,
+  ): Promise<{ code: string; link: string }> {
     const code = await this.getOrCreateReferralCode(userId);
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
@@ -88,7 +91,11 @@ export class AffiliateService {
         name: u.name,
         email: u.email,
         created_at: u.created_at,
-        hasSubscription: u.subscriptions.length > 0 && u.subscriptions.some((s) => s.status === 'active' || s.status === 'paid'),
+        hasSubscription:
+          u.subscriptions.length > 0 &&
+          u.subscriptions.some(
+            (s) => s.status === 'active' || s.status === 'paid',
+          ),
       })),
     };
   }
