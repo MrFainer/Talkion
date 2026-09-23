@@ -755,16 +755,31 @@ Se não conseguir interpretar, retorne: {"answers": null}`;
     if (!cleaned) return 'UNKNOWN';
 
     const hasYesKeyword =
-      /\b(yes|yep|yeah|sim|confirmo|confirmar|ok|okay|beleza|bora|vamos|com certeza|pode ser|pode confirmar)\b/i.test(
+      /\b(yes|yep|yeah|y|sim|confirmo|confirmar|confirm|confirmed|ok|okay|beleza|bora|vamos|com certeza|pode ser|pode confirmar|sure|absolutely|definitely)\b/i.test(
         cleaned,
       );
     const hasNoKeyword =
-      /\b(no|nope|nao|não|recuso|cancelar|cancelo|negativo|de jeito nenhum|impossivel|hoje não|nao vou poder)\b/i.test(
+      /\b(no|nope|nah|nao|não|recuso|decline|declined|cancelar|cancelo|negativo|de jeito nenhum|impossivel|hoje não|nao vou poder)\b/i.test(
+        cleaned,
+      );
+    const hasNegation =
+      /\b(don'?t|doesn'?t|didn'?t|won'?t|wouldn'?t|can'?t|cannot|not|never|não|nao|nunca|jamais)\b/i.test(
         cleaned,
       );
 
     if (!hasYesKeyword && !hasNoKeyword) {
       return 'UNKNOWN';
+    }
+
+    const isUncertain =
+      /\b(not sure|not certain|don'?t know|doesn'?t know|didn'?t know|i'?m not sure|não sei|nao sei|não tenho certeza|nao tenho certeza|maybe|talvez|perhaps)\b/i.test(
+        cleaned,
+      );
+    if (isUncertain) {
+      return 'UNKNOWN';
+    }
+    if (hasNegation && hasYesKeyword) {
+      return 'NO';
     }
 
     const prompt = `Você é um classificador de respostas curtas.
@@ -773,8 +788,10 @@ Tarefa:
 - Dado um texto, classifique como confirmação (YES), recusa (NO) ou incerto (UNKNOWN).
 
 Regras:
-- Respostas como "yes", "sim", "ok", "confirmo", "com certeza" => YES
-- Respostas como "no", "não", "recuso", "cancelo", "hoje não" => NO
+- Respostas como "yes", "i confirm", "confirmed", "sure", "sim", "ok", "confirmo", "com certeza" => YES
+- Respostas como "no", "nah", "declined", "não", "recuso", "cancelo", "hoje não" => NO
+- Negação anula confirmação: "i don't confirm", "não confirmo", "won't confirm", "not confirmed" => NO
+- "i don't know", "not sure", "maybe" => UNKNOWN
 - Qualquer outra coisa => UNKNOWN
 
 Retorne SOMENTE JSON no formato: {"decision":"YES"|"NO"|"UNKNOWN"}
