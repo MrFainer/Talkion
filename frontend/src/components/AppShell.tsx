@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { Sidebar } from "@/components/Sidebar";
 
-const PUBLIC_ROUTES = ["/", "/login"];
+const PUBLIC_ROUTES = ["/", "/login", "/lp"];
 
 function ShellLoadingScreen() {
   return (

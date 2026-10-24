@@ -70,6 +70,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-muted: var(--brand-muted);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -112,6 +115,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Acento de marca: a "conversa" (WhatsApp). Usado só em destaque e CTA. */
+  --brand: oklch(0.74 0.16 155);
+  --brand-foreground: oklch(0.17 0.04 155);
+  --brand-muted: oklch(0.96 0.04 155);
 }
 
 .dark {
@@ -146,6 +153,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --brand: oklch(0.78 0.16 155);
+  --brand-foreground: oklch(0.17 0.04 155);
+  --brand-muted: oklch(0.28 0.05 155);
 }
 
 @layer base {

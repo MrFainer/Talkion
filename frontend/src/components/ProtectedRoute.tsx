@@ -36,7 +36,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     }
   }, [pathname]);
 
-  const publicRoutes = ['/login', '/'];
+  const publicRoutes = ['/login', '/', '/lp'];
 
   useEffect(() => {
     if (mounted && isHydrated && !isAuthenticated && !publicRoutes.includes(pathname)) {
