@@ -3,8 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { Sidebar } from "@/components/Sidebar";
-
-const PUBLIC_ROUTES = ["/", "/login", "/lp"];
+import { isPublicRoute } from "@/lib/publicRoutes";
 
 function ShellLoadingScreen() {
   return (
@@ -20,9 +19,7 @@ function ShellLoadingScreen() {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isHydrated, user } = useAuthStore();
-  const hideSidebar = PUBLIC_ROUTES.some((route) =>
-    route === "/" ? pathname === route : pathname.startsWith(route)
-  );
+  const hideSidebar = isPublicRoute(pathname);
   const isAdminShellPath =
     pathname === "/billing" || pathname === "/admin" || pathname.startsWith("/admin/");
   const shouldHoldSidebar =

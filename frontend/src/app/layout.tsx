@@ -16,6 +16,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://talkion.com.br"),
   title: "Talkion",
   description: "Automatize o aprendizado dos seus alunos com conteúdo diário, quizzes e prática de speaking pelo WhatsApp.",
   icons: {

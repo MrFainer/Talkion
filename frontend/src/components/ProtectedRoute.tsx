@@ -3,6 +3,7 @@
 import { useAuthStore } from "@/store/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { isPublicRoute, rendersOnServer } from "@/lib/publicRoutes";
 
 function RouteLoadingScreen() {
   return (
@@ -36,17 +37,15 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     }
   }, [pathname]);
 
-  const publicRoutes = ['/login', '/', '/lp'];
-
   useEffect(() => {
-    if (mounted && isHydrated && !isAuthenticated && !publicRoutes.includes(pathname)) {
+    if (mounted && isHydrated && !isAuthenticated && !isPublicRoute(pathname)) {
       router.push("/login");
     }
   }, [isAuthenticated, isHydrated, router, pathname, mounted]);
 
   useEffect(() => {
     if (!mounted || !isHydrated || !isAuthenticated || user?.role !== "ADMIN") return;
-    if (publicRoutes.includes(pathname)) return;
+    if (isPublicRoute(pathname)) return;
 
     const isAllowed = adminAllowedRoutes.some((route) =>
       pathname === route || pathname.startsWith(`${route}/`),
@@ -76,11 +75,17 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     user?.role,
   ]);
 
+  // Rotas liberadas para SSR (LP e páginas legais): sem esperar hidratação não há
+  // spinner no HTML entregue ao visitante nem ao rastreador. Nada protegido passa aqui.
+  if (rendersOnServer(pathname)) {
+    return <>{children}</>;
+  }
+
   if (!mounted || !isHydrated) {
     return <RouteLoadingScreen />;
   }
 
-  if (!isAuthenticated && !publicRoutes.includes(pathname)) {
+  if (!isAuthenticated) {
     return <RouteLoadingScreen />;
   }
 
