@@ -1,6 +1,8 @@
 # LP do Talkion (`/lp`)
 
-Status: **implementada na branch `feat/lp-talkion`** (aguardando revisão). Não está no ar.
+Status: **no ar** desde o merge do PR #2 (`187eb21`, deploy do frontend pelo Coolify) em `talkion.com.br/lp`.
+
+Ajustes técnicos de 13/11/2026 estão na branch `fix/lp-render-e-compliance` (ver §8).
 
 ## 1. Objetivo
 
@@ -80,3 +82,23 @@ no campo `path`, então a visita a `/lp` fica identificada).
    dois. Recomendo, num próximo passo, extrair para um módulo único e a home importar dele.
 3. **Domínio**: se a campanha exigir URL própria (ex.: `lp.talkion.com.br`), é um app novo no Coolify
    apontando para a mesma branch — a rota já está pronta.
+
+## 8. Ajustes de 13/11/2026 (`fix/lp-render-e-compliance`)
+
+Auditoria da página publicada (desktop, mobile, funil do CTA e HTML entregue) e o que foi corrigido:
+
+| # | Achado | Correção |
+|---|---|---|
+| 1 | O HTML de `/lp` era só "Carregando..." — todo o conteúdo dependia da hidratação (`ProtectedRoute` barrava a árvore até `isHydrated`). Sem SEO, sem preview de link e LCP = spinner. | `src/lib/publicRoutes.ts` (lista única) + `ProtectedRoute`/`AppShell` renderizam rota pública direto no servidor; `SubscriptionGuard` deixou de retornar `null` antes da hidratação. Nenhuma rota protegida mudou de comportamento. |
+| 2 | Sem `og:image` (link compartilhado saía sem imagem) e sem `sitemap.xml` (404). | `public/lp-og.png` (1200×630), `og:url`/`og:image`/`twitter:summary_large_image` em `lp/page.tsx`, `metadataBase` no layout raiz e `src/app/sitemap.ts` com `/`, `/lp`, `/termos`, `/privacidade`. |
+| 3 | Rodapé sem Termos/Privacidade e ausência de identificação do fornecedor (LGPD/CDC). | Novas páginas `/termos` e `/privacidade` (server components, texto em PT-BR sobre dados de professores e alunos, IA, WhatsApp e pagamento), linkadas no rodapé da LP e da home. Dados da entidade ficam em `src/lib/legal.ts`. |
+| 4 | FAQ (home e checkout) dizia "pacotes a partir de R$ 39,90" enquanto a tabela da home mostra 5.000 créditos por R$ 29,90. | Texto do FAQ sem valor — não afirma preço que não existe. A divergência entre as tabelas (home 5.000/R$ 29,90 × checkout 10.000/R$ 39,90) segue pendente de decisão do dono. |
+
+Pendências que ficaram fora deste ajuste (decisão do Bruno: sem marketing por enquanto):
+
+- Rastreio de conversão (GA4 / Google Ads / Meta Pixel) e captura de UTM — hoje não existe nenhum.
+- Hierarquia de CTA: o botão mais forte da página é "Quero o Professional" (R$ 199,90) e o cadastro com `plan` cai direto no checkout; o objetivo declarado da LP é o cadastro Free.
+- `plan=Free` termina em `/subscriptions/checkout` e não em `/welcome` (onboarding).
+- Depoimentos anônimos sob "QUEM JÁ USA" (validar origem ou substituir).
+- Preços duplicados entre LP e home (`data.ts` × `page.tsx`).
+- `SubscriptionGuard` é inerte: `EXEMPT_PATHS` contém `"/"` com match por prefixo, então nunca bloqueia. Preservado como estava.
