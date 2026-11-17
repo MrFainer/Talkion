@@ -201,7 +201,7 @@ const faq = [
   {
     question: "Posso comprar mais créditos?",
     answer:
-      "Sim! Oferecemos pacotes de créditos extras a partir de R$ 39,90. Basta acessar a página de assinatura e escolher o pacote desejado.",
+      "Sim! Oferecemos pacotes de créditos extras que nunca expiram. Basta acessar a página de assinatura e escolher o pacote desejado.",
   },
   {
     question: "Posso mudar de plano?",
@@ -1314,8 +1314,16 @@ export default function LandingPage() {
               </button>
             </div>
           </div>
-          <div className="mt-8 border-t border-slate-800 pt-8 text-center text-sm text-slate-600">
-            &copy; 2026 Talkion. Todos os direitos reservados.
+          <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-slate-800 pt-8 text-sm text-slate-600 sm:flex-row">
+            <p>&copy; 2026 Talkion. Todos os direitos reservados.</p>
+            <p className="flex items-center gap-6">
+              <a href="/termos" className="transition hover:text-slate-300">
+                Termos de Uso
+              </a>
+              <a href="/privacidade" className="transition hover:text-slate-300">
+                Privacidade
+              </a>
+            </p>
           </div>
         </div>
       </footer>

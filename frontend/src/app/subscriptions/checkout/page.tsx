@@ -135,7 +135,7 @@ const faqItems = [
   },
   {
     q: "Posso comprar mais créditos?",
-    a: "Sim! Oferecemos pacotes de créditos extras a partir de R$ 39,90. Basta acessar a página de assinatura e escolher o pacote desejado.",
+    a: "Sim! Oferecemos pacotes de créditos extras que nunca expiram. Basta acessar a página de assinatura e escolher o pacote desejado.",
   },
   {
     q: "Posso mudar de plano?",
