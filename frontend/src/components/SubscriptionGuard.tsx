@@ -16,6 +16,10 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
   const [trialCredits, setTrialCredits] = useState<number | null>(null);
   const [checkingCredits, setCheckingCredits] = useState(false);
 
+  // Mantido igual ao original de propósito: a lista contém "/" e o match é por
+  // prefixo, então `exempt` é sempre true e o guard não bloqueia ninguém hoje.
+  // Reativar esse bloqueio é decisão de produto — este ajuste só muda a ordem
+  // do early-return para o HTML das rotas públicas poder ser renderizado no servidor.
   const exempt =
     !user || user.role === "ADMIN" || EXEMPT_PATHS.some((p) => pathname.startsWith(p));
 
@@ -55,6 +59,9 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
     }
   }, [subscriptionStatus, user?.id, trialCredits, checkingCredits]);
 
+  // Público não espera sessão: é o que permite o HTML do /lp ser renderizado no servidor.
+  if (exempt) return <>{children}</>;
+
   if (!isHydrated) return null;
 
   if (!subscriptionStatus && !exempt) {
@@ -63,10 +70,6 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
-  }
-
-  if (exempt) {
-    return <>{children}</>;
   }
 
   const deadline = subscriptionNextBillingDate
