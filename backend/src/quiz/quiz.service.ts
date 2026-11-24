@@ -86,7 +86,11 @@ export class QuizService {
         created: true,
       };
     } catch (error) {
-      this.logger.error(`Erro ao gerar quiz para notícia ${newsId}`, error);
+      this.logger.error(
+        `Erro ao gerar quiz para notícia ${newsId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       throw error;
     }
   }
@@ -137,7 +141,11 @@ export class QuizService {
         record: answerRecord,
       };
     } catch (error) {
-      this.logger.error('Erro ao submeter resposta', error);
+      this.logger.error(
+        `Erro ao submeter resposta: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       throw error;
     }
   }

@@ -93,9 +93,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const token =
       localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
-    const userRaw =
-      localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
-    const parsedUser = userRaw ? JSON.parse(userRaw) : null;
+
+    let parsedUser: User | null = null;
+    try {
+      const userRaw =
+        localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+      parsedUser = userRaw ? JSON.parse(userRaw) : null;
+    } catch {
+      localStorage.removeItem(USER_KEY);
+      sessionStorage.removeItem(USER_KEY);
+      parsedUser = null;
+    }
 
     const subStatus =
       localStorage.getItem(SUBSCRIPTION_STATUS_KEY) || sessionStorage.getItem(SUBSCRIPTION_STATUS_KEY);
@@ -107,7 +115,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       user: parsedUser,
       token,
-      isAuthenticated: !!token,
+      isAuthenticated: !!token && !!parsedUser,
       subscriptionStatus: subStatus ?? null,
       subscriptionNextBillingDate: subNextBilling || null,
       isFreePlan: isFreeRaw === 'true',

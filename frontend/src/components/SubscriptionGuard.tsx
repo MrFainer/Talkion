@@ -59,12 +59,13 @@ export default function SubscriptionGuard({ children }: { children: React.ReactN
     }
   }, [subscriptionStatus, user?.id, trialCredits, checkingCredits]);
 
-  // Público não espera sessão: é o que permite o HTML do /lp ser renderizado no servidor.
+  // Público não espera sessão: é o que permite o HTML das rotas públicas
+  // (landing, /login, /lp e páginas legais) ser renderizado no servidor.
   if (exempt) return <>{children}</>;
 
   if (!isHydrated) return null;
 
-  if (!subscriptionStatus && !exempt) {
+  if (!subscriptionStatus) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

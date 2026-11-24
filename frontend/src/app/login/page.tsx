@@ -113,21 +113,22 @@ export default function LoginPage() {
     return match ? decodeURIComponent(match[1]) : '';
   };
 
-  const [refParam] = useState(() => {
+  const [referralCode, setReferralCode] = useState('');
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlRef = params.get('ref');
     const planParam = params.get('plan');
     if (planParam) {
       sessionStorage.setItem('selectedPlan', planParam);
     }
-    console.log('[Affiliate] useState init - urlRef:', urlRef, 'cookie:', getAffiliateCookie(), 'search:', window.location.search);
+    const cookieRef = getAffiliateCookie();
+    console.log('[Affiliate] init - urlRef:', urlRef, 'cookie:', cookieRef, 'search:', window.location.search);
     if (urlRef) {
       document.cookie = `affiliate_ref=${encodeURIComponent(urlRef)}; path=/; max-age=86400; SameSite=Lax`;
     }
-    return urlRef || getAffiliateCookie();
-  });
-
-  const [referralCode, setReferralCode] = useState(refParam);
+    setReferralCode(urlRef || cookieRef);
+  }, []);
 
   useEffect(() => {
     hydrate();

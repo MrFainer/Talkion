@@ -426,7 +426,11 @@ ${JSON.stringify({ title, content })}`;
         content,
       };
     } catch (error) {
-      this.logger.error('Erro ao gerar notícia via IA', error);
+      this.logger.error(
+        `Erro ao gerar notícia via IA: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       throw error;
     }
   }
@@ -671,7 +675,11 @@ Cada objeto deve ter: "question", "options" (array de strings no formato "A - ..
       };
       return result.questions || [];
     } catch (error) {
-      this.logger.error('Erro ao gerar quiz via IA', error);
+      this.logger.error(
+        `Erro ao gerar quiz via IA: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       throw error;
     }
   }
@@ -740,7 +748,11 @@ Se não conseguir interpretar, retorne: {"answers": null}`;
         (a) => a.selectedAnswer && a.questionIndex >= 0,
       );
     } catch (error) {
-      this.logger.error('Erro ao interpretar respostas de quiz via IA', error);
+      this.logger.error(
+        `Erro ao interpretar respostas de quiz via IA: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       return null;
     }
   }

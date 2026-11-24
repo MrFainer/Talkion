@@ -44,6 +44,19 @@ type QuizProcessingResult = {
 export class NewsService {
   private readonly logger = new Logger(NewsService.name);
   private readonly baseUrl = 'https://www.newsinlevels.com';
+  private readonly newsInLevelsHeaders = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    Accept:
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Sec-Fetch-Dest': 'document',
+    'Upgrade-Insecure-Requests': '1',
+    'Cache-Control': 'max-age=0',
+  };
   private readonly stopMarkers = [
     'You can watch the original video',
     'LEARN 3000 WORDS with NEWS IN LEVELS',
@@ -58,6 +71,21 @@ export class NewsService {
     private readonly quizService: QuizService,
     private readonly creditsService: CreditsService,
   ) {}
+
+  private formatErrorForLog(error: unknown): string {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const method = error.config?.method?.toUpperCase() || 'GET';
+      const url = error.config?.url || '';
+      return `AxiosError: ${error.message}${
+        status ? ` (status ${status})` : ''
+      } [${method} ${url}]`;
+    }
+    if (error instanceof Error) {
+      return `${error.name}: ${error.message}`;
+    }
+    return String(error);
+  }
 
   async cleanupNewsAudio(newsId: string) {
     try {
@@ -207,8 +235,7 @@ export class NewsService {
         });
       } catch (error) {
         this.logger.error(
-          `Erro ao gerar notícia para o professor ${teacher.id}:`,
-          error,
+          `Erro ao gerar notícia para o professor ${teacher.id}: ${this.formatErrorForLog(error)}`,
         );
       }
     }
@@ -315,6 +342,70 @@ export class NewsService {
     return this.scrapeLatestNewsFromSite(tracking);
   }
 
+  private async fetchNewsInLevelsHtml(
+    url: string,
+    attempts = 3,
+  ): Promise<string> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const response = await axios.get<string>(url, {
+          headers: this.newsInLevelsHeaders,
+          timeout: 20000,
+        });
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        const status = axios.isAxiosError(error)
+          ? error.response?.status
+          : undefined;
+        if (attempt === attempts) {
+          this.logger.warn(
+            `Falha ao buscar ${url} após ${attempts} tentativas${
+              status ? ` (status ${status})` : ''
+            }.`,
+          );
+        }
+        if (attempt < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  private async findLatestNewsLinkFromFeed(): Promise<string | null> {
+    try {
+      const xml = await this.fetchNewsInLevelsHtml(`${this.baseUrl}/feed/`);
+      const $ = cheerio.load(xml, { xmlMode: true });
+      const level1Links: string[] = [];
+
+      $('item').each((_, item) => {
+        const href = $(item).find('link').first().text().trim();
+        if (href && href.includes('/products/') && href.includes('level-1')) {
+          level1Links.push(href);
+          return false;
+        }
+        return true;
+      });
+
+      const link = level1Links[0] ?? null;
+      if (link) {
+        this.logger.log(`Última notícia encontrada via RSS feed: ${link}`);
+      }
+      return link;
+    } catch (error) {
+      this.logger.warn(
+        `Falha ao buscar RSS feed do NewsInLevels: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
   private async scrapeLatestNewsFromSite(
     tracking?: UsageTrackingContext,
   ): Promise<NewsProcessingResult[]> {
@@ -331,11 +422,24 @@ export class NewsService {
     await this.cleanupAllNewsAudio(tracking?.teacherId ?? undefined);
 
     try {
-      const response = await axios.get(this.baseUrl);
-      const data: string = response.data as string;
-      const $ = cheerio.load(data);
+      let firstNewsLink: string | null = null;
 
-      const firstNewsLink = $('.news-block a').first().attr('href');
+      try {
+        const data = await this.fetchNewsInLevelsHtml(this.baseUrl);
+        const $ = cheerio.load(data);
+        firstNewsLink = $('.news-block a').first().attr('href')?.trim() || null;
+      } catch (homeError) {
+        this.logger.warn(
+          `Página inicial do NewsInLevels falhou: ${
+            homeError instanceof Error ? homeError.message : String(homeError)
+          }. Tentando RSS feed...`,
+        );
+      }
+
+      if (!firstNewsLink) {
+        firstNewsLink = await this.findLatestNewsLinkFromFeed();
+      }
+
       if (!firstNewsLink) {
         throw new Error('Nenhuma notícia encontrada na página inicial.');
       }
@@ -376,8 +480,7 @@ export class NewsService {
       }
     } catch (error) {
       this.logger.error(
-        'Erro ao buscar notícias do NewsInLevels, acionando fallback IA...',
-        error,
+        `Erro ao buscar notícias do NewsInLevels, acionando fallback IA... ${this.formatErrorForLog(error)}`,
       );
       results.push(...(await this.generateFallbackNewsForAllLevels(tracking)));
       return results;
@@ -466,7 +569,9 @@ export class NewsService {
         }
       }
     } catch (err) {
-      this.logger.error('Falha ao gerar notícia fallback via IA (bundle)', err);
+      this.logger.error(
+        `Falha ao gerar notícia fallback via IA (bundle): ${this.formatErrorForLog(err)}`,
+      );
       for (const level of levels) {
         results.push({
           level,
@@ -494,7 +599,10 @@ export class NewsService {
         url = url.replace(/level-\d/, `level-${levelNumber}`);
       }
 
-      const response = await axios.get<string>(url);
+      const response = await axios.get<string>(url, {
+        headers: this.newsInLevelsHeaders,
+        timeout: 20000,
+      });
       const data = response.data;
       const $ = cheerio.load(data);
 
@@ -541,8 +649,7 @@ export class NewsService {
       };
     } catch (error) {
       this.logger.error(
-        `Erro ao extrair nível ${level}`,
-        error instanceof Error ? error.message : String(error),
+        `Erro ao extrair nível ${level}: ${this.formatErrorForLog(error)}`,
       );
       return {
         level,

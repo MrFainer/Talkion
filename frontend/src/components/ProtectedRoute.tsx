@@ -3,7 +3,7 @@
 import { useAuthStore } from "@/store/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isPublicRoute, rendersOnServer } from "@/lib/publicRoutes";
+import { isPublicRoute } from "@/lib/publicRoutes";
 
 function RouteLoadingScreen() {
   return (
@@ -75,9 +75,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     user?.role,
   ]);
 
-  // Rotas liberadas para SSR (LP e páginas legais): sem esperar hidratação não há
-  // spinner no HTML entregue ao visitante nem ao rastreador. Nada protegido passa aqui.
-  if (rendersOnServer(pathname)) {
+  // Rotas públicas (landing, /login, /lp e páginas legais) renderizam imediatamente,
+  // sem esperar a hidratação do cliente. Assim o HTML já sai com o conteúdo e o app
+  // nunca fica preso no spinner caso a hidratação atrase ou falhe. Nada protegido passa aqui.
+  if (isPublicRoute(pathname)) {
     return <>{children}</>;
   }
 
