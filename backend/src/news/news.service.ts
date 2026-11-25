@@ -57,13 +57,6 @@ export class NewsService {
     'Upgrade-Insecure-Requests': '1',
     'Cache-Control': 'max-age=0',
   };
-  private readonly stopMarkers = [
-    'You can watch the original video',
-    'LEARN 3000 WORDS with NEWS IN LEVELS',
-    'How to improve your English with News in Levels',
-    'Test Languages',
-    'Stock images by',
-  ];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -376,34 +369,103 @@ export class NewsService {
     throw lastError;
   }
 
-  private async findLatestNewsLinkFromFeed(): Promise<string | null> {
-    try {
-      const xml = await this.fetchNewsInLevelsHtml(`${this.baseUrl}/feed/`);
-      const $ = cheerio.load(xml, { xmlMode: true });
-      const level1Links: string[] = [];
+  private async fetchLatestNewsLevelsFromFeed(): Promise<
+    {
+      level: string;
+      title: string;
+      content: string;
+      sourceUrl: string;
+    }[]
+  > {
+    const xml = await this.fetchNewsInLevelsHtml(`${this.baseUrl}/feed/`);
+    const $ = cheerio.load(xml, { xmlMode: true });
 
-      $('item').each((_, item) => {
-        const href = $(item).find('link').first().text().trim();
-        if (href && href.includes('/products/') && href.includes('level-1')) {
-          level1Links.push(href);
-          return false;
-        }
-        return true;
+    const items: { title: string; link: string; encoded: string }[] = [];
+    $('item').each((_, element) => {
+      const link = $(element).find('link').first().text().trim();
+      const encoded = $(element)
+        .find('content\\:encoded')
+        .first()
+        .text()
+        .trim();
+      if (!link || !encoded) return;
+      items.push({
+        title: $(element).find('title').first().text().trim(),
+        link,
+        encoded,
       });
+    });
 
-      const link = level1Links[0] ?? null;
-      if (link) {
-        this.logger.log(`Última notícia encontrada via RSS feed: ${link}`);
-      }
-      return link;
-    } catch (error) {
-      this.logger.warn(
-        `Falha ao buscar RSS feed do NewsInLevels: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return null;
+    if (items.length === 0) {
+      return [];
     }
+
+    const slugOf = (link: string) =>
+      link.replace(/-level-[123]\/?$/i, '').replace(/\/+$/, '');
+
+    // O feed vem ordenado do mais recente e os 3 níveis do mesmo artigo
+    // compartilham o mesmo slug.
+    const latestSlug = slugOf(items[0].link);
+    const latestItems = items.filter(
+      (item) => slugOf(item.link) === latestSlug,
+    );
+
+    const byLevel = new Map<
+      string,
+      { level: string; title: string; content: string; sourceUrl: string }
+    >();
+
+    for (const item of latestItems) {
+      const levelMatch = item.link.match(/level-([123])/i);
+      if (!levelMatch) continue;
+
+      const level = `LEVEL_${levelMatch[1]}`;
+      if (byLevel.has(level)) continue;
+
+      const title =
+        this.extractTitleFromUrl(item.link) || this.normalizeTitle(item.title);
+      const content = this.extractFeedContent(item.encoded, title);
+      if (!title || !content) continue;
+
+      byLevel.set(level, { level, title, content, sourceUrl: item.link });
+    }
+
+    return ['LEVEL_1', 'LEVEL_2', 'LEVEL_3']
+      .map((level) => byLevel.get(level))
+      .filter(
+        (
+          item,
+        ): item is {
+          level: string;
+          title: string;
+          content: string;
+          sourceUrl: string;
+        } => Boolean(item),
+      );
+  }
+
+  private extractFeedContent(encodedHtml: string, title: string): string {
+    const $ = cheerio.load(encodedHtml);
+    const paragraphs: string[] = [];
+    $('p').each((_, element) => {
+      const text = $(element).text().replace(/\s+/g, ' ').trim();
+      if (text) {
+        paragraphs.push(text);
+      }
+    });
+
+    const lines: string[] = [];
+    for (const paragraph of paragraphs) {
+      // Linha de data, botões de nível e rodapé do WordPress não fazem parte do texto.
+      if (/^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}$/.test(paragraph)) continue;
+      if (/^Level\s[123]$/i.test(paragraph)) continue;
+      if (/appeared first on/i.test(paragraph)) continue;
+
+      lines.push(paragraph);
+      if (paragraph.includes('Difficult words:')) break;
+    }
+
+    return this.cleanExtractedContent(lines.join('\n\n'), title);
   }
 
   private async scrapeLatestNewsFromSite(
@@ -422,35 +484,56 @@ export class NewsService {
     await this.cleanupAllNewsAudio(tracking?.teacherId ?? undefined);
 
     try {
-      let firstNewsLink: string | null = null;
+      // O HTML do site é bloqueado por reputação de IP (403) no servidor.
+      // O RSS feed (/feed/) está liberado e traz o texto completo dos 3 níveis.
+      const feedLevels = await this.fetchLatestNewsLevelsFromFeed();
 
-      try {
-        const data = await this.fetchNewsInLevelsHtml(this.baseUrl);
-        const $ = cheerio.load(data);
-        firstNewsLink = $('.news-block a').first().attr('href')?.trim() || null;
-      } catch (homeError) {
-        this.logger.warn(
-          `Página inicial do NewsInLevels falhou: ${
-            homeError instanceof Error ? homeError.message : String(homeError)
-          }. Tentando RSS feed...`,
-        );
+      if (feedLevels.length === 0) {
+        throw new Error('Nenhuma notícia encontrada no RSS feed.');
       }
 
-      if (!firstNewsLink) {
-        firstNewsLink = await this.findLatestNewsLinkFromFeed();
-      }
-
-      if (!firstNewsLink) {
-        throw new Error('Nenhuma notícia encontrada na página inicial.');
-      }
-
-      this.logger.log(`Última notícia encontrada: ${firstNewsLink}`);
-
-      results.push(
-        await this.extractNewsDetails(firstNewsLink, 'LEVEL_1', tracking),
-        await this.extractNewsDetails(firstNewsLink, 'LEVEL_2', tracking),
-        await this.extractNewsDetails(firstNewsLink, 'LEVEL_3', tracking),
+      this.logger.log(
+        `Última notícia encontrada via RSS feed: ${feedLevels[0]?.sourceUrl}`,
       );
+
+      const feedByLevel = new Map(feedLevels.map((item) => [item.level, item]));
+
+      for (const level of ['LEVEL_1', 'LEVEL_2', 'LEVEL_3'] as const) {
+        const item = feedByLevel.get(level);
+        if (!item) {
+          this.logger.warn(`Nível ${level} não encontrado no RSS feed.`);
+          results.push({
+            level,
+            status: 'error',
+            reason: 'Nível não encontrado no RSS feed.',
+          });
+          continue;
+        }
+
+        const result = await this.saveNewsIfAllowed(
+          {
+            title: item.title,
+            content: item.content,
+            level: item.level,
+            sourceType: SourceType.SCRAPED,
+            sourceUrl: item.sourceUrl,
+          },
+          tracking,
+        );
+
+        if (result.status === 'created') {
+          this.logger.log(
+            `Nova notícia salva via RSS: [${item.level}] ${item.title}`,
+          );
+        }
+
+        results.push({
+          ...result,
+          incomingTitle: item.title,
+          incomingContent: item.content,
+          incomingSourceUrl: item.sourceUrl,
+        });
+      }
 
       const allSameNews =
         results.length === 3 &&
@@ -584,82 +667,6 @@ export class NewsService {
     return results;
   }
 
-  private async extractNewsDetails(
-    baseLink: string,
-    level: string,
-    tracking?: UsageTrackingContext,
-  ): Promise<NewsProcessingResult> {
-    try {
-      // Exemplo de link: https://www.newsinlevels.com/products/london-bridge-is-falling-down-level-1/
-      // Ajusta o link para o nível correto
-      const levelNumber = level.split('_')[1];
-      let url = baseLink;
-      if (!url.includes(`level-${levelNumber}`)) {
-        // Tenta corrigir a URL para o nível desejado caso o link base seja de outro nível
-        url = url.replace(/level-\d/, `level-${levelNumber}`);
-      }
-
-      const response = await axios.get<string>(url, {
-        headers: this.newsInLevelsHeaders,
-        timeout: 20000,
-      });
-      const data = response.data;
-      const $ = cheerio.load(data);
-
-      const title = this.extractTitle($, url);
-      const content = this.extractContent(data, $, title);
-      const audioUrl = this.extractAudioUrl($);
-
-      if (!title || !content) {
-        this.logger.warn(
-          `Não foi possível extrair conteúdo completo de: ${url}`,
-        );
-        return {
-          level,
-          status: 'error',
-          reason: 'Não foi possível extrair conteúdo completo.',
-        };
-      }
-
-      if (audioUrl) {
-        this.logger.log(`Áudio encontrado para [${level}]: ${audioUrl}`);
-      }
-
-      const result = await this.saveNewsIfAllowed(
-        {
-          title,
-          content,
-          level,
-          sourceType: SourceType.SCRAPED,
-          sourceUrl: url,
-          audioUrl: audioUrl || undefined,
-        },
-        tracking,
-      );
-
-      if (result.status === 'created') {
-        this.logger.log(`Nova notícia salva: [${level}] ${title}`);
-      }
-      return {
-        ...result,
-        incomingTitle: title,
-        incomingContent: content,
-        incomingSourceUrl: url,
-        incomingAudioUrl: audioUrl || undefined,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Erro ao extrair nível ${level}: ${this.formatErrorForLog(error)}`,
-      );
-      return {
-        level,
-        status: 'error',
-        reason:
-          error instanceof Error ? error.message : 'Erro ao extrair notícia.',
-      };
-    }
-  }
-
   private async generateQuizzesForResults(
     newsResults: NewsProcessingResult[],
     tracking?: UsageTrackingContext,
@@ -705,6 +712,51 @@ export class NewsService {
     }
 
     return quizResults;
+  }
+
+  private async generateTtsFallbackAudio(
+    news: { id: string },
+    input: { level: string; title: string; content: string },
+    tracking?: UsageTrackingContext,
+  ): Promise<void> {
+    try {
+      if (tracking?.teacherId) {
+        await this.creditsService.requireCredits(
+          tracking.teacherId,
+          'news_tts_fallback',
+        );
+      }
+      const audioBuffer = await this.aiService.generateNewsAudio(
+        input.content,
+        {
+          ...tracking,
+          newsId: news.id,
+        },
+      );
+      const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+      await mkdir(audioDir, { recursive: true });
+      const filePath = join(audioDir, `${news.id}.mp3`);
+      await writeFile(filePath, audioBuffer);
+      const audioUrlPath = `/uploads/news-audio/${news.id}.mp3`;
+      await this.prisma.news.update({
+        where: { id: news.id },
+        data: { audio_url: audioUrlPath },
+      });
+      this.logger.log(`Áudio TTS gerado para: [${input.level}] ${input.title}`);
+
+      if (tracking?.teacherId) {
+        await this.creditsService.deductCredits(
+          tracking.teacherId,
+          'news_tts_fallback',
+          'news',
+          news.id,
+        );
+      }
+    } catch (ttsError) {
+      this.logger.warn(
+        `Falha ao gerar áudio TTS para [${input.level}] ${input.title}: ${ttsError instanceof Error ? ttsError.message : String(ttsError)}`,
+      );
+    }
   }
 
   private async saveNewsIfAllowed(
@@ -863,75 +915,45 @@ export class NewsService {
       }
     }
 
-    if (input.sourceType === SourceType.SCRAPED && input.audioUrl) {
-      try {
-        this.logger.log(
-          `Baixando áudio SoundCloud (MP3) para [${input.level}]: ${input.audioUrl}`,
-        );
-        const audioDir = join(process.cwd(), 'uploads', 'news-audio');
-        await mkdir(audioDir, { recursive: true });
-        const ext = '.mp3';
-        const filePath = join(audioDir, `${createdNews.id}${ext}`);
+    if (input.sourceType === SourceType.SCRAPED) {
+      if (input.audioUrl) {
+        try {
+          this.logger.log(
+            `Baixando áudio SoundCloud (MP3) para [${input.level}]: ${input.audioUrl}`,
+          );
+          const audioDir = join(process.cwd(), 'uploads', 'news-audio');
+          await mkdir(audioDir, { recursive: true });
+          const ext = '.mp3';
+          const filePath = join(audioDir, `${createdNews.id}${ext}`);
 
-        const stream = await scdl.downloadFormat(input.audioUrl, 'audio/mpeg');
-        const chunks: Buffer[] = [];
-        for await (const chunk of stream) {
-          chunks.push(Buffer.from(chunk));
-        }
-        const audioBuffer = Buffer.concat(chunks);
-        await writeFile(filePath, audioBuffer);
-
-        const audioUrlPath = `/uploads/news-audio/${createdNews.id}${ext}`;
-        await this.prisma.news.update({
-          where: { id: createdNews.id },
-          data: { audio_url: audioUrlPath },
-        });
-        this.logger.log(
-          `Áudio SoundCloud MP3 baixado para notícia: [${input.level}] ${input.title}`,
-        );
-      } catch (error) {
-        this.logger.warn(
-          `Falha ao baixar áudio SoundCloud para [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-
-        if (tracking?.teacherId) {
-          try {
-            this.logger.log(
-              `Gerando áudio via TTS (fallback) para [${input.level}] ${input.title}...`,
-            );
-            await this.creditsService.requireCredits(
-              tracking.teacherId,
-              'news_tts_fallback',
-            );
-            const audioBuffer = await this.aiService.generateNewsAudio(
-              input.content,
-              { ...tracking, newsId: createdNews.id },
-            );
-            const audioDir = join(process.cwd(), 'uploads', 'news-audio');
-            await mkdir(audioDir, { recursive: true });
-            const filePath = join(audioDir, `${createdNews.id}.mp3`);
-            await writeFile(filePath, audioBuffer);
-            const audioUrlPath = `/uploads/news-audio/${createdNews.id}.mp3`;
-            await this.prisma.news.update({
-              where: { id: createdNews.id },
-              data: { audio_url: audioUrlPath },
-            });
-            this.logger.log(
-              `Áudio TTS gerado (fallback SoundCloud) para: [${input.level}] ${input.title}`,
-            );
-
-            await this.creditsService.deductCredits(
-              tracking.teacherId,
-              'news_tts_fallback',
-              'news',
-              createdNews.id,
-            );
-          } catch (ttsError) {
-            this.logger.warn(
-              `Falha também no TTS fallback para [${input.level}] ${input.title}: ${ttsError instanceof Error ? ttsError.message : String(ttsError)}`,
-            );
+          const stream = await scdl.downloadFormat(
+            input.audioUrl,
+            'audio/mpeg',
+          );
+          const chunks: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunks.push(Buffer.from(chunk));
           }
+          const audioBuffer = Buffer.concat(chunks);
+          await writeFile(filePath, audioBuffer);
+
+          const audioUrlPath = `/uploads/news-audio/${createdNews.id}${ext}`;
+          await this.prisma.news.update({
+            where: { id: createdNews.id },
+            data: { audio_url: audioUrlPath },
+          });
+          this.logger.log(
+            `Áudio SoundCloud MP3 baixado para notícia: [${input.level}] ${input.title}`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Falha ao baixar áudio SoundCloud para [${input.level}] ${input.title}: ${error instanceof Error ? error.message : String(error)}. Gerando via TTS...`,
+          );
+          await this.generateTtsFallbackAudio(createdNews, input, tracking);
         }
+      } else {
+        // Notícia capturada via RSS não traz link do SoundCloud: gera o áudio com TTS.
+        await this.generateTtsFallbackAudio(createdNews, input, tracking);
       }
     }
 
@@ -1020,42 +1042,6 @@ export class NewsService {
     endOfDay.setHours(23, 59, 59, 999);
 
     return { startOfDay, endOfDay };
-  }
-
-  private extractTitle(
-    $: ReturnType<typeof cheerio.load>,
-    url: string,
-  ): string {
-    const titleFromUrl = this.extractTitleFromUrl(url);
-
-    if (titleFromUrl) {
-      return titleFromUrl;
-    }
-
-    const selectors = [
-      'h1.entry-title',
-      'article h1',
-      'main h1',
-      '.entry-title',
-      '.post-title',
-      'h1',
-      'meta[property="og:title"]',
-      'meta[name="twitter:title"]',
-      'title',
-    ];
-
-    for (const selector of selectors) {
-      const element = $(selector).first();
-      const value = element.attr('content')?.trim() || element.text().trim();
-      if (value) {
-        const normalizedTitle = this.normalizeTitle(value);
-        if (normalizedTitle) {
-          return normalizedTitle;
-        }
-      }
-    }
-
-    return '';
   }
 
   private extractTitleFromUrl(url: string): string {
@@ -1167,386 +1153,11 @@ export class NewsService {
     return (value || '').trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
-  private extractAudioUrl($: ReturnType<typeof cheerio.load>): string | null {
-    const iframe = $('iframe[src*="soundcloud.com"]').first();
-    const src = iframe.attr('src');
-    if (src) {
-      const match = src.match(/url=([^&]+)/);
-      if (match) {
-        try {
-          const decodedUrl = decodeURIComponent(match[1]);
-          const finalUrl = decodeURIComponent(decodedUrl);
-          return finalUrl;
-        } catch {
-          const fallbackLink = $('a[href*="soundcloud.com/newsinlevels/"]')
-            .first()
-            .attr('href');
-          return fallbackLink || null;
-        }
-      }
-    }
-    const directLink = $('a[href*="soundcloud.com/newsinlevels/"]')
-      .first()
-      .attr('href');
-    return directLink || null;
-  }
-
-  private extractContent(
-    html: string,
-    $: ReturnType<typeof cheerio.load>,
-    title: string,
-  ): string {
-    this.sanitizeDocument($);
-
-    // Abordagem radical: Pegar TUDO que for texto do corpo da página
-    // e extrair o miolo exato entre o Título/Data e "Difficult words:"
-    // Pega todo o texto visível da tag <body>
-    const rawBodyText = $('body').text();
-    // Troca múltiplos espaços/quebras por um espaço simples
-    const flatText = rawBodyText.replace(/\s+/g, ' ');
-
-    // Precisamos achar o início. Geralmente é a data (ex: 08-05-2026 15:00) ou o título
-    const dateRegex = /\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}/;
-    const dateMatch = flatText.match(dateRegex);
-    let startIndex = 0;
-    if (dateMatch && dateMatch.index !== undefined) {
-      // Começa logo DEPOIS da data
-      startIndex = dateMatch.index + dateMatch[0].length;
-    } else {
-      // Se não achou data, tenta achar o título exato
-      const titleIndex = flatText.indexOf(title);
-      if (titleIndex !== -1) {
-        startIndex = titleIndex + title.length;
-      }
-    }
-
-    // Corta o texto do início para frente
-    const contentSection = flatText.substring(startIndex).trim();
-
-    // Agora achamos o fim, que é onde começam as propagandas/botões pós-notícia
-    const difficultWordsIdx = contentSection.indexOf('Difficult words:');
-    let cutEndIndex = contentSection.length;
-
-    if (difficultWordsIdx !== -1) {
-      // Pega as difficult words inteiras. O texto geralmente termina no primeiro ponto final ou vírgula
-      // após a palavra "ship)" ou "clean)" etc. Vamos procurar a próxima palavra que sinaliza propaganda.
-      const stopPhrases = [
-        'You can watch the video news lower on this page.',
-        'You can watch the original video',
-        'LEARN 3000 WORDS with NEWS IN LEVELS',
-        'News in Levels is designed',
-        'Test Languages',
-        'Stock images',
-        'News in Levels ·',
-      ];
-      for (const phrase of stopPhrases) {
-        const idx = contentSection.indexOf(phrase, difficultWordsIdx);
-        if (idx !== -1 && idx < cutEndIndex) {
-          cutEndIndex = idx;
-        }
-      }
-    } else {
-      // Se não tem difficult words, corta na primeira propaganda que achar
-      for (const marker of this.stopMarkers) {
-        const idx = contentSection.indexOf(marker);
-        if (idx !== -1 && idx < cutEndIndex) {
-          cutEndIndex = idx;
-        }
-      }
-    }
-
-    // Agora temos a string bruta EXATA da notícia.
-    let rawContent = contentSection.substring(0, cutEndIndex).trim();
-
-    // Remove eventuais botões "Level 1 Level 2 Level 3" que ficaram perdidos no meio
-    rawContent = rawContent.replace(/Level\s[123]/gi, '').trim();
-
-    // LOG: Imprime o texto final de forma mais limpa
-    this.logger.log(`
-
-[${title}]
-${rawContent}
-
-`);
-
-    // Retorna a string inteira formatada (bruta com a quebra de linha nas difficult words)
-    return this.formatRawText(rawContent, title);
-  }
-
-  // Pega a string colada e tenta devolver os parágrafos
-  private formatRawText(text: string, title: string): string {
-    const content = text.replace(/Toggle navigation/gi, title);
-    // Separamos a parte da notícia das "Difficult words" para não quebrar a legenda
-    const diffIdx = content.indexOf('Difficult words:');
-    let newsPart = content;
-    let diffPart = '';
-    if (diffIdx !== -1) {
-      newsPart = content.substring(0, diffIdx);
-      diffPart = content.substring(diffIdx);
-    }
-
-    // Retorna a string bruta como foi capturada.
-    // Só junta a notícia com as difficult words usando uma DUPLA quebra de linha.
-    if (diffPart) {
-      return `${newsPart.trim()}\n\n${diffPart.trim()}`;
-    }
-
-    return newsPart.trim();
-  }
-
-  private extractContentFromHtml(html: string, title: string): string {
-    const cleanedHtml = html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
-      .replace(/<iframe[\s\S]*?<\/iframe>/gi, ' ')
-      .replace(/<svg[\s\S]*?<\/svg>/gi, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/(p|div|h1|h2|h3|h4|li|article|section|main|ul|ol)>/gi, '\n');
-
-    const parsedHtml = cheerio.load(cleanedHtml);
-    const text = parsedHtml.root().text();
-    const lines = text
-      .split('\n')
-      .map((line: string) => line.replace(/\s+/g, ' ').trim())
-      .filter(Boolean);
-
-    if (lines.length === 0) {
-      return '';
-    }
-
-    const dateIndex = lines.findIndex((line: string) =>
-      /^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}$/.test(line),
-    );
-    const matchingTitleIndexes = lines
-      .map((line: string, index: number) => ({
-        index,
-        matches: this.normalizeTitle(line) === title || line.includes(title),
-      }))
-      .filter((entry: { index: number; matches: boolean }) => entry.matches)
-      .map((entry: { index: number; matches: boolean }) => entry.index);
-
-    let startIndex = 0;
-
-    if (matchingTitleIndexes.length > 0) {
-      const titleBeforeDate = matchingTitleIndexes.filter(
-        (index: number) => dateIndex === -1 || index <= dateIndex,
-      );
-      const titleIndex =
-        titleBeforeDate.length > 0
-          ? titleBeforeDate[titleBeforeDate.length - 1]
-          : matchingTitleIndexes[matchingTitleIndexes.length - 1];
-
-      startIndex = titleIndex + 1;
-    } else if (dateIndex >= 0) {
-      startIndex = dateIndex + 1;
-    }
-
-    const validParagraphs: string[] = [];
-
-    for (const line of lines.slice(startIndex)) {
-      if (this.stopMarkers.some((marker) => line.includes(marker))) {
-        break;
-      }
-
-      if (this.normalizeTitle(line) === title || line === title) {
-        continue;
-      }
-
-      if (this.looksLikeJavaScript(line) || this.looksLikeNoise(line)) {
-        continue;
-      }
-
-      if (
-        /^Level\s[123]$/i.test(line) ||
-        /^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}$/.test(line)
-      ) {
-        continue;
-      }
-
-      validParagraphs.push(line);
-
-      if (line.includes('Difficult words:')) {
-        break;
-      }
-    }
-
-    return validParagraphs.join('\n\n');
-  }
-
-  private fallbackExtractFromParagraphs(
-    $: ReturnType<typeof cheerio.load>,
-    title: string,
-  ): string {
-    const paragraphs = $('p')
-      .map((_, el) => $(el).text().replace(/\s+/g, ' ').trim())
-      .get()
-      .filter(Boolean);
-
-    const validParagraphs: string[] = [];
-
-    for (const p of paragraphs) {
-      if (
-        this.stopMarkers.some((marker: string) =>
-          (p as string).includes(marker),
-        )
-      )
-        break;
-      if (this.looksLikeJavaScript(p as string)) continue;
-      if (
-        /^Level\s[123]$/i.test(p as string) ||
-        /^\d{2}-\d{2}-\d{4}/.test(p as string)
-      )
-        continue;
-
-      validParagraphs.push(p as string);
-
-      if (typeof p === 'string' && p.includes('Difficult words:')) {
-        break;
-      }
-    }
-
-    this.logCapturedTexts(`fallback-p:${title}`, validParagraphs);
-
-    return this.cleanExtractedContent(validParagraphs.join('\n\n'), title);
-  }
-
-  private extractContentFromBodyLines(
-    $: ReturnType<typeof cheerio.load>,
-    title: string,
-  ): string {
-    const rawBodyLines = $('body')
-      .text()
-      .split('\n')
-      .map((line) => line.replace(/\s+/g, ' ').trim())
-      .filter(Boolean);
-
-    if (rawBodyLines.length === 0) {
-      return '';
-    }
-
-    const titleIndex = rawBodyLines.findIndex((line) => {
-      const normalizedLine = this.normalizeTitle(line);
-      return normalizedLine === title || line === title;
-    });
-
-    const dateIndex = rawBodyLines.findIndex((line) =>
-      /^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}$/.test(line),
-    );
-    const startIndex =
-      dateIndex >= 0 ? dateIndex + 1 : titleIndex >= 0 ? titleIndex + 1 : 0;
-
-    const candidateLines = rawBodyLines
-      .slice(startIndex)
-      .filter((line) => this.isValidContentLine(line));
-
-    return this.trimContentAtMarkers(candidateLines).join('\n\n');
-  }
-
-  private trimContentAtMarkers(lines: string[]): string[] {
-    const trimmed: string[] = [];
-    let insideDifficultWords = false;
-
-    for (const line of lines) {
-      if (this.stopMarkers.some((marker) => line.includes(marker))) {
-        break;
-      }
-
-      trimmed.push(line);
-
-      if (line.includes('Difficult words:')) {
-        insideDifficultWords = true;
-      }
-
-      if (insideDifficultWords && /[.!?]$/.test(line.trim())) {
-        break;
-      }
-    }
-
-    return trimmed.filter((line) => !this.looksLikeNoise(line));
-  }
-
-  private sanitizeDocument($: ReturnType<typeof cheerio.load>) {
-    $('script, style, noscript, iframe, svg').remove();
-  }
-
   private cleanExtractedContent(content: string, title: string): string {
     return content
       .replace(/Toggle navigation/gi, title)
       .replace(/Difficult words:/g, '\n\nDifficult words:')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private logCapturedTexts(context: string, texts: string[]) {
-    // Essa função foi mantida caso precisemos debugar algo no futuro,
-    // mas removida do fluxo principal para manter o terminal limpo.
-  }
-
-  private pickBestContentCandidate(candidates: string[][]): string[] {
-    if (candidates.length === 0) {
-      return [];
-    }
-
-    return candidates.sort((a, b) => {
-      const scoreA = this.scoreContentCandidate(a);
-      const scoreB = this.scoreContentCandidate(b);
-      return scoreB - scoreA;
-    })[0];
-  }
-
-  private scoreContentCandidate(blocks: string[]): number {
-    const joined = blocks.join(' ');
-    return blocks.length * 1000 + joined.length;
-  }
-
-  private isValidContentLine(line: string): boolean {
-    if (!line) {
-      return false;
-    }
-
-    if (/^Level\s[123]$/i.test(line)) {
-      return false;
-    }
-
-    if (/^\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}$/.test(line)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  private looksLikeNoise(line: string): boolean {
-    return (
-      line.length < 15 ||
-      /^A virus on a ship – level \d$/i.test(line) ||
-      /^News in Levels$/i.test(line) ||
-      /^World News for Students of English$/i.test(line) ||
-      /^Which .+\?$/.test(line) ||
-      this.looksLikeJavaScript(line)
-    );
-  }
-
-  private looksLikeJavaScript(line: string): boolean {
-    const javascriptPatterns = [
-      /\bfunction\s*\(/i,
-      /\bfunction\s+[A-Za-z_$][\w$]*\s*\(/,
-      /\bvar\s+[A-Za-z_$][\w$]*/i,
-      /\blet\s+[A-Za-z_$][\w$]*/i,
-      /\bconst\s+[A-Za-z_$][\w$]*/i,
-      /=>/,
-      /\bdocument\./i,
-      /\bwindow\./i,
-      /\bconsole\./i,
-      /\baddEventListener\b/i,
-      /\bsetTimeout\b/i,
-      /\bsetInterval\b/i,
-      /[A-Za-z_$][\w$]*\s*=\s*function\b/,
-      /[{;].*[=}]/,
-    ];
-
-    return javascriptPatterns.some((pattern) => pattern.test(line));
   }
 }
